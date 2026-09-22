@@ -37,7 +37,31 @@ def test_parse_subscription_by_id():
 def test_parse_subscription_fallback_by_period():
     body = {"name": "newSubscription", "payload": {"user": {"telegram_id": 6}, "subscription_id": "unknown", "period": "weekly", "id": 99}}
     ev = tribute.parse_event(body, _settings())
-    assert ev.product_code == "sub_week" and ev.external_id == "99"
+    assert ev.product_code == "sub_week"
+    # id оффера не может служить id платежа: он одинаков у всех продлений
+    assert ev.external_id != "99"
+    assert ev.external_id.startswith("sub:6:")
+    assert tribute.parse_event(body, _settings()).external_id == ev.external_id
+
+
+def _sub(uid, expires_at):
+    return {
+        "name": "new_subscription",
+        "payload": {"telegram_user_id": uid, "subscription_id": "offer_42", "period": "monthly", "expires_at": expires_at},
+    }
+
+
+def test_renewals_of_same_subscription_get_different_external_ids():
+    first = tribute.parse_event(_sub(5, "2026-10-22T00:00:00Z"), _settings())
+    renewal = tribute.parse_event(_sub(5, "2026-11-22T00:00:00Z"), _settings())
+    assert first.product_code == renewal.product_code == "sub_month"
+    assert first.external_id != renewal.external_id
+
+
+def test_same_subscription_for_different_users_gets_different_external_ids():
+    a = tribute.parse_event(_sub(5, "2026-10-22T00:00:00Z"), _settings())
+    b = tribute.parse_event(_sub(6, "2026-10-22T00:00:00Z"), _settings())
+    assert a.external_id != b.external_id
 
 
 def test_parse_pack_by_name_and_other():

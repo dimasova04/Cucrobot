@@ -72,7 +72,10 @@ def parse_event(body: dict, settings) -> TributeEvent:
     if code is None and kind == "pack":
         m = re.search(r"\b(50|100|300)\b", str(payload.get("product_name", "")))
         code = f"pack_{m.group(1)}" if m else None
-    ext = _first(payload, "payment_id", "paymentId", "transaction_id", "transactionId", "id", "subscription_id")
+    # Только идентификаторы самого платежа: "id" и "subscription_id" указывают на
+    # оффер/подписку и повторяются у каждого продления, что склеило бы разные платежи
+    # в один external_id и потеряло бы начисление.
+    ext = _first(payload, "payment_id", "paymentId", "transaction_id", "transactionId")
     if ext is not None:
         external_id = str(ext)
     else:
