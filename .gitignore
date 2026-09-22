@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+cucrobot.db
 bench_out/
 .DS_Store
 .claude/
