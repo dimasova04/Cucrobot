@@ -14,6 +14,14 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def intro_kb() -> InlineKeyboardMarkup:
+    return grid(
+        [(texts.BTN_INTRO_CREATE, "menu:create")],
+        1,
+        [[(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_HELP, "menu:help")]],
+    )
+
+
 def rules_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=texts.RULES_ACCEPT_BTN, callback_data="rules:accept")]]

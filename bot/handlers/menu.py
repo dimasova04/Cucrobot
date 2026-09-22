@@ -14,6 +14,7 @@ menu_router = Router(name="menu")
 async def cmd_menu(message: Message, state: FSMContext, user, settings):
     await state.clear()
     await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
+    await message.answer(texts.INTRO, reply_markup=keyboards.intro_kb())
     try:
         await send_bonus_card(message.bot, user.id, user, settings)
     except Exception as e:
@@ -37,3 +38,9 @@ async def cb_cancel(cb: CallbackQuery, state: FSMContext):
 @menu_router.message(F.text == texts.BTN_HELP)
 async def help_msg(message: Message):
     await message.answer(texts.HELP)
+
+
+@menu_router.callback_query(F.data == "menu:help")
+async def cb_help(cb: CallbackQuery):
+    await cb.answer()
+    await cb.message.answer(texts.HELP)

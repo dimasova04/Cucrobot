@@ -29,6 +29,7 @@ async def cmd_start(message: Message, state: FSMContext, user, settings):
         await message.answer(texts.RULES, reply_markup=keyboards.rules_kb())
         return
     await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
+    await message.answer(texts.INTRO, reply_markup=keyboards.intro_kb())
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
@@ -51,6 +52,8 @@ async def accept_rules(cb: CallbackQuery, session, user, settings):
     await cb.message.edit_reply_markup(reply_markup=None)
     if granted:
         await cb.message.answer(texts.WELCOME.format(n=granted), reply_markup=keyboards.main_menu())
+        await cb.message.answer(texts.INTRO, reply_markup=keyboards.intro_kb())
         await _try_send_bonus_card(cb.bot, locked.id, locked, settings)
     else:
         await cb.message.answer(texts.MENU, reply_markup=keyboards.main_menu())
+        await cb.message.answer(texts.INTRO, reply_markup=keyboards.intro_kb())

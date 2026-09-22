@@ -50,6 +50,12 @@ async def btn_create(message: Message, state: FSMContext):
     await _start_flow(message, state)
 
 
+@generate_router.callback_query(F.data == "menu:create")
+async def cb_create(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _start_flow(cb.message, state)
+
+
 def _nav_row(prefix: str, page: int, has_prev: bool, has_next: bool) -> list[list[tuple[str, str]]]:
     row = []
     if has_prev:

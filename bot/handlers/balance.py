@@ -75,6 +75,13 @@ async def show_profile(message: Message, user, settings):
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
+@profile_router.callback_query(F.data == "menu:profile")
+async def cb_profile(cb: CallbackQuery, user, settings):
+    await cb.answer()
+    await cb.message.answer(_profile_text(user, settings), reply_markup=profile_kb(user))
+    await _try_send_bonus_card(cb.bot, user.id, user, settings)
+
+
 @profile_router.callback_query(F.data == "profile:quality")
 async def toggle_quality(cb: CallbackQuery, session, user, settings):
     if not subscriptions.is_active(user):

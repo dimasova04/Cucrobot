@@ -270,3 +270,10 @@ def test_admin_help_lists_every_admin_command():
     listed = set(re.findall(r"/(\w+)", texts.ADM_HELP))
     for cmd in ("admin", "stats", "user", "give", "sub", "block", "unblock", "actors", "scenes", "cancel"):
         assert cmd in listed
+
+
+def test_intro_keyboard_buttons():
+    kb = keyboards.intro_kb()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert cbs == ["menu:create", "menu:profile", "menu:help"]
+    assert "1." in texts.INTRO and "2." in texts.INTRO and "3." in texts.INTRO
