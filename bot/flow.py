@@ -18,6 +18,21 @@ class GenStates(StatesGroup):
     confirm = State()
 
 
+ACTORS_PER_PAGE = 10
+SCENES_PER_PAGE = 12
+
+
+def paginate(items: list, page: int, size: int) -> tuple[list, bool, bool]:
+    """Возвращает (срез страницы, есть ли предыдущая, есть ли следующая).
+    Номер страницы с нуля, выход за границы зажимается."""
+    if size <= 0:
+        raise ValueError("size must be positive")
+    last_page = max(0, (len(items) - 1) // size)
+    page = max(0, min(page, last_page))
+    start = page * size
+    return items[start : start + size], page > 0, start + size < len(items)
+
+
 def empty_data() -> dict:
     return {"people": [], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None, "tier": "base"}
 

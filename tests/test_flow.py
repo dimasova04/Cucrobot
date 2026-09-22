@@ -37,3 +37,18 @@ def test_is_complete():
     assert is_complete(d)
     d.update(actors=[])
     assert not is_complete(d)
+
+
+def test_paginate():
+    from bot.flow import paginate
+
+    items = list(range(25))
+    assert paginate(items, 0, 10) == (items[:10], False, True)
+    assert paginate(items, 1, 10) == (items[10:20], True, True)
+    assert paginate(items, 2, 10) == (items[20:], True, False)
+    # выход за границы зажимается к последней странице
+    assert paginate(items, 99, 10) == (items[20:], True, False)
+    assert paginate(items, -5, 10) == (items[:10], False, True)
+    # одна страница целиком
+    assert paginate([1, 2], 0, 10) == ([1, 2], False, False)
+    assert paginate([], 0, 10) == ([], False, False)

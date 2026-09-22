@@ -7,9 +7,12 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.flow import (
+    ACTORS_PER_PAGE,
+    SCENES_PER_PAGE,
     GenStates,
     empty_data,
     is_complete,
+    paginate,
     request_from_state,
     scene_label,
     summary,
@@ -45,22 +48,44 @@ async def btn_create(message: Message, state: FSMContext):
     await _start_flow(message, state)
 
 
-async def _show_actors(target: Message, state: FSMContext, session, exclude: list[int] | None = None, second: bool = False):
-    actors = [a for a in await catalog.list_actors(session) if a.id not in (exclude or [])]
-    items = [(a.name, f"act:{a.id}") for a in actors]
-    extra = [[(texts.BTN_NO, "a2:no")], keyboards.cancel_row()] if second else [keyboards.cancel_row()]
+def _nav_row(prefix: str, page: int, has_prev: bool, has_next: bool) -> list[list[tuple[str, str]]]:
+    row = []
+    if has_prev:
+        row.append((texts.BTN_PREV, f"{prefix}:page:{page - 1}"))
+    if has_next:
+        row.append((texts.BTN_NEXT, f"{prefix}:page:{page + 1}"))
+    return [row] if row else []
+
+
+async def _show_actors(
+    target: Message, state: FSMContext, session,
+    exclude: list[int] | None = None, second: bool = False, page: int = 0,
+):
+    all_actors = await catalog.list_actors(session)
+    if not all_actors:
+        await state.clear()
+        await target.answer(texts.CATALOG_EMPTY, reply_markup=keyboards.main_menu())
+        return
+    actors = [a for a in all_actors if a.id not in (exclude or [])]
+    chunk, has_prev, has_next = paginate(actors, page, ACTORS_PER_PAGE)
+    items = [(a.name, f"act:{a.id}") for a in chunk]
+    extra = _nav_row("act", page, has_prev, has_next)
+    if second:
+        extra.append([(texts.BTN_NO, "a2:no")])
+    extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.actor2 if second else GenStates.actor1)
     await target.answer(texts.CHOOSE_ACTOR_2 if second else texts.CHOOSE_ACTOR, reply_markup=keyboards.grid(items, 2, extra))
 
 
-async def _show_scenes(target: Message, state: FSMContext, session):
+async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0):
     scenes = await catalog.list_scenes(session)
-    items = [(s.name, f"scene:{s.id}") for s in scenes]
+    chunk, has_prev, has_next = paginate(scenes, page, SCENES_PER_PAGE)
+    items = [(s.name, f"scene:{s.id}") for s in chunk]
+    extra = _nav_row("scene", page, has_prev, has_next)
+    extra.append([(texts.BTN_CUSTOM_SCENE, "scene:custom")])
+    extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.scene)
-    await target.answer(
-        texts.CHOOSE_SCENE,
-        reply_markup=keyboards.grid(items, 2, [[(texts.BTN_CUSTOM_SCENE, "scene:custom")], keyboards.cancel_row()]),
-    )
+    await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
 @generate_router.message(GenStates.person1, F.photo | F.document)
@@ -104,6 +129,17 @@ async def p2_no(cb: CallbackQuery, state: FSMContext, session):
     await _show_actors(cb.message, state, session)
 
 
+# Зарегистрирован раньше act:<id>, иначе "act:page:2" попал бы в выбор актёра.
+@generate_router.callback_query(GenStates.actor1, F.data.startswith("act:page:"))
+@generate_router.callback_query(GenStates.actor2, F.data.startswith("act:page:"))
+async def actors_page(cb: CallbackQuery, state: FSMContext, session):
+    page = int(cb.data.rsplit(":", 1)[1])
+    st = await state.get_data()
+    second = await state.get_state() == GenStates.actor2.state
+    await cb.answer()
+    await _show_actors(cb.message, state, session, exclude=st.get("actors") if second else None, second=second, page=page)
+
+
 @generate_router.callback_query(GenStates.actor1, F.data.startswith("act:"))
 async def actor1_chosen(cb: CallbackQuery, state: FSMContext, session):
     actor_id = int(cb.data.split(":")[1])
@@ -134,6 +170,13 @@ async def actor2_skip(cb: CallbackQuery, state: FSMContext, session):
 async def _ask_detail(target: Message, state: FSMContext):
     await state.set_state(GenStates.detail)
     await target.answer(texts.ASK_DETAIL, reply_markup=keyboards.grid([(texts.BTN_SKIP, "detail:skip")], 1, [keyboards.cancel_row()]))
+
+
+# Тоже раньше scene:<id>: "scene:page:1" не должно уйти в выбор сцены.
+@generate_router.callback_query(GenStates.scene, F.data.startswith("scene:page:"))
+async def scenes_page(cb: CallbackQuery, state: FSMContext, session):
+    await cb.answer()
+    await _show_scenes(cb.message, state, session, page=int(cb.data.rsplit(":", 1)[1]))
 
 
 @generate_router.callback_query(GenStates.scene, F.data == "scene:custom")
