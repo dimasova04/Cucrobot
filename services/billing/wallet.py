@@ -48,12 +48,17 @@ async def charge_generation(session: AsyncSession, user_id: int, cost: int, gene
 
 async def refund_generation(session: AsyncSession, user_id: int, generation_id: int) -> int | None:
     ref_id = str(generation_id)
+    # Lock the user row before the idempotency check so concurrent refunds serialize.
+    if await get_user_for_update(session, user_id) is None:
+        return None
     rows = await session.execute(
-        select(CrystalTransaction).where(
+        select(CrystalTransaction)
+        .where(
             CrystalTransaction.user_id == user_id,
             CrystalTransaction.ref_type == "generation",
             CrystalTransaction.ref_id == ref_id,
         )
+        .order_by(CrystalTransaction.id)
     )
     txs = rows.scalars().all()
     charge = next((t for t in txs if t.kind == "charge"), None)
