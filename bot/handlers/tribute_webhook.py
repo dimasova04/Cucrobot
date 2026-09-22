@@ -28,8 +28,9 @@ def make_handler(session_factory, settings, bot):
             async with session_factory() as s:
                 user = await repo.get_or_create_user(s, ev.telegram_user_id, None)
                 if ev.product_code is None:
-                    if not await grants.payment_exists(s, "tribute", ev.external_id):
-                        s.add(Payment(provider="tribute", external_id=ev.external_id, user_id=user.id, product="?", amount=ev.amount, currency=ev.currency, status="unresolved", raw=body))
+                    unresolved_id = f"unresolved:{ev.external_id}"
+                    if not await grants.payment_exists(s, "tribute", unresolved_id):
+                        s.add(Payment(provider="tribute", external_id=unresolved_id, user_id=user.id, product="?", amount=ev.amount, currency=ev.currency, status="unresolved", raw=body))
                     await s.commit()
                     logger.error("tribute: cannot resolve product for {}", body)
                     return web.Response(text="unresolved")

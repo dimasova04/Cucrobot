@@ -1,6 +1,7 @@
 # services/payments/tribute.py
 import hashlib
 import hmac
+import json
 import re
 from dataclasses import dataclass
 
@@ -72,7 +73,14 @@ def parse_event(body: dict, settings) -> TributeEvent:
         m = re.search(r"\b(50|100|300)\b", str(payload.get("product_name", "")))
         code = f"pack_{m.group(1)}" if m else None
     ext = _first(payload, "payment_id", "paymentId", "transaction_id", "transactionId", "id", "subscription_id")
-    external_id = str(ext) if ext is not None else f"{kind}:{uid}:{payload.get('created_at') or payload.get('expires_at') or ''}"
+    if ext is not None:
+        external_id = str(ext)
+    else:
+        stamp = payload.get("created_at") or payload.get("expires_at") or ""
+        digest = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode()
+        ).hexdigest()[:16]
+        external_id = f"{kind}:{uid}:{stamp}:{digest}"
     amount = payload.get("amount") or 0
     try:
         amount = int(amount)
