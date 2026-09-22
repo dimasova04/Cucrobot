@@ -195,3 +195,69 @@ async def test_admin_give_cannot_go_below_zero(session_factory):
         assert msg.answers == [texts.ADM_GIVE_INSUFFICIENT.format(balance=2)]
     async with session_factory() as s:
         assert (await repo.get_user(s, 5)).crystals == 2
+
+
+async def _feed_cancel_update(monkeypatch, dp, session_factory, user_id: int, admin_state=None):
+    """Прогоняет текстовое /cancel через реальный (общий на всю сессию, см.
+    фикстуру `dispatcher`) Dispatcher — так же, как это делает aiogram при
+    получении апдейта от Telegram."""
+    from datetime import datetime
+
+    from aiogram import Bot
+    from aiogram.types import Chat, Message, MessageEntity, Update
+    from aiogram.types import User as TgUser
+
+    from database import repo
+
+    bot = Bot(token="42:TEST")
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, user_id, "u")
+        user.rules_accepted_at = datetime.now()
+        await s.commit()
+
+    if admin_state is not None:
+        await dp.fsm.get_context(bot, chat_id=user_id, user_id=user_id).set_state(admin_state)
+
+    answers: list[str] = []
+
+    async def fake_answer(self, text=None, **kwargs):
+        answers.append(text)
+        return None
+
+    monkeypatch.setattr(Message, "answer", fake_answer)
+
+    update = Update(
+        update_id=1,
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            chat=Chat(id=user_id, type="private"),
+            from_user=TgUser(id=user_id, is_bot=False, first_name="u"),
+            text="/cancel",
+            entities=[MessageEntity(type="bot_command", offset=0, length=7)],
+        ),
+    )
+    await dp.feed_update(bot, update)
+    await bot.session.close()
+    return answers
+
+
+async def test_cancel_reaches_regular_user(dispatcher, dispatcher_session_factory, monkeypatch):
+    # Регрессия: AdminOnlyMiddleware не должна перехватывать /cancel обычного
+    # пользователя — cmd_cancel в admin/actors.py и admin/scenes.py ограничен
+    # состояниями своего диалога, и до menu_router.cmd_cancel доходит только
+    # не-админский вызов.
+    answers = await _feed_cancel_update(monkeypatch, dispatcher, dispatcher_session_factory, user_id=555)
+    assert texts.CANCELLED in answers
+    assert texts.ADMIN_ONLY not in answers
+
+
+async def test_cancel_reaches_admin_inside_actor_dialog(dispatcher, dispatcher_session_factory, monkeypatch):
+    from bot.handlers.admin.actors import AdminActorStates
+
+    answers = await _feed_cancel_update(
+        monkeypatch, dispatcher, dispatcher_session_factory, user_id=607396740, admin_state=AdminActorStates.name
+    )
+    assert texts.CANCELLED in answers
+    assert texts.ADMIN_ONLY not in answers

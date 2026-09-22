@@ -24,12 +24,8 @@ def test_parse_payload():
     assert stars.parse_payload("garbage") is None
 
 
-def test_generate_router_is_registered_last():
-    from config.settings import Settings
-    from main import build_dispatcher
-
-    dp = build_dispatcher(Settings(_env_file=None, bot_token="x"), session_factory=object(), generator=None)
-    names = [r.name for r in dp.sub_routers]
+def test_generate_router_is_registered_last(dispatcher):
+    names = [r.name for r in dispatcher.sub_routers]
     assert names[-1] == "generate"
     assert names.index("payments") < names.index("generate")
     assert names.index("balance") < names.index("generate")

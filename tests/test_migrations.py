@@ -1,9 +1,14 @@
 import sqlite3
 
 from alembic import command
+from alembic.autogenerate import compare_metadata
+from alembic.migration import MigrationContext
+from sqlalchemy import create_engine
 
 from config.settings import get_settings
+from database.base import Base
 from database.migrate import make_config
+import database.models  # noqa: F401 — регистрирует модели в Base.metadata
 
 TABLES = {
     "users", "crystal_transactions", "generations", "payments",
@@ -34,3 +39,12 @@ def test_migrations_create_full_schema(tmp_path, monkeypatch):
         assert ["provider", "external_id"] in unique_cols
     finally:
         con.close()
+
+    # Миграции head должны полностью описывать модели: никакого дрейфа схемы.
+    engine = create_engine(f"sqlite:///{db}")
+    try:
+        with engine.connect() as connection:
+            migration_context = MigrationContext.configure(connection)
+            assert compare_metadata(migration_context, Base.metadata) == []
+    finally:
+        engine.dispose()

@@ -1,5 +1,5 @@
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InputMediaPhoto, Message
@@ -11,17 +11,20 @@ from services.generation.content_filter import is_allowed
 actors_router = Router(name="admin_actors")
 
 
-# Зарегистрирован первым: иначе /cancel внутри диалога съели бы текстовые шаги.
-@actors_router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(texts.CANCELLED, reply_markup=keyboards.main_menu())
-
-
 class AdminActorStates(StatesGroup):
     name = State()
     description = State()
     photos = State()
+
+
+# Зарегистрирован первым: иначе /cancel внутри диалога съели бы текстовые шаги.
+# Ограничен состояниями этого диалога: иначе не-админы, для которых фильтр
+# Command всё равно матчится раньше AdminOnlyMiddleware, никогда не доходили
+# бы до menu_router.cmd_cancel.
+@actors_router.message(Command("cancel"), StateFilter(AdminActorStates))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(texts.CANCELLED, reply_markup=keyboards.main_menu())
 
 
 def _photo_file_id(message: Message) -> str | None:
