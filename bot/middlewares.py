@@ -46,6 +46,8 @@ class RulesGateMiddleware(BaseMiddleware):
         if user is None:
             return await handler(event, data)
         if user.is_blocked:
+            if isinstance(event, CallbackQuery):
+                await event.answer()
             return None
         if needs_rules(user, event):
             if isinstance(event, Message):
@@ -65,5 +67,7 @@ class AdminOnlyMiddleware(BaseMiddleware):
         if tg_user is None or not self._settings.is_admin(tg_user.id):
             if isinstance(event, Message):
                 await event.answer(texts.ADMIN_ONLY)
+            elif isinstance(event, CallbackQuery):
+                await event.answer(texts.ADMIN_ONLY, show_alert=True)
             return None
         return await handler(event, data)

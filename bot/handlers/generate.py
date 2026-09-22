@@ -25,7 +25,7 @@ async def _start_flow(message: Message, state: FSMContext):
     await state.clear()
     await state.set_data(empty_data())
     await state.set_state(GenStates.person1)
-    await message.answer(texts.SEND_PERSON_1, reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row()]))
+    await message.answer(texts.SEND_PERSON_1, reply_markup=keyboards.grid([], extra_rows=[keyboards.cancel_row()]))
 
 
 @generate_router.message(F.text == texts.BTN_CREATE)
@@ -36,7 +36,7 @@ async def btn_create(message: Message, state: FSMContext):
 async def _show_actors(target: Message, state: FSMContext, session, exclude: list[int] | None = None, second: bool = False):
     actors = [a for a in await catalog.list_actors(session) if a.id not in (exclude or [])]
     items = [(a.name, f"act:{a.id}") for a in actors]
-    extra = [[(texts.BTN_NO, "a2:no")], keyboards.back_row()] if second else [keyboards.back_row()]
+    extra = [[(texts.BTN_NO, "a2:no")], keyboards.cancel_row()] if second else [keyboards.cancel_row()]
     await state.set_state(GenStates.actor2 if second else GenStates.actor1)
     await target.answer(texts.CHOOSE_ACTOR_2 if second else texts.CHOOSE_ACTOR, reply_markup=keyboards.grid(items, 2, extra))
 
@@ -47,7 +47,7 @@ async def _show_scenes(target: Message, state: FSMContext, session):
     await state.set_state(GenStates.scene)
     await target.answer(
         texts.CHOOSE_SCENE,
-        reply_markup=keyboards.grid(items, 2, [[(texts.BTN_CUSTOM_SCENE, "scene:custom")], keyboards.back_row()]),
+        reply_markup=keyboards.grid(items, 2, [[(texts.BTN_CUSTOM_SCENE, "scene:custom")], keyboards.cancel_row()]),
     )
 
 
@@ -120,7 +120,7 @@ async def actor2_skip(cb: CallbackQuery, state: FSMContext, session):
 
 async def _ask_detail(target: Message, state: FSMContext):
     await state.set_state(GenStates.detail)
-    await target.answer(texts.ASK_DETAIL, reply_markup=keyboards.grid([(texts.BTN_SKIP, "detail:skip")], 1, [keyboards.back_row()]))
+    await target.answer(texts.ASK_DETAIL, reply_markup=keyboards.grid([(texts.BTN_SKIP, "detail:skip")], 1, [keyboards.cancel_row()]))
 
 
 @generate_router.callback_query(GenStates.scene, F.data == "scene:custom")
@@ -171,7 +171,7 @@ async def _ask_model(target: Message, state: FSMContext, user, settings):
         items.append((texts.MODEL_PREMIUM_BTN.format(cost=settings.cost_premium), "model:premium"))
     else:
         text += "\n" + texts.MODEL_PREMIUM_LOCKED
-    await target.answer(text, reply_markup=keyboards.grid(items, 1, [keyboards.back_row()]))
+    await target.answer(text, reply_markup=keyboards.grid(items, 1, [keyboards.cancel_row()]))
 
 
 @generate_router.callback_query(GenStates.detail, F.data == "detail:skip")
@@ -206,7 +206,7 @@ async def _show_confirm(target: Message, state: FSMContext, session, user, setti
     scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
     text = summary(st, [a.name for a in actors], scene_label(st, scene.name if scene else None), tier, cost, user.crystals)
     await state.set_state(GenStates.confirm)
-    await target.answer(text, reply_markup=keyboards.grid([(texts.BTN_GENERATE, "gen:go")], 1, [keyboards.back_row()]))
+    await target.answer(text, reply_markup=keyboards.grid([(texts.BTN_GENERATE, "gen:go")], 1, [keyboards.cancel_row()]))
 
 
 @generate_router.callback_query(GenStates.model, F.data.startswith("model:"))

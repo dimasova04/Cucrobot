@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from bot import keyboards
+from bot import keyboards, texts
 from bot.middlewares import needs_rules
 from database.models import User
 
@@ -34,5 +34,9 @@ def test_grid_layout_and_extra_rows():
 
 def test_main_menu_has_five_buttons():
     kb = keyboards.main_menu()
-    texts = [b.text for row in kb.keyboard for b in row]
-    assert len(texts) == 5 and "📸 Создать фото" in texts
+    btn_texts = [b.text for row in kb.keyboard for b in row]
+    assert len(btn_texts) == 5 and "📸 Создать фото" in btn_texts
+
+
+def test_cancel_row():
+    assert keyboards.cancel_row() == [(texts.BTN_CANCEL, "gen:cancel")]

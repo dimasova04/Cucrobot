@@ -7,6 +7,7 @@ from sqlalchemy import select
 from bot import keyboards, texts
 from database.base import utcnow
 from database.models import CrystalTransaction
+from database.repo import get_user_for_update
 from services.billing import wallet
 
 start_router = Router(name="start")
@@ -23,18 +24,22 @@ async def cmd_start(message: Message, state: FSMContext, user, settings):
 
 @start_router.callback_query(F.data == "rules:accept")
 async def accept_rules(cb: CallbackQuery, session, user, settings):
-    if user.rules_accepted_at is None:
-        user.rules_accepted_at = utcnow()
+    locked = await get_user_for_update(session, user.id)
+    if locked.rules_accepted_at is None:
+        locked.rules_accepted_at = utcnow()
     has_start = (
         await session.execute(
             select(CrystalTransaction.id).where(
-                CrystalTransaction.user_id == user.id, CrystalTransaction.kind == "start"
+                CrystalTransaction.user_id == locked.id, CrystalTransaction.kind == "start"
             )
         )
     ).scalar_one_or_none()
     granted = settings.start_crystals if has_start is None else 0
     if granted:
-        await wallet.apply(session, user.id, granted, "start")
+        await wallet.apply(session, locked.id, granted, "start")
     await cb.answer()
     await cb.message.edit_reply_markup(reply_markup=None)
-    await cb.message.answer(texts.WELCOME.format(n=granted), reply_markup=keyboards.main_menu())
+    if granted:
+        await cb.message.answer(texts.WELCOME.format(n=granted), reply_markup=keyboards.main_menu())
+    else:
+        await cb.message.answer(texts.MENU, reply_markup=keyboards.main_menu())

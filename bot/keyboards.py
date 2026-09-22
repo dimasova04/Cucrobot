@@ -50,5 +50,5 @@ def result_kb() -> InlineKeyboardMarkup:
     )
 
 
-def back_row() -> list[tuple[str, str]]:
+def cancel_row() -> list[tuple[str, str]]:
     return [(texts.BTN_CANCEL, "gen:cancel")]
