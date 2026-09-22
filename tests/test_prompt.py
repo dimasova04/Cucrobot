@@ -74,6 +74,23 @@ def test_content_filter_no_false_positives_on_common_words():
     assert not content_filter.is_allowed("труп в комнате")
     assert not content_filter.is_allowed("nude on the bed")
     assert not content_filter.is_allowed("ГОЛЫЕ на пляже")
+    assert content_filter.is_allowed("секстант на столе")
+    assert content_filter.is_allowed("секстет исполнил вивальди")
+    assert content_filter.is_allowed("стрингер крыла")
+    assert content_filter.is_allowed("обнажение шейки зуба")
+    assert content_filter.is_allowed("rapeseed oil")
+    assert content_filter.is_allowed("gore-tex jacket")
+    assert content_filter.is_allowed("the lawyer intimated")
+    assert content_filter.is_allowed("booby prize")
+    assert content_filter.is_allowed("pussycat on the windowsill")
+    assert content_filter.is_allowed("bloodhound tracked the trail")
+    assert content_filter.is_allowed("nudge him gently")
+    assert content_filter.is_allowed("a portrait in the park")
+    assert not content_filter.is_allowed("секс на пляже")
+    assert not content_filter.is_allowed("обнажённая на диване")
+    assert not content_filter.is_allowed("в стрингах")
+    assert not content_filter.is_allowed("bloody murder")
+    assert not content_filter.is_allowed("boobs out")
 
 
 def test_build_validates_cardinality():
