@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    model_base_air: str = "runware:400@2"
+    model_base_air: str = "bytedance:seedream@4.5"
     model_premium_air: str = "google:4@3"
-    model_base_max_refs: int = 4
+    model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
 
     tribute_api_key: str = ""

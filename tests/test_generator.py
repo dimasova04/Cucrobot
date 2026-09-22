@@ -87,7 +87,7 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done" and out.image_bytes == b"IMG" and out.cost_usd == 0.002
     call = provider.calls[0]
-    assert call["model"] == "runware:400@2"
+    assert call["model"] == "bytedance:seedream@4.5"
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
     assert (call["width"], call["height"]) == (832, 1248)
     async with session_factory() as s:

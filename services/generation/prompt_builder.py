@@ -4,6 +4,10 @@ SAFETY_CLAUSE = (
     "Keep every face exactly as in the reference images. "
     "Everyone is fully clothed in casual or evening wear."
 )
+REALISM_CLAUSE = (
+    "Natural skin texture with pores, realistic lighting and shadows, "
+    "true-to-life proportions, looks like a real DSLR photograph, not a render."
+)
 PERSON_LABELS = ["A", "B"]
 
 
@@ -68,6 +72,7 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     actors = " and ".join(a.name for a in inp.actors)
     lines.append(f"Photorealistic photo: {people} together with {actors} {inp.scene_prompt.strip()}.")
     lines.append(SAFETY_CLAUSE)
+    lines.append(REALISM_CLAUSE)
     if inp.detail:
         lines.append(inp.detail.strip().rstrip(".") + ".")
     return " ".join(lines), [d for _k, d, _i in ordered]
