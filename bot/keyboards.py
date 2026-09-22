@@ -6,8 +6,7 @@ from bot import texts
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=texts.BTN_CREATE), KeyboardButton(text=texts.BTN_BALANCE)],
-            [KeyboardButton(text=texts.BTN_SHOP), KeyboardButton(text=texts.BTN_BONUS)],
+            [KeyboardButton(text=texts.BTN_CREATE), KeyboardButton(text=texts.BTN_PROFILE)],
             [KeyboardButton(text=texts.BTN_HELP)],
         ],
         resize_keyboard=True,

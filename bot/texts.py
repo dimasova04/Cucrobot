@@ -12,9 +12,7 @@ WELCOME = "Готово! Вам начислено {n} кристалликов 
 MENU = "Главное меню"
 
 BTN_CREATE = "📸 Создать фото"
-BTN_BALANCE = "💎 Баланс"
-BTN_SHOP = "🛒 Магазин"
-BTN_BONUS = "🎁 Забрать бонус"
+BTN_PROFILE = "👤 Профиль"
 BTN_HELP = "❓ Помощь"
 BTN_SKIP = "Пропустить"
 BTN_NO = "Нет, дальше"
@@ -76,19 +74,20 @@ RESULT_SEND_FAILED = "Фото готово, но отправить не уда
 GENERIC_ERROR = "Что-то пошло не так. Попробуйте ещё раз."
 CANCELLED = "Отменено."
 
-BALANCE = (
-    "💎 Кристаллики: {crystals}\n"
-    "⭐ Подписка: {sub}\n"
-    "🎁 Бонус: {bonus}"
-)
+PROFILE = "👤 Профиль\n\n💎 Кристаллики: {crystals}\n⭐ Подписка: {sub}\n🎁 Бонус: {bonus}"
 SUB_NONE = "нет"
 SUB_ACTIVE = "{plan} до {until}"
 BONUS_READY = "готов, нажмите «Забрать бонус»"
 BONUS_WAIT = "через {hours} ч {minutes} мин"
+BONUS_CARD = "🎁 Вам доступен бонус: +{n} 💎\nЗаберите его кнопкой ниже."
+BTN_BONUS_CLAIM = "🎁 Забрать бонус"
 BONUS_CLAIMED = "+{n} 💎 за вход! Баланс: {balance} 💎"
 BONUS_NOT_READY = "Бонус ещё не готов. Приходите {when}."
 
-SHOP = "Выберите пакет или подписку:"
+BTN_BUY_PACK = "💎 Купить пакет"
+BTN_BUY_SUB = "⭐ Подписка"
+SHOP_PACKS = "Пакеты кристалликов:"
+SHOP_SUBS = "Подписка:"
 PACK_BTN = "{n} 💎"
 SUB_BTN = "Подписка {name}"
 PAY_CHOOSE = "{title}\n\nКак оплатить?"

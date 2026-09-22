@@ -34,10 +34,10 @@ def test_grid_layout_and_extra_rows():
     assert rows[2][0].callback_data == "back"
 
 
-def test_main_menu_has_five_buttons():
+def test_main_menu_has_three_buttons():
     kb = keyboards.main_menu()
     btn_texts = [b.text for row in kb.keyboard for b in row]
-    assert len(btn_texts) == 5 and "📸 Создать фото" in btn_texts
+    assert len(btn_texts) == 3 and texts.BTN_PROFILE in btn_texts
 
 
 def test_cancel_row():

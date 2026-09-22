@@ -2,16 +2,22 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from loguru import logger
 
 from bot import keyboards, texts
+from bot.bonus_card import send_bonus_card
 
 menu_router = Router(name="menu")
 
 
 @menu_router.message(Command("menu"))
-async def cmd_menu(message: Message, state: FSMContext):
+async def cmd_menu(message: Message, state: FSMContext, user, settings):
     await state.clear()
     await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
+    try:
+        await send_bonus_card(message.bot, user.id, user, settings)
+    except Exception as e:
+        logger.warning("bonus card send failed: {}", e)
 
 
 @menu_router.message(Command("cancel"))

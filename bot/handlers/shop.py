@@ -1,16 +1,10 @@
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot import keyboards, texts
-from services.billing.products import PACKS, SUBS, get_product
+from bot import texts
+from services.billing.products import get_product
 
 shop_router = Router(name="shop")
-
-
-def shop_kb() -> InlineKeyboardMarkup:
-    packs = [(texts.PACK_BTN.format(n=p.crystals), f"buy:{p.code}") for p in PACKS]
-    subs = [[(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code]), f"buy:{p.code}")] for p in SUBS]
-    return keyboards.grid(packs, 3, subs)
 
 
 def pay_kb(code: str, settings) -> InlineKeyboardMarkup | None:
@@ -22,11 +16,6 @@ def pay_kb(code: str, settings) -> InlineKeyboardMarkup | None:
     if settings.tribute_buy_stars_url:
         rows.append([InlineKeyboardButton(text=texts.BTN_BUY_STARS, url=settings.tribute_buy_stars_url)])
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
-
-
-@shop_router.message(F.text == texts.BTN_SHOP)
-async def open_shop(message: Message):
-    await message.answer(texts.SHOP, reply_markup=shop_kb())
 
 
 @shop_router.callback_query(F.data.startswith("buy:"))

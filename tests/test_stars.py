@@ -28,7 +28,7 @@ def test_generate_router_is_registered_last(dispatcher):
     names = [r.name for r in dispatcher.sub_routers]
     assert names[-1] == "generate"
     assert names.index("payments") < names.index("generate")
-    assert names.index("balance") < names.index("generate")
+    assert names.index("profile") < names.index("generate")
 
 
 class _FailingMessage:

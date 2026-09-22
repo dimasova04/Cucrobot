@@ -6,6 +6,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from loguru import logger
 
 from bot import keyboards, texts
+from bot.bonus_card import send_bonus_card
 from bot.flow import (
     ACTORS_PER_PAGE,
     SCENES_PER_PAGE,
@@ -328,6 +329,10 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         if gen and sent.photo:
             gen.result_file_id = sent.photo[-1].file_id
         await wait_msg.delete()
+        try:
+            await send_bonus_card(target.bot, user.id, user, settings)
+        except Exception as e:
+            logger.warning("bonus card send failed: {}", e)
     elif outcome.status == "rejected":
         await wait_msg.edit_text(texts.GEN_REJECTED)
     else:
