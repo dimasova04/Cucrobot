@@ -40,7 +40,15 @@ async def on_successful_payment(message: Message, session, user):
     if res is None:
         logger.warning("duplicate stars payment {}", sp.telegram_payment_charge_id)
         return
-    if res.product.kind == "pack":
-        await message.answer(texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance))
-    else:
-        await message.answer(texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y")))
+    # Деньги уже списаны Telegram: фиксируем начисление до отправки сообщения,
+    # чтобы упавший answer() не откатил транзакцию в DbSessionMiddleware.
+    await session.commit()
+    text = (
+        texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance)
+        if res.product.kind == "pack"
+        else texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y"))
+    )
+    try:
+        await message.answer(text)
+    except Exception as e:
+        logger.warning("stars payment {} granted, but confirmation failed: {}", sp.telegram_payment_charge_id, e)

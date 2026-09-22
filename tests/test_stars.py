@@ -1,6 +1,11 @@
+from types import SimpleNamespace
+
 import pytest
+from sqlalchemy import select
 
 from config.settings import Settings
+from database import repo
+from database.models import Payment
 from services.payments import stars
 
 
@@ -28,3 +33,42 @@ def test_generate_router_is_registered_last():
     assert names[-1] == "generate"
     assert names.index("payments") < names.index("generate")
     assert names.index("balance") < names.index("generate")
+
+
+class _FailingMessage:
+    """Сообщение, у которого падает отправка подтверждения."""
+
+    def __init__(self, sp):
+        self.successful_payment = sp
+        self.answers = []
+
+    async def answer(self, text, **kw):
+        self.answers.append(text)
+        raise RuntimeError("telegram is down")
+
+
+def _successful_payment(code="pack_50", charge_id="ch1"):
+    return SimpleNamespace(
+        invoice_payload=code,
+        telegram_payment_charge_id=charge_id,
+        total_amount=250,
+        model_dump=lambda mode="json": {"charge": charge_id},
+    )
+
+
+async def test_stars_grant_survives_failed_confirmation(session_factory):
+    from bot.handlers.payments import on_successful_payment
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 1, "u")
+        await s.commit()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 1)
+        message = _FailingMessage(_successful_payment())
+        await on_successful_payment(message, s, user)
+        assert message.answers  # отправка была и упала
+        await s.rollback()  # как сделал бы DbSessionMiddleware при исключении
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 1)).crystals == 50
+        payments = (await s.execute(select(Payment))).scalars().all()
+        assert [p.external_id for p in payments] == ["ch1"]
