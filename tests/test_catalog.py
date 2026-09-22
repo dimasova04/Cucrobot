@@ -1,6 +1,7 @@
 import pytest
 
 from services import catalog
+from services.generation.content_filter import is_allowed
 
 
 async def test_seed_scenes_once(session_factory):
@@ -12,7 +13,8 @@ async def test_seed_scenes_once(session_factory):
         scenes = await catalog.list_scenes(s)
         assert len(scenes) == 12
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
-        assert all("clothed" in sc.prompt or sc.prompt for sc in scenes)
+        assert all(sc.name and sc.prompt for sc in scenes)
+        assert all(is_allowed(sc.prompt) for sc in scenes)
 
 
 async def test_actor_crud_and_ref_validation(session_factory):
