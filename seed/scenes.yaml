@@ -1,0 +1,36 @@
+- name: "Красная дорожка"
+  orientation: portrait
+  prompt: "on the red carpet at a movie premiere, photographers and flashes behind, evening outfits"
+- name: "Кафе"
+  orientation: landscape
+  prompt: "sitting together at a cozy cafe table with coffee cups, warm daylight, candid smiles"
+- name: "Яхта"
+  orientation: landscape
+  prompt: "on the deck of a luxury yacht at sea, sunny day, summer clothes, relaxed poses"
+- name: "Ночной клуб"
+  orientation: portrait
+  prompt: "in a night club with neon lights and a crowd behind, party outfits, laughing"
+- name: "Лимузин"
+  orientation: landscape
+  prompt: "inside a limousine with city lights through the window, evening wear, holding glasses of champagne"
+- name: "Офис"
+  orientation: landscape
+  prompt: "in a modern office, standing by a glass wall, business attire, friendly conversation"
+- name: "Съёмочная площадка"
+  orientation: landscape
+  prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
+- name: "Селфи на улице"
+  orientation: portrait
+  prompt: "a close selfie hugging on a city street, big smiles, phone camera look"
+- name: "Отель, коридор"
+  orientation: portrait
+  prompt: "standing at a hotel room door in a hotel corridor, holding key cards, smiling at the camera, dressed"
+- name: "Номер отеля, вечер"
+  orientation: landscape
+  prompt: "in a hotel suite in the evening, city view window, champagne glasses on the table, dressed in evening clothes"
+- name: "Диван, вечер кино"
+  orientation: landscape
+  prompt: "on a sofa at home watching a movie, popcorn bowl, warm lamp light, casual home clothes"
+- name: "Ужин при свечах"
+  orientation: landscape
+  prompt: "at a candlelit dinner on a terrace at night, wine glasses, elegant outfits"
