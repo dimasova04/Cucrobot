@@ -1,4 +1,5 @@
 import asyncio
+import random
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
@@ -17,7 +18,6 @@ from bot.flow import (
     paginate,
     request_from_state,
     scene_label,
-    summary,
     validate_custom_scene,
     validate_detail,
 )
@@ -61,8 +61,15 @@ def _nav_row(prefix: str, page: int, has_prev: bool, has_next: bool) -> list[lis
 
 async def _show_actors(
     target: Message, state: FSMContext, session,
-    exclude: list[int] | None = None, second: bool = False, page: int = 0,
+    exclude: list[int] | None = None, page: int = 0, mode: str | None = None,
 ):
+    """Показывает список актёров в состоянии actor1.
+
+    `mode` определяет, что делать при выборе актёра (см. actor1_chosen):
+    None — обычный первый выбор (случайная сцена, сразу генерация),
+    "add" — добираем второго актёра (кнопка «Ещё актёр» под результатом),
+    "change" — заменяем актёра целиком (кнопка «Другой актёр» под результатом).
+    """
     all_actors = await catalog.list_actors(session)
     if not all_actors:
         await state.clear()
@@ -72,13 +79,16 @@ async def _show_actors(
     chunk, has_prev, has_next = paginate(actors, page, ACTORS_PER_PAGE)
     items = [(a.name, f"act:{a.id}") for a in chunk]
     extra = _nav_row("act", page, has_prev, has_next)
-    if second:
-        extra.append([(texts.BTN_NO, "a2:no")])
-    elif len((await state.get_data()).get("people", [])) < 2:
+    st = await state.get_data()
+    if mode is None and len(st.get("people", [])) < 2:
         extra.append([(texts.BTN_ADD_PERSON, "act:addperson")])
     extra.append(keyboards.cancel_row())
-    await state.set_state(GenStates.actor2 if second else GenStates.actor1)
-    await target.answer(texts.CHOOSE_ACTOR_2 if second else texts.CHOOSE_ACTOR, reply_markup=keyboards.grid(items, 2, extra))
+    if mode is not None:
+        st["_pick_mode"] = mode
+        await state.set_data(st)
+    await state.set_state(GenStates.actor1)
+    text = texts.CHOOSE_ACTOR_2 if mode == "add" else texts.CHOOSE_ACTOR
+    await target.answer(text, reply_markup=keyboards.grid(items, 2, extra))
 
 
 async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0):
@@ -92,9 +102,18 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
+async def _check_result_session(cb: CallbackQuery, state: FSMContext) -> dict | None:
+    """Общая проверка для кнопок под результатом: если FSM-данные протухли
+    (TTL стораджа или рестарт), отвечаем алертом вместо запуска генерации."""
+    st = await state.get_data()
+    if not is_complete(st):
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return None
+    return st
+
+
 @generate_router.message(GenStates.person1, F.photo | F.document)
-@generate_router.message(GenStates.person2, F.photo | F.document)
-async def got_person_photo(message: Message, state: FSMContext, session, bot: Bot):
+async def got_person1_photo(message: Message, state: FSMContext, session, bot: Bot):
     file_id = _photo_file_id(message)
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
@@ -108,6 +127,27 @@ async def got_person_photo(message: Message, state: FSMContext, session, bot: Bo
     st["people"].append(file_id)
     await state.set_data(st)
     await _show_actors(message, state, session)
+
+
+@generate_router.message(GenStates.person2, F.photo | F.document)
+async def got_person2_photo(message: Message, state: FSMContext, session, bot: Bot, user, settings, generator):
+    file_id = _photo_file_id(message)
+    if not file_id:
+        await message.answer(texts.NOT_A_PHOTO)
+        return
+    data = (await bot.download(file_id)).read()
+    if not await asyncio.to_thread(faces.has_face, data):
+        await message.answer(texts.NO_FACE)
+        return
+    st = await state.get_data()
+    st["people"].append(file_id)
+    await state.set_data(st)
+    if st.get("actors"):
+        # Второй человек добавлен из «➕ Добавить человека» под результатом —
+        # актёр и сцена уже выбраны, сразу генерируем.
+        await _run_generation(message, state, session, user, settings, generator)
+    else:
+        await _show_actors(message, state, session)
 
 
 @generate_router.message(GenStates.person1)
@@ -129,45 +169,46 @@ async def add_person(cb: CallbackQuery, state: FSMContext):
 
 # Зарегистрирован раньше act:<id>, иначе "act:page:2" попал бы в выбор актёра.
 @generate_router.callback_query(GenStates.actor1, F.data.startswith("act:page:"))
-@generate_router.callback_query(GenStates.actor2, F.data.startswith("act:page:"))
 async def actors_page(cb: CallbackQuery, state: FSMContext, session):
     page = int(cb.data.rsplit(":", 1)[1])
     st = await state.get_data()
-    second = await state.get_state() == GenStates.actor2.state
+    mode = st.get("_pick_mode")
+    exclude = st.get("actors") if mode == "add" else None
     await cb.answer()
-    await _show_actors(cb.message, state, session, exclude=st.get("actors") if second else None, second=second, page=page)
+    await _show_actors(cb.message, state, session, exclude=exclude, page=page, mode=mode)
 
 
 @generate_router.callback_query(GenStates.actor1, F.data.startswith("act:"))
-async def actor1_chosen(cb: CallbackQuery, state: FSMContext, session):
+async def actor1_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
     actor_id = int(cb.data.split(":")[1])
     st = await state.get_data()
-    st["actors"] = [actor_id]
+    mode = st.pop("_pick_mode", None)
+    if mode == "add":
+        actors = st.get("actors", [])
+        if actor_id not in actors:
+            actors.append(actor_id)
+        st["actors"] = actors
+    else:
+        st["actors"] = [actor_id]
+        if mode is None:
+            # Первый выбор актёра в быстром флоу: сразу берём случайную активную
+            # сцену и запускаем генерацию — без промежуточных вопросов.
+            scenes = await catalog.list_scenes(session)
+            if not scenes:
+                await state.clear()
+                await cb.answer()
+                await cb.message.answer(texts.CATALOG_EMPTY, reply_markup=keyboards.main_menu())
+                return
+            scene = random.choice(scenes)
+            st.update(scene_id=scene.id, custom_text=None, custom_file_id=None)
     await state.set_data(st)
     await cb.answer()
-    await _show_actors(cb.message, state, session, exclude=[actor_id], second=True)
-
-
-@generate_router.callback_query(GenStates.actor2, F.data.startswith("act:"))
-async def actor2_chosen(cb: CallbackQuery, state: FSMContext, session):
-    actor_id = int(cb.data.split(":")[1])
-    st = await state.get_data()
-    if actor_id not in st["actors"]:
-        st["actors"].append(actor_id)
-    await state.set_data(st)
-    await cb.answer()
-    await _show_scenes(cb.message, state, session)
-
-
-@generate_router.callback_query(GenStates.actor2, F.data == "a2:no")
-async def actor2_skip(cb: CallbackQuery, state: FSMContext, session):
-    await cb.answer()
-    await _show_scenes(cb.message, state, session)
+    await _run_generation(cb.message, state, session, user, settings, generator)
 
 
 async def _ask_detail(target: Message, state: FSMContext):
     await state.set_state(GenStates.detail)
-    await target.answer(texts.ASK_DETAIL, reply_markup=keyboards.grid([(texts.BTN_SKIP, "detail:skip")], 1, [keyboards.cancel_row()]))
+    await target.answer(texts.ASK_DETAIL, reply_markup=keyboards.grid([], extra_rows=[keyboards.cancel_row()]))
 
 
 # Тоже раньше scene:<id>: "scene:page:1" не должно уйти в выбор сцены.
@@ -185,16 +226,16 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("scene:"))
-async def scene_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings):
+async def scene_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
     st = await state.get_data()
     st.update(scene_id=int(cb.data.split(":")[1]), custom_text=None, custom_file_id=None)
     await state.set_data(st)
     await cb.answer()
-    await _show_confirm(cb.message, state, session, user, settings)
+    await _run_generation(cb.message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.custom_scene, F.photo | F.document)
-async def custom_scene_photo(message: Message, state: FSMContext, session, user, settings):
+async def custom_scene_photo(message: Message, state: FSMContext, session, user, settings, generator):
     file_id = _photo_file_id(message)
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
@@ -202,11 +243,11 @@ async def custom_scene_photo(message: Message, state: FSMContext, session, user,
     st = await state.get_data()
     st.update(scene_id=None, custom_text=None, custom_file_id=file_id)
     await state.set_data(st)
-    await _show_confirm(message, state, session, user, settings)
+    await _run_generation(message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.custom_scene, F.text)
-async def custom_scene_text(message: Message, state: FSMContext, session, user, settings):
+async def custom_scene_text(message: Message, state: FSMContext, session, user, settings, generator):
     err = validate_custom_scene(message.text)
     if err:
         await message.answer(err)
@@ -214,26 +255,11 @@ async def custom_scene_text(message: Message, state: FSMContext, session, user, 
     st = await state.get_data()
     st.update(scene_id=None, custom_text=message.text.strip(), custom_file_id=None)
     await state.set_data(st)
-    await _show_confirm(message, state, session, user, settings)
-
-
-@generate_router.callback_query(GenStates.confirm, F.data == "gen:detail")
-async def gen_add_detail(cb: CallbackQuery, state: FSMContext):
-    await cb.answer()
-    await _ask_detail(cb.message, state)
-
-
-@generate_router.callback_query(GenStates.detail, F.data == "detail:skip")
-async def detail_skip(cb: CallbackQuery, state: FSMContext, session, user, settings):
-    st = await state.get_data()
-    st["detail"] = None
-    await state.set_data(st)
-    await cb.answer()
-    await _show_confirm(cb.message, state, session, user, settings)
+    await _run_generation(message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.detail, F.text)
-async def detail_text(message: Message, state: FSMContext, session, user, settings):
+async def detail_text(message: Message, state: FSMContext, session, user, settings, generator):
     err = validate_detail(message.text)
     if err:
         await message.answer(err)
@@ -241,37 +267,16 @@ async def detail_text(message: Message, state: FSMContext, session, user, settin
     st = await state.get_data()
     st["detail"] = message.text.strip()
     await state.set_data(st)
-    await _show_confirm(message, state, session, user, settings)
+    await _run_generation(message, state, session, user, settings, generator)
 
 
-async def _show_confirm(target: Message, state: FSMContext, session, user, settings):
-    st = await state.get_data()
-    tier = effective_tier(user)
-    cost = settings.cost_premium if tier == "premium" else settings.cost_base
-    actors = [a for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
-    scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
-    text = summary(st, [a.name for a in actors], scene_label(st, scene.name if scene else None), tier, cost, user.crystals)
-    await state.set_state(GenStates.confirm)
-    await target.answer(
-        text,
-        reply_markup=keyboards.grid(
-            [],
-            extra_rows=[
-                [(texts.BTN_GENERATE, "gen:go")],
-                [(texts.BTN_ADD_DETAIL, "gen:detail")],
-                keyboards.cancel_row(),
-            ],
-        ),
-    )
-
-
-async def send_result_photo(target: Message, image: bytes, caption: str, attempts: int = 2):
+async def send_result_photo(target: Message, image: bytes, caption: str, data: dict, attempts: int = 2):
     """Отправка результата с одним повтором. Кристаллики не возвращаются (спек §7):
     генерация удалась, результат лежит в базе."""
     for attempt in range(1, attempts + 1):
         try:
             return await target.answer_photo(
-                BufferedInputFile(image, "photo.jpg"), caption=caption, reply_markup=keyboards.result_kb()
+                BufferedInputFile(image, "photo.jpg"), caption=caption, reply_markup=keyboards.result_kb(data)
             )
         except Exception as e:
             logger.warning("send result photo failed (attempt {}/{}): {}", attempt, attempts, e)
@@ -290,7 +295,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     tier = effective_tier(user)
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     if user.crystals < cost:
-        await target.answer(texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals))
+        await target.answer(f"{texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals)}\n\n{texts.NOT_ENOUGH_HINT}")
         return
     await session.commit()  # release our row before generator opens its own sessions
     wait_msg = await target.answer(texts.GENERATING)
@@ -300,14 +305,15 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         await wait_msg.edit_text(texts.ALREADY_RUNNING)
         return
     except wallet.InsufficientCrystals as e:
-        await wait_msg.edit_text(texts.NOT_ENOUGH.format(cost=e.needed, balance=e.balance))
+        await wait_msg.edit_text(f"{texts.NOT_ENOUGH.format(cost=e.needed, balance=e.balance)}\n\n{texts.NOT_ENOUGH_HINT}")
         return
     await session.refresh(user)
+    await state.set_state(GenStates.result)
     if outcome.status == "done":
         actors = [a.name for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
         scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
         caption = texts.RESULT_CAPTION.format(actors=", ".join(actors), scene=scene_label(st, scene.name if scene else None))
-        sent = await send_result_photo(target, outcome.image_bytes, caption)
+        sent = await send_result_photo(target, outcome.image_bytes, caption, st)
         if sent is None:
             await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
             return
@@ -325,43 +331,84 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         await wait_msg.edit_text(texts.GEN_FAILED)
 
 
-@generate_router.callback_query(GenStates.confirm, F.data == "gen:go")
-@generate_router.callback_query(GenStates.confirm, F.data == "gen:more")
-async def gen_go(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+@generate_router.callback_query(F.data == "gen:more")
+async def gen_more(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    await cb.answer()
+    await _run_generation(cb.message, state, session, user, settings, generator)
+
+
+@generate_router.callback_query(F.data == "gen:random_scene")
+async def gen_random_scene(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    scenes = await catalog.list_scenes(session)
+    if not scenes:
+        await cb.answer(texts.CATALOG_EMPTY, show_alert=True)
+        return
+    scene = random.choice(scenes)
+    st.update(scene_id=scene.id, custom_text=None, custom_file_id=None)
+    await state.set_data(st)
     await cb.answer()
     await _run_generation(cb.message, state, session, user, settings, generator)
 
 
 @generate_router.callback_query(F.data == "gen:change_scene")
 async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
-    await cb.answer()
-    st = await state.get_data()
-    if not st.get("people"):
-        await cb.message.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
+    st = await _check_result_session(cb, state)
+    if st is None:
         return
+    await cb.answer()
     await _show_scenes(cb.message, state, session)
 
 
 @generate_router.callback_query(F.data == "gen:change_actor")
 async def gen_change_actor(cb: CallbackQuery, state: FSMContext, session):
-    await cb.answer()
-    st = await state.get_data()
-    if not st.get("people"):
-        await cb.message.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
+    st = await _check_result_session(cb, state)
+    if st is None:
         return
-    st["actors"] = []
-    await state.set_data(st)
-    await _show_actors(cb.message, state, session)
+    await cb.answer()
+    await _show_actors(cb.message, state, session, mode="change")
+
+
+@generate_router.callback_query(F.data == "gen:add_actor")
+async def gen_add_actor(cb: CallbackQuery, state: FSMContext, session):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    if len(st.get("actors", [])) != 1:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    await cb.answer()
+    await _show_actors(cb.message, state, session, exclude=st.get("actors"), mode="add")
+
+
+@generate_router.callback_query(F.data == "gen:add_person")
+async def gen_add_person(cb: CallbackQuery, state: FSMContext):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    if len(st.get("people", [])) != 1:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    await cb.answer()
+    await state.set_state(GenStates.person2)
+    await cb.message.answer(texts.SEND_PERSON_2)
+
+
+@generate_router.callback_query(F.data == "gen:detail")
+async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    await cb.answer()
+    await _ask_detail(cb.message, state)
 
 
 @generate_router.callback_query(F.data == "gen:new")
 async def gen_new(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     await _start_flow(cb.message, state)
-
-
-# Регистрируется после варианта в состоянии confirm: ловит «Ещё вариант»,
-# когда FSM уже протухла по TTL.
-@generate_router.callback_query(F.data == "gen:more")
-async def gen_more_expired(cb: CallbackQuery):
-    await cb.answer(texts.SESSION_EXPIRED, show_alert=True)

@@ -68,7 +68,7 @@ async def test_send_result_photo_retries_once(monkeypatch):
 
     monkeypatch.setattr(generate.asyncio, "sleep", fake_sleep)
     target = _PhotoTarget(fails=1)
-    sent = await generate.send_result_photo(target, b"IMG", "caption")
+    sent = await generate.send_result_photo(target, b"IMG", "caption", {"people": ["a"], "actors": [1]})
     assert sent is not None and target.calls == 2 and slept == [1]
 
 
@@ -80,7 +80,7 @@ async def test_send_result_photo_gives_up_after_two_attempts(monkeypatch):
 
     monkeypatch.setattr(generate.asyncio, "sleep", fake_sleep)
     target = _PhotoTarget(fails=5)
-    assert await generate.send_result_photo(target, b"IMG", "caption") is None
+    assert await generate.send_result_photo(target, b"IMG", "caption", {"people": ["a"], "actors": [1]}) is None
     assert target.calls == 2
 
 

@@ -10,11 +10,10 @@ class GenStates(StatesGroup):
     person1 = State()
     person2 = State()
     actor1 = State()
-    actor2 = State()
     scene = State()
     custom_scene = State()
     detail = State()
-    confirm = State()
+    result = State()
 
 
 ACTORS_PER_PAGE = 10
@@ -68,17 +67,21 @@ def scene_label(data: dict, scene_name: str | None) -> str:
     return texts.CUSTOM_SCENE_LABEL_TEXT
 
 
-def summary(data: dict, actors_names: list[str], scene_name: str, model_tier: str, cost: int, balance: int) -> str:
-    text = texts.CONFIRM.format(
-        people=len(data.get("people", [])),
-        actors=", ".join(actors_names),
-        scene=scene_name,
-        detail=data.get("detail") or texts.DETAIL_NONE,
-        model=texts.MODEL_NAMES[model_tier],
-        cost=cost,
-        balance=balance,
-    )
-    return f"{text}\n\n{texts.CONFIRM_QUALITY_HINT}"
+def result_buttons(data: dict) -> list[tuple[str, str]]:
+    """Кнопки под результатом: набор зависит от того, сколько людей/актёров уже в сессии."""
+    buttons = [
+        (texts.BTN_MORE, "gen:more"),
+        (texts.BTN_RANDOM_SCENE, "gen:random_scene"),
+        (texts.BTN_CHANGE_SCENE, "gen:change_scene"),
+        (texts.BTN_CHANGE_ACTOR, "gen:change_actor"),
+    ]
+    if len(data.get("actors") or []) == 1:
+        buttons.append((texts.BTN_ADD_ACTOR, "gen:add_actor"))
+    if len(data.get("people") or []) == 1:
+        buttons.append((texts.BTN_ADD_PERSON_RESULT, "gen:add_person"))
+    buttons.append((texts.BTN_DETAIL, "gen:detail"))
+    buttons.append((texts.BTN_NEW_PHOTO, "gen:new"))
+    return buttons
 
 
 def is_complete(data: dict) -> bool:

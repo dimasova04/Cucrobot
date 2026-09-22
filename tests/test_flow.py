@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from bot import texts
-from bot.flow import effective_tier, request_from_state, scene_label, summary, validate_custom_scene, validate_detail
+from bot.flow import effective_tier, request_from_state, result_buttons, scene_label, validate_custom_scene, validate_detail
 
 
 def test_validators():
@@ -12,15 +12,49 @@ def test_validators():
     assert validate_custom_scene("y" * 201) == texts.CUSTOM_SCENE_TOO_LONG
 
 
-def test_scene_label_and_summary():
+def test_scene_label():
     d = {"people": ["a", "b"], "actors": [1], "scene_id": None, "custom_text": "on mars", "custom_file_id": None, "detail": None}
     assert scene_label(d, None) == texts.CUSTOM_SCENE_LABEL_TEXT
     d2 = {**d, "custom_text": None, "custom_file_id": "f"}
     assert scene_label(d2, None) == texts.CUSTOM_SCENE_LABEL_PHOTO
     assert scene_label({**d, "scene_id": 3}, "Яхта") == "Яхта"
-    s = summary(d, ["Стэйтем"], texts.CUSTOM_SCENE_LABEL_TEXT, "base", 1, 7)
-    assert "Людей: 2" in s and "Стэйтем" in s and "Деталь: нет" in s and "Спишется 1" in s and "Баланс: 7" in s
-    assert texts.CONFIRM_QUALITY_HINT in s
+
+
+def test_result_buttons_one_person_one_actor():
+    d = {"people": ["a"], "actors": [1]}
+    cbs = [cb for _, cb in result_buttons(d)]
+    assert cbs == [
+        "gen:more",
+        "gen:random_scene",
+        "gen:change_scene",
+        "gen:change_actor",
+        "gen:add_actor",
+        "gen:add_person",
+        "gen:detail",
+        "gen:new",
+    ]
+
+
+def test_result_buttons_two_people_two_actors():
+    d = {"people": ["a", "b"], "actors": [1, 2]}
+    cbs = [cb for _, cb in result_buttons(d)]
+    assert cbs == ["gen:more", "gen:random_scene", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:new"]
+    assert "gen:add_actor" not in cbs
+    assert "gen:add_person" not in cbs
+
+
+def test_result_buttons_two_people_one_actor():
+    d = {"people": ["a", "b"], "actors": [1]}
+    cbs = [cb for _, cb in result_buttons(d)]
+    assert "gen:add_actor" in cbs
+    assert "gen:add_person" not in cbs
+
+
+def test_result_buttons_one_person_two_actors():
+    d = {"people": ["a"], "actors": [1, 2]}
+    cbs = [cb for _, cb in result_buttons(d)]
+    assert "gen:add_actor" not in cbs
+    assert "gen:add_person" in cbs
 
 
 def test_request_from_state():

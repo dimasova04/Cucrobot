@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from bot import texts
+from bot.flow import result_buttons
 
 
 def main_menu() -> ReplyKeyboardMarkup:
@@ -37,16 +38,8 @@ def yes_no_kb(yes_cb: str, no_cb: str, yes_text: str, no_text: str) -> InlineKey
     return grid([(yes_text, yes_cb), (no_text, no_cb)], cols=2)
 
 
-def result_kb() -> InlineKeyboardMarkup:
-    return grid(
-        [
-            (texts.BTN_MORE, "gen:more"),
-            (texts.BTN_CHANGE_SCENE, "gen:change_scene"),
-            (texts.BTN_CHANGE_ACTOR, "gen:change_actor"),
-            (texts.BTN_NEW_PHOTO, "gen:new"),
-        ],
-        cols=2,
-    )
+def result_kb(data: dict) -> InlineKeyboardMarkup:
+    return grid(result_buttons(data), cols=2)
 
 
 def cancel_row() -> list[tuple[str, str]]:

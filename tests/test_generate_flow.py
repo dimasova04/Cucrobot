@@ -2,8 +2,12 @@ from types import SimpleNamespace
 
 from bot import texts
 from bot.flow import GenStates
+from bot.handlers import generate as generate_mod
 from bot.handlers.generate import _show_actors, _show_scenes
+from config.settings import Settings
+from database import repo
 from services import catalog
+from services.generation.generator import GenerationOutcome
 
 
 class _FakeTarget:
@@ -92,3 +96,103 @@ async def test_show_scenes_pages_by_twelve(session_factory):
         # ровно одна страница: стрелок нет, «Своя сцена» на месте
         assert not [c for c in cbs if ":page:" in c]
         assert "scene:custom" in cbs
+
+
+class _FakeGenerator:
+    def __init__(self, outcome):
+        self.calls = []
+        self._outcome = outcome
+
+    async def run(self, req):
+        self.calls.append(req)
+        return self._outcome
+
+
+class _FakeSentMessage:
+    def __init__(self, photo=None):
+        self.photo = photo
+        self.edited = []
+        self.deleted = False
+
+    async def edit_text(self, text, **kw):
+        self.edited.append(text)
+
+    async def delete(self):
+        self.deleted = True
+
+
+class _FakeCbMessage:
+    """Заглушка под cb.message: копит ответы, умеет answer/answer_photo."""
+
+    def __init__(self):
+        self.answers = []
+        self.photo_sent = False
+        self.bot = SimpleNamespace()
+
+    async def answer(self, text, reply_markup=None, **kw):
+        self.answers.append((text, reply_markup))
+        return _FakeSentMessage()
+
+    async def answer_photo(self, *a, **kw):
+        self.photo_sent = True
+        return _FakeSentMessage(photo=[SimpleNamespace(file_id="fid")])
+
+
+class _FakeCb:
+    def __init__(self, data, message):
+        self.data = data
+        self.message = message
+        self.answered = []
+
+    async def answer(self, text=None, show_alert=False):
+        self.answered.append((text, show_alert))
+
+
+async def test_actor1_tap_triggers_generation_failed(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 42, "u")
+        user.crystals = 10
+        await s.commit()
+
+        state = _FakeState(data={"people": ["p1"], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None}, state=GenStates.actor1)
+        message = _FakeCbMessage()
+        cb = _FakeCb(f"act:{actor.id}", message)
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(GenerationOutcome(status="failed", generation_id=1, image_bytes=None, cost_usd=None, error="boom"))
+
+        await generate_mod.actor1_chosen(cb, state, s, user, settings, generator)
+
+        assert len(generator.calls) == 1
+        req = generator.calls[0]
+        assert req.actor_ids == [actor.id]
+        scenes = await catalog.list_scenes(s)
+        assert req.scene_id in [sc.id for sc in scenes]
+        assert cb.answered == [(None, False)]
+        assert state._state == GenStates.result
+        assert not message.photo_sent  # failed: без отправки фото
+        assert message.answers[-1][0] == texts.GENERATING
+
+
+async def test_actor1_tap_triggers_generation_done(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 43, "u")
+        user.crystals = 10
+        await s.commit()
+
+        state = _FakeState(data={"people": ["p1"], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None}, state=GenStates.actor1)
+        message = _FakeCbMessage()
+        cb = _FakeCb(f"act:{actor.id}", message)
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=999, image_bytes=b"IMG", cost_usd=0.1, error=None)
+        )
+
+        await generate_mod.actor1_chosen(cb, state, s, user, settings, generator)
+
+        assert len(generator.calls) == 1
+        assert message.photo_sent is True
+        assert state._state == GenStates.result
