@@ -23,9 +23,32 @@ def _sub_text(user) -> str:
     return texts.SUB_NONE
 
 
-def profile_kb() -> InlineKeyboardMarkup:
+def _quality_row(user) -> list[tuple[str, str]]:
+    if subscriptions.is_active(user):
+        other = "premium" if user.preferred_tier == "base" else "base"
+        return [(
+            texts.BTN_QUALITY_TOGGLE.format(quality=texts.MODEL_NAMES[user.preferred_tier], other=texts.MODEL_NAMES[other]),
+            "profile:quality",
+        )]
+    return [(texts.BTN_QUALITY_LOCKED, "profile:quality_locked")]
+
+
+def profile_kb(user) -> InlineKeyboardMarkup:
     return keyboards.grid(
-        [], extra_rows=[[(texts.BTN_BUY_PACK, "shop:packs")], [(texts.BTN_BUY_SUB, "shop:subs")]]
+        [], extra_rows=[_quality_row(user), [(texts.BTN_BUY_PACK, "shop:packs")], [(texts.BTN_BUY_SUB, "shop:subs")]]
+    )
+
+
+def _profile_text(user, settings) -> str:
+    st = bonus.bonus_status(user, settings)
+    bonus_txt = texts.BONUS_READY if st.ready else _fmt_wait(st.wait)
+    quality_costs = texts.QUALITY_COSTS.format(base=settings.cost_base, premium=settings.cost_premium)
+    return texts.PROFILE.format(
+        crystals=user.crystals,
+        sub=_sub_text(user),
+        bonus=bonus_txt,
+        quality=texts.MODEL_NAMES[user.preferred_tier],
+        quality_costs=quality_costs,
     )
 
 
@@ -48,13 +71,24 @@ async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
 
 @profile_router.message(F.text == texts.BTN_PROFILE)
 async def show_profile(message: Message, user, settings):
-    st = bonus.bonus_status(user, settings)
-    bonus_txt = texts.BONUS_READY if st.ready else _fmt_wait(st.wait)
-    await message.answer(
-        texts.PROFILE.format(crystals=user.crystals, sub=_sub_text(user), bonus=bonus_txt),
-        reply_markup=profile_kb(),
-    )
+    await message.answer(_profile_text(user, settings), reply_markup=profile_kb(user))
     await _try_send_bonus_card(message.bot, user.id, user, settings)
+
+
+@profile_router.callback_query(F.data == "profile:quality")
+async def toggle_quality(cb: CallbackQuery, session, user, settings):
+    if not subscriptions.is_active(user):
+        await cb.answer(texts.MODEL_PREMIUM_LOCKED, show_alert=True)
+        return
+    user.preferred_tier = "premium" if user.preferred_tier == "base" else "base"
+    await session.commit()
+    await cb.answer()
+    await cb.message.edit_text(_profile_text(user, settings), reply_markup=profile_kb(user))
+
+
+@profile_router.callback_query(F.data == "profile:quality_locked")
+async def quality_locked(cb: CallbackQuery):
+    await cb.answer(texts.MODEL_PREMIUM_LOCKED, show_alert=True)
 
 
 @profile_router.callback_query(F.data == "shop:packs")

@@ -17,6 +17,7 @@ class User(Base):
     sub_until: Mapped[datetime | None] = mapped_column(DateTime)
     last_bonus_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    preferred_tier: Mapped[str] = mapped_column(String(16), default="base", server_default="base")
 
 
 class CrystalTransaction(Base):

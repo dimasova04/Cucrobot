@@ -1,6 +1,7 @@
 from aiogram.fsm.state import State, StatesGroup
 
 from bot import texts
+from services.billing import subscriptions
 from services.generation.content_filter import is_allowed
 from services.generation.generator import GenerationRequest
 
@@ -13,7 +14,6 @@ class GenStates(StatesGroup):
     scene = State()
     custom_scene = State()
     detail = State()
-    model = State()
     confirm = State()
 
 
@@ -33,7 +33,15 @@ def paginate(items: list, page: int, size: int) -> tuple[list, bool, bool]:
 
 
 def empty_data() -> dict:
-    return {"people": [], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None, "tier": "base"}
+    return {"people": [], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None}
+
+
+def effective_tier(user) -> str:
+    """Качество пользователя из профиля, с даунгрейдом до base без активной подписки."""
+    tier = getattr(user, "preferred_tier", None) or "base"
+    if tier == "premium" and not subscriptions.is_active(user):
+        return "base"
+    return tier
 
 
 def validate_detail(text: str) -> str | None:
@@ -61,7 +69,7 @@ def scene_label(data: dict, scene_name: str | None) -> str:
 
 
 def summary(data: dict, actors_names: list[str], scene_name: str, model_tier: str, cost: int, balance: int) -> str:
-    return texts.CONFIRM.format(
+    text = texts.CONFIRM.format(
         people=len(data.get("people", [])),
         actors=", ".join(actors_names),
         scene=scene_name,
@@ -70,6 +78,7 @@ def summary(data: dict, actors_names: list[str], scene_name: str, model_tier: st
         cost=cost,
         balance=balance,
     )
+    return f"{text}\n\n{texts.CONFIRM_QUALITY_HINT}"
 
 
 def is_complete(data: dict) -> bool:

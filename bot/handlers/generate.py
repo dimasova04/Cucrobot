@@ -11,6 +11,7 @@ from bot.flow import (
     ACTORS_PER_PAGE,
     SCENES_PER_PAGE,
     GenStates,
+    effective_tier,
     empty_data,
     is_complete,
     paginate,
@@ -22,7 +23,7 @@ from bot.flow import (
 )
 from database.models import Generation
 from services import catalog
-from services.billing import subscriptions, wallet
+from services.billing import wallet
 from services.generation import faces
 from services.generation.generator import AlreadyRunning
 
@@ -184,16 +185,16 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("scene:"))
-async def scene_chosen(cb: CallbackQuery, state: FSMContext):
+async def scene_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings):
     st = await state.get_data()
     st.update(scene_id=int(cb.data.split(":")[1]), custom_text=None, custom_file_id=None)
     await state.set_data(st)
     await cb.answer()
-    await _ask_detail(cb.message, state)
+    await _show_confirm(cb.message, state, session, user, settings)
 
 
 @generate_router.message(GenStates.custom_scene, F.photo | F.document)
-async def custom_scene_photo(message: Message, state: FSMContext):
+async def custom_scene_photo(message: Message, state: FSMContext, session, user, settings):
     file_id = _photo_file_id(message)
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
@@ -201,11 +202,11 @@ async def custom_scene_photo(message: Message, state: FSMContext):
     st = await state.get_data()
     st.update(scene_id=None, custom_text=None, custom_file_id=file_id)
     await state.set_data(st)
-    await _ask_detail(message, state)
+    await _show_confirm(message, state, session, user, settings)
 
 
 @generate_router.message(GenStates.custom_scene, F.text)
-async def custom_scene_text(message: Message, state: FSMContext):
+async def custom_scene_text(message: Message, state: FSMContext, session, user, settings):
     err = validate_custom_scene(message.text)
     if err:
         await message.answer(err)
@@ -213,31 +214,26 @@ async def custom_scene_text(message: Message, state: FSMContext):
     st = await state.get_data()
     st.update(scene_id=None, custom_text=message.text.strip(), custom_file_id=None)
     await state.set_data(st)
-    await _ask_detail(message, state)
+    await _show_confirm(message, state, session, user, settings)
 
 
-async def _ask_model(target: Message, state: FSMContext, user, settings):
-    await state.set_state(GenStates.model)
-    items = [(texts.MODEL_BASE_BTN.format(cost=settings.cost_base), "model:base")]
-    text = texts.CHOOSE_MODEL
-    if subscriptions.is_active(user):
-        items.append((texts.MODEL_PREMIUM_BTN.format(cost=settings.cost_premium), "model:premium"))
-    else:
-        text += "\n" + texts.MODEL_PREMIUM_LOCKED
-    await target.answer(text, reply_markup=keyboards.grid(items, 1, [keyboards.cancel_row()]))
+@generate_router.callback_query(GenStates.confirm, F.data == "gen:detail")
+async def gen_add_detail(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _ask_detail(cb.message, state)
 
 
 @generate_router.callback_query(GenStates.detail, F.data == "detail:skip")
-async def detail_skip(cb: CallbackQuery, state: FSMContext, user, settings):
+async def detail_skip(cb: CallbackQuery, state: FSMContext, session, user, settings):
     st = await state.get_data()
     st["detail"] = None
     await state.set_data(st)
     await cb.answer()
-    await _ask_model(cb.message, state, user, settings)
+    await _show_confirm(cb.message, state, session, user, settings)
 
 
 @generate_router.message(GenStates.detail, F.text)
-async def detail_text(message: Message, state: FSMContext, user, settings):
+async def detail_text(message: Message, state: FSMContext, session, user, settings):
     err = validate_detail(message.text)
     if err:
         await message.answer(err)
@@ -245,30 +241,28 @@ async def detail_text(message: Message, state: FSMContext, user, settings):
     st = await state.get_data()
     st["detail"] = message.text.strip()
     await state.set_data(st)
-    await _ask_model(message, state, user, settings)
+    await _show_confirm(message, state, session, user, settings)
 
 
 async def _show_confirm(target: Message, state: FSMContext, session, user, settings):
     st = await state.get_data()
-    tier = st["tier"]
-    if tier == "premium" and not subscriptions.is_active(user):
-        tier = st["tier"] = "base"
-        await state.set_data(st)
+    tier = effective_tier(user)
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     actors = [a for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
     scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
     text = summary(st, [a.name for a in actors], scene_label(st, scene.name if scene else None), tier, cost, user.crystals)
     await state.set_state(GenStates.confirm)
-    await target.answer(text, reply_markup=keyboards.grid([(texts.BTN_GENERATE, "gen:go")], 1, [keyboards.cancel_row()]))
-
-
-@generate_router.callback_query(GenStates.model, F.data.startswith("model:"))
-async def model_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings):
-    st = await state.get_data()
-    st["tier"] = cb.data.split(":")[1]
-    await state.set_data(st)
-    await cb.answer()
-    await _show_confirm(cb.message, state, session, user, settings)
+    await target.answer(
+        text,
+        reply_markup=keyboards.grid(
+            [],
+            extra_rows=[
+                [(texts.BTN_GENERATE, "gen:go")],
+                [(texts.BTN_ADD_DETAIL, "gen:detail")],
+                keyboards.cancel_row(),
+            ],
+        ),
+    )
 
 
 async def send_result_photo(target: Message, image: bytes, caption: str, attempts: int = 2):
@@ -293,11 +287,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         await state.clear()
         await target.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
         return
-    tier = st.get("tier", "base")
-    if tier == "premium" and not subscriptions.is_active(user):
-        tier = "base"
-        st["tier"] = tier
-        await state.set_data(st)
+    tier = effective_tier(user)
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     if user.crystals < cost:
         await target.answer(texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals))

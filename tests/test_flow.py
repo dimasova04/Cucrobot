@@ -1,5 +1,7 @@
+from types import SimpleNamespace
+
 from bot import texts
-from bot.flow import request_from_state, scene_label, summary, validate_custom_scene, validate_detail
+from bot.flow import effective_tier, request_from_state, scene_label, summary, validate_custom_scene, validate_detail
 
 
 def test_validators():
@@ -18,6 +20,7 @@ def test_scene_label_and_summary():
     assert scene_label({**d, "scene_id": 3}, "Яхта") == "Яхта"
     s = summary(d, ["Стэйтем"], texts.CUSTOM_SCENE_LABEL_TEXT, "base", 1, 7)
     assert "Людей: 2" in s and "Стэйтем" in s and "Деталь: нет" in s and "Спишется 1" in s and "Баланс: 7" in s
+    assert texts.CONFIRM_QUALITY_HINT in s
 
 
 def test_request_from_state():
@@ -30,6 +33,7 @@ def test_is_complete():
     from bot.flow import empty_data, is_complete
 
     d = empty_data()
+    assert "tier" not in d
     assert not is_complete(d)
     d.update(people=["a"], actors=[1], scene_id=2)
     assert is_complete(d)
@@ -52,3 +56,21 @@ def test_paginate():
     # одна страница целиком
     assert paginate([1, 2], 0, 10) == ([1, 2], False, False)
     assert paginate([], 0, 10) == ([], False, False)
+
+
+def test_effective_tier():
+    from datetime import timedelta
+
+    from database.base import utcnow
+
+    subscribed_premium = SimpleNamespace(preferred_tier="premium", sub_until=utcnow() + timedelta(days=1))
+    assert effective_tier(subscribed_premium) == "premium"
+
+    lapsed_premium = SimpleNamespace(preferred_tier="premium", sub_until=None)
+    assert effective_tier(lapsed_premium) == "base"
+
+    expired_premium = SimpleNamespace(preferred_tier="premium", sub_until=utcnow() - timedelta(days=1))
+    assert effective_tier(expired_premium) == "base"
+
+    subscribed_base = SimpleNamespace(preferred_tier="base", sub_until=utcnow() + timedelta(days=1))
+    assert effective_tier(subscribed_base) == "base"
