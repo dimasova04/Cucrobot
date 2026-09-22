@@ -24,3 +24,5 @@ Telegram-бот «фото с актёром»: пользователь при�
 
 ## Сравнение моделей
     .venv/bin/python scripts/bench_models.py --person me.jpg --actor "Имя:описание:ref1.jpg,ref2.jpg" --scene "on a yacht"
+
+Описание актёра может содержать двоеточия; пути к файлам не должны содержать запятых.

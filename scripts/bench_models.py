@@ -4,6 +4,9 @@
   .venv/bin/python scripts/bench_models.py --person me.jpg \
     --actor "Stat:bald man with stubble:refs/stat1.jpg,refs/stat2.jpg" \
     --scene "on a yacht deck, sunny day" --orientation landscape
+
+Актёр указывается как NAME:DESCRIPTION:PATH[,PATH,...].
+Описание может содержать двоеточия; пути к файлам не должны содержать запятых.
 """
 import argparse
 import asyncio
@@ -25,7 +28,12 @@ def _uri(path: str) -> str:
 
 
 def _parse_actor(spec: str) -> ActorInput:
-    name, desc, paths = spec.split(":", 2)
+    parts = spec.split(":")
+    if len(parts) < 3:
+        raise SystemExit(f"bad --actor spec {spec!r}: expected NAME:DESC:PATH[,PATH]")
+    name = parts[0]
+    paths = parts[-1]
+    desc = ":".join(parts[1:-1])
     return ActorInput(name, desc, [_uri(p) for p in paths.split(",")])
 
 
@@ -48,9 +56,9 @@ async def main():
     print(f"{'model':32} {'cost':>8} {'sec':>6} nsfw")
     for model in args.models.split(","):
         max_refs = 4 if model.startswith("runware:400@") else 14
-        prompt, refs = build(inp, max_refs)
         t0 = time.perf_counter()
         try:
+            prompt, refs = build(inp, max_refs)
             res = await client.generate(model, prompt, refs, width, height)
         except Exception as e:
             print(f"{model:32} FAILED {e}")
