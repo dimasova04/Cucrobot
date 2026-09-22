@@ -1,7 +1,22 @@
 import pytest
+import pytest_asyncio
 
 from database import repo
+from database.base import Base, make_engine, make_session_factory
 from services.billing import wallet
+
+
+@pytest_asyncio.fixture
+async def two_factories(tmp_path):
+    """Две независимые сессии-фабрики на ОДИН файл SQLite: каждая со своим
+    подключением, как два воркера на одной базе."""
+    url = f"sqlite+aiosqlite:///{tmp_path}/t.db"
+    engine_a, engine_b = make_engine(url), make_engine(url)
+    async with engine_a.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield make_session_factory(engine_a), make_session_factory(engine_b)
+    await engine_a.dispose()
+    await engine_b.dispose()
 
 
 async def _user(factory, uid=1, crystals=0):
@@ -51,3 +66,34 @@ async def test_refund_without_charge_is_noop(session_factory):
     await _user(session_factory, 1, 5)
     async with session_factory() as s:
         assert await wallet.refund_generation(s, 1, 999) is None
+
+
+async def test_for_update_refreshes_stale_identity_map(two_factories):
+    fa, fb = two_factories
+    await _user(fa, 1, 10)
+    async with fa() as sa:
+        stale = await repo.get_user(sa, 1)
+        assert stale.crystals == 10
+        # другой процесс меняет баланс и коммитит
+        async with fb() as sb:
+            other = await repo.get_user_for_update(sb, 1)
+            other.crystals = 99
+            await sb.commit()
+        fresh = await repo.get_user_for_update(sa, 1)
+        assert fresh.crystals == 99
+        assert stale.crystals == 99  # тот же объект identity map, но перечитанный
+
+
+async def test_concurrent_applies_do_not_lose_update(two_factories):
+    fa, fb = two_factories
+    await _user(fa, 1, 10)
+    async with fa() as sa:
+        stale = await repo.get_user(sa, 1)  # сессия A держит устаревший объект
+        assert stale.crystals == 10
+        async with fb() as sb:
+            assert await wallet.apply(sb, 1, 5, "admin") == 15
+            await sb.commit()
+        assert await wallet.apply(sa, 1, -3, "charge", "generation", "1") == 12
+        await sa.commit()
+    async with fa() as sa:
+        assert await wallet.get_balance(sa, 1) == 12

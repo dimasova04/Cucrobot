@@ -20,5 +20,12 @@ async def get_or_create_user(session: AsyncSession, telegram_id: int, username: 
 
 
 async def get_user_for_update(session: AsyncSession, telegram_id: int) -> User | None:
-    res = await session.execute(select(User).where(User.id == telegram_id).with_for_update())
+    # populate_existing: без него SELECT ... FOR UPDATE вернул бы устаревший объект из
+    # identity map сессии, и блокировка строки не защитила бы от потерянного обновления.
+    res = await session.execute(
+        select(User)
+        .where(User.id == telegram_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return res.scalar_one_or_none()
