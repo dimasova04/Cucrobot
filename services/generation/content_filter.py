@@ -4,23 +4,23 @@ import re
 RU_STEMS = [
     "голы", "голая", "голой", "голого", "обнаж", "раздет", "нагая", "нагой", "нагиш",
     "секс", "эрот", "порно", "интим", "оргазм", "трах", "ебл", "ебат", "хуй", "пизд", "минет", "куни",
-    "сосет", "сиськ", "грудь", "груди", "соск", "попк", "попа", "задниц", "ягодиц", "бикини",
+    "сосет", "сиськ", "грудь", "груди", "соск", "попк", "задниц", "ягодиц", "бикини",
     "лифчик", "трусик", "стринг", "чулк", "бдсм", "изнасил", "насил", "кровь", "труп", "убий",
 ]
+RU_WORDS = ["попа", "попу", "попе", "попой", "попы"]
 RU_PHRASES = ["без одежды", "нижнее бель"]
 EN_STEMS = [
     "nude", "naked", "topless", "undress", "lingerie", "underwear", "bikini", "panties", "sex",
     "erotic", "porn", "nsfw", "intimate", "orgasm", "fuck", "dick", "cock", "pussy", "boob",
-    "breast", "nipple", "blowjob", "bdsm", "rape", "blood", "gore", "kill",
+    "breast", "nipple", "blowjob", "bdsm", "rape", "blood", "gore",
 ]
-EN_WORDS = ["bra", "ass", "butt", "tits"]
+EN_WORDS = ["bra", "ass", "butt", "tits", "kill", "killed", "killing"]
 EN_PHRASES = ["no clothes"]
 
 _RE = re.compile(
     r"\b(?:" + "|".join(map(re.escape, RU_STEMS + EN_STEMS)) + r")"
-    r"|\b(?:" + "|".join(map(re.escape, EN_WORDS)) + r")\b"
-    r"|(?:" + "|".join(map(re.escape, RU_PHRASES + EN_PHRASES)) + r")",
-    re.IGNORECASE,
+    r"|\b(?:" + "|".join(map(re.escape, RU_WORDS + EN_WORDS)) + r")\b"
+    r"|(?:" + "|".join(map(re.escape, RU_PHRASES + EN_PHRASES)) + r")"
 )
 
 

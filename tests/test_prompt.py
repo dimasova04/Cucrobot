@@ -1,3 +1,5 @@
+import pytest
+
 from services.generation import content_filter
 from services.generation.prompt_builder import SAFETY_CLAUSE, ActorInput, GenerationInput, build
 
@@ -46,3 +48,27 @@ def test_scene_ref_included_on_premium_and_detail_appended():
     assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
     assert "Image 5 shows the setting; place them in this exact setting." in prompt
     assert prompt.rstrip().endswith("in winter coats.")
+
+
+def test_content_filter_no_false_positives_on_common_words():
+    assert content_filter.is_allowed("мяч не смог попасть в ворота, попадание было точным")
+    assert content_filter.is_allowed("killer whale documentary")
+    assert not content_filter.is_allowed("голая попа")
+    assert not content_filter.is_allowed("kill him")
+
+
+def test_build_validates_cardinality():
+    inp = _inp()
+    inp.people = ["p0", "p1", "p2"]
+    with pytest.raises(ValueError):
+        build(inp, max_refs=14)
+    inp = _inp()
+    inp.actors = []
+    with pytest.raises(ValueError):
+        build(inp, max_refs=14)
+    inp = _inp()
+    inp.actors[0].refs = []
+    with pytest.raises(ValueError):
+        build(inp, max_refs=14)
+    with pytest.raises(ValueError):
+        build(_inp(people=2, actors=2), max_refs=3)

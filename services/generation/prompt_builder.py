@@ -42,6 +42,15 @@ def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
 
 
 def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
+    if not 1 <= len(inp.people) <= len(PERSON_LABELS):
+        raise ValueError(f"people must be 1..{len(PERSON_LABELS)}, got {len(inp.people)}")
+    if not inp.actors:
+        raise ValueError("at least one actor is required")
+    for a in inp.actors:
+        if not a.refs:
+            raise ValueError(f"actor {a.name!r} has no reference images")
+    if max_refs < len(inp.people) + len(inp.actors):
+        raise ValueError("max_refs too small for people + primary actor refs")
     ordered = _ordered_refs(inp)[:max_refs]
     lines: list[str] = []
     for n, (kind, _data, idx) in enumerate(ordered, start=1):
