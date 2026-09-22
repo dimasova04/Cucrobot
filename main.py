@@ -8,8 +8,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.handlers.balance import balance_router
 from bot.handlers.generate import generate_router
 from bot.handlers.menu import menu_router
+from bot.handlers.payments import payments_router
+from bot.handlers.shop import shop_router
 from bot.handlers.start import start_router
 from bot.middlewares import DbSessionMiddleware, RulesGateMiddleware
 from bot.webhook_server import start_web_server
@@ -50,6 +53,9 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
     dp.include_router(start_router)
     dp.include_router(menu_router)
     dp.include_router(generate_router)
+    dp.include_router(balance_router)
+    dp.include_router(shop_router)
+    dp.include_router(payments_router)
     return dp
 
 
