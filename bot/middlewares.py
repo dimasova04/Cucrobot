@@ -8,7 +8,14 @@ from config.settings import Settings
 from database import repo
 
 
+def _is_payment(event) -> bool:
+    return getattr(event, "successful_payment", None) is not None
+
+
 def needs_rules(user, event) -> bool:
+    # Деньги уже списаны Telegram: начисление нельзя терять ни при каких условиях.
+    if _is_payment(event):
+        return False
     if user.rules_accepted_at is not None:
         return False
     text = getattr(event, "text", None) or ""
@@ -45,7 +52,7 @@ class RulesGateMiddleware(BaseMiddleware):
         user = data.get("user")
         if user is None:
             return await handler(event, data)
-        if user.is_blocked:
+        if user.is_blocked and not _is_payment(event):
             if isinstance(event, CallbackQuery):
                 await event.answer()
             return None

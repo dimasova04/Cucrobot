@@ -6,11 +6,11 @@ from database.models import User
 
 
 def _msg(text):
-    return SimpleNamespace(text=text, data=None)
+    return SimpleNamespace(text=text, data=None, successful_payment=None)
 
 
 def _cb(data):
-    return SimpleNamespace(text=None, data=data)
+    return SimpleNamespace(text=None, data=data, successful_payment=None)
 
 
 def test_needs_rules():
@@ -20,6 +20,8 @@ def test_needs_rules():
     assert not needs_rules(u, _msg("/start ref123"))
     assert not needs_rules(u, _cb("rules:accept"))
     assert needs_rules(u, _cb("shop:open"))
+    # оплата проходит даже без принятых правил: деньги уже списаны
+    assert not needs_rules(u, SimpleNamespace(text=None, data=None, successful_payment=object()))
     u.rules_accepted_at = __import__("datetime").datetime(2026, 1, 1)
     assert not needs_rules(u, _msg("привет"))
 
@@ -113,3 +115,65 @@ async def test_error_handler_swallows_send_failure():
         update=SimpleNamespace(callback_query=None, message=msg), exception=RuntimeError("boom")
     )
     assert await on_unhandled_error(event) is True
+
+
+async def test_rules_gate_lets_successful_payment_through_for_blocked_user():
+    from bot.middlewares import RulesGateMiddleware
+
+    handled = []
+
+    async def handler(event, data):
+        handled.append(event)
+        return "ok"
+
+    user = User(id=1, is_blocked=True)
+    payment = SimpleNamespace(text=None, data=None, successful_payment=object())
+    assert await RulesGateMiddleware()(handler, payment, {"user": user}) == "ok"
+    assert handled == [payment]
+    # обычное сообщение заблокированного пользователя по-прежнему отбрасывается
+    assert await RulesGateMiddleware()(handler, _msg("привет"), {"user": user}) is None
+    assert len(handled) == 1
+
+
+class _AdminMessage:
+    def __init__(self, admin_id=607396740):
+        self.from_user = SimpleNamespace(id=admin_id)
+        self.answers = []
+
+    async def answer(self, text, **kw):
+        self.answers.append(text)
+
+
+async def test_admin_block_and_unblock(session_factory):
+    from aiogram.filters import CommandObject
+
+    from bot.handlers.admin.stats import cmd_block, cmd_unblock
+    from database import repo
+
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 5, "u")
+        await s.commit()
+
+    async with session_factory() as s:
+        msg = _AdminMessage()
+        await cmd_block(msg, CommandObject(args="5"), s)
+        await s.commit()
+        assert msg.answers == [texts.ADM_BLOCK_OK.format(uid=5)]
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 5)).is_blocked is True
+
+    async with session_factory() as s:
+        msg = _AdminMessage()
+        await cmd_unblock(msg, CommandObject(args="5"), s)
+        await s.commit()
+        assert msg.answers == [texts.ADM_UNBLOCK_OK.format(uid=5)]
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 5)).is_blocked is False
+
+    async with session_factory() as s:
+        msg = _AdminMessage()
+        await cmd_block(msg, CommandObject(args="not-a-number"), s)
+        assert msg.answers == [texts.ADM_USAGE_BLOCK]
+        msg = _AdminMessage()
+        await cmd_block(msg, CommandObject(args="98765"), s)
+        assert msg.answers == [texts.ADM_USER_NOT_FOUND]

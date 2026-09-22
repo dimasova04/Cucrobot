@@ -20,7 +20,8 @@ Telegram-бот «фото с актёром»: пользователь при�
 5. Первый запуск создаёт таблицы и 12 стартовых сцен. Актёров добавить командой `/actors`.
 
 ## Админ-команды
-`/stats`, `/give <id> <n>`, `/sub <id> <sub_week|sub_month|sub_3month>`, `/user <id>`, `/actors`, `/scenes`.
+`/stats`, `/give <id> <n>`, `/sub <id> <sub_week|sub_month|sub_3month>`, `/user <id>`,
+`/block <id>`, `/unblock <id>`, `/actors`, `/scenes`.
 
 ## Сравнение моделей
     .venv/bin/python scripts/bench_models.py --person me.jpg --actor "Имя:описание:ref1.jpg,ref2.jpg" --scene "on a yacht"

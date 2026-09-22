@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
+from loguru import logger
 from sqlalchemy import func, select
 
 from bot import texts
@@ -56,6 +57,31 @@ async def cmd_sub(message: Message, command: CommandObject, session):
         return
     until = subscriptions.extend(user, parts[1], plans[parts[1]].days)
     await message.answer(texts.ADM_SUB_OK.format(plan=texts.PLAN_NAMES[parts[1]], uid=user.id, until=until.strftime("%d.%m.%Y")))
+
+
+async def _set_blocked(message: Message, command: CommandObject, session, blocked: bool, ok_text: str):
+    arg = (command.args or "").strip()
+    if not arg.isdigit():
+        await message.answer(texts.ADM_USAGE_BLOCK)
+        return
+    user = await repo.get_user_for_update(session, int(arg))
+    if user is None:
+        await message.answer(texts.ADM_USER_NOT_FOUND)
+        return
+    user.is_blocked = blocked
+    await session.flush()
+    logger.info("admin {} set is_blocked={} for {}", message.from_user.id, blocked, user.id)
+    await message.answer(ok_text.format(uid=user.id))
+
+
+@stats_router.message(Command("block"))
+async def cmd_block(message: Message, command: CommandObject, session):
+    await _set_blocked(message, command, session, True, texts.ADM_BLOCK_OK)
+
+
+@stats_router.message(Command("unblock"))
+async def cmd_unblock(message: Message, command: CommandObject, session):
+    await _set_blocked(message, command, session, False, texts.ADM_UNBLOCK_OK)
 
 
 @stats_router.message(Command("user"))
