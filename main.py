@@ -14,6 +14,7 @@ from bot.handlers.menu import menu_router
 from bot.handlers.payments import payments_router
 from bot.handlers.shop import shop_router
 from bot.handlers.start import start_router
+from bot.handlers.tribute_webhook import make_handler
 from bot.middlewares import DbSessionMiddleware, RulesGateMiddleware
 from bot.webhook_server import start_web_server
 from config.settings import get_settings
@@ -78,7 +79,7 @@ async def main():
         BotCommand(command="menu", description="Меню"),
         BotCommand(command="cancel", description="Отмена"),
     ])
-    routes = []
+    routes = [("POST", settings.tribute_webhook_path, make_handler(sf, settings, bot))]
     await start_web_server(routes, settings.webhook_port)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
