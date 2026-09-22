@@ -12,15 +12,19 @@ import argparse
 import asyncio
 import base64
 import re
+import sys
 import time
 from pathlib import Path
 
 import httpx
 
-from config.settings import get_settings
-from services.catalog import SIZES
-from services.generation.prompt_builder import ActorInput, GenerationInput, build
-from services.generation.runware_client import RunwareClient
+# Запуск как `python scripts/bench_models.py`: корень проекта не в sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config.settings import get_settings  # noqa: E402
+from services.catalog import SIZES  # noqa: E402
+from services.generation.prompt_builder import ActorInput, GenerationInput, build  # noqa: E402
+from services.generation.runware_client import RunwareClient  # noqa: E402
 
 
 def _uri(path: str) -> str:
