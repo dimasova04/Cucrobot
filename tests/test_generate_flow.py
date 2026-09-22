@@ -61,7 +61,8 @@ async def test_show_actors_pages_by_ten(session_factory):
         target, state = _FakeTarget(), _FakeState()
         await _show_actors(target, state, s)
         first = _callbacks(target.answers[0][1])
-        assert len([c for c in first if c.startswith("act:") and ":page:" not in c]) == 10
+        assert len([c for c in first if c.startswith("act:") and ":page:" not in c and c != "act:addperson"]) == 10
+        assert "act:addperson" in first  # один человек загружен — кнопка «добавить человека» есть
         assert "act:page:1" in first and "act:page:-1" not in first
 
         target2 = _FakeTarget()
@@ -72,7 +73,7 @@ async def test_show_actors_pages_by_ten(session_factory):
         target3 = _FakeTarget()
         await _show_actors(target3, state, s, page=2)
         third = _callbacks(target3.answers[0][1])
-        assert len([c for c in third if c.startswith("act:") and ":page:" not in c]) == 3
+        assert len([c for c in third if c.startswith("act:") and ":page:" not in c and c != "act:addperson"]) == 3
         assert "act:page:1" in third and "act:page:3" not in third
         assert state._state == GenStates.actor1
 

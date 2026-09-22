@@ -73,6 +73,8 @@ async def _show_actors(
     extra = _nav_row("act", page, has_prev, has_next)
     if second:
         extra.append([(texts.BTN_NO, "a2:no")])
+    elif len((await state.get_data()).get("people", [])) < 2:
+        extra.append([(texts.BTN_ADD_PERSON, "act:addperson")])
     extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.actor2 if second else GenStates.actor1)
     await target.answer(texts.CHOOSE_ACTOR_2 if second else texts.CHOOSE_ACTOR, reply_markup=keyboards.grid(items, 2, extra))
@@ -104,11 +106,7 @@ async def got_person_photo(message: Message, state: FSMContext, session, bot: Bo
     st = await state.get_data()
     st["people"].append(file_id)
     await state.set_data(st)
-    if await state.get_state() == GenStates.person1.state:
-        await state.set_state(GenStates.ask_person2)
-        await message.answer(texts.ASK_PERSON_2, reply_markup=keyboards.yes_no_kb("p2:yes", "p2:no", texts.BTN_YES_PHOTO, texts.BTN_NO))
-    else:
-        await _show_actors(message, state, session)
+    await _show_actors(message, state, session)
 
 
 @generate_router.message(GenStates.person1)
@@ -117,17 +115,15 @@ async def not_a_photo(message: Message):
     await message.answer(texts.NOT_A_PHOTO)
 
 
-@generate_router.callback_query(GenStates.ask_person2, F.data == "p2:yes")
-async def p2_yes(cb: CallbackQuery, state: FSMContext):
+# Зарегистрирован раньше act:<id>: кнопка «добавить человека» в списке актёров.
+@generate_router.callback_query(GenStates.actor1, F.data == "act:addperson")
+async def add_person(cb: CallbackQuery, state: FSMContext):
+    st = await state.get_data()
+    await cb.answer()
+    if len(st.get("people", [])) >= 2:
+        return
     await state.set_state(GenStates.person2)
-    await cb.answer()
     await cb.message.answer(texts.SEND_PERSON_2)
-
-
-@generate_router.callback_query(GenStates.ask_person2, F.data == "p2:no")
-async def p2_no(cb: CallbackQuery, state: FSMContext, session):
-    await cb.answer()
-    await _show_actors(cb.message, state, session)
 
 
 # Зарегистрирован раньше act:<id>, иначе "act:page:2" попал бы в выбор актёра.

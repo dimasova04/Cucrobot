@@ -7,7 +7,6 @@ from services.generation.generator import GenerationRequest
 
 class GenStates(StatesGroup):
     person1 = State()
-    ask_person2 = State()
     person2 = State()
     actor1 = State()
     actor2 = State()
