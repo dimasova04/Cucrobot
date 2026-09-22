@@ -16,7 +16,6 @@ BTN_BALANCE = "💎 Баланс"
 BTN_SHOP = "🛒 Магазин"
 BTN_BONUS = "🎁 Забрать бонус"
 BTN_HELP = "❓ Помощь"
-BTN_BACK = "◀️ Назад"
 BTN_SKIP = "Пропустить"
 BTN_NO = "Нет, дальше"
 BTN_YES_PHOTO = "Да, пришлю фото"
@@ -45,7 +44,6 @@ NO_FACE = "На фото не нашёл лица. Пришлите другое
 NOT_A_PHOTO = "Нужно фото. Пришлите картинку."
 ASK_PERSON_2 = "Добавить второго человека?"
 CHOOSE_ACTOR = "Выберите актёра:"
-ASK_ACTOR_2 = "Добавить второго актёра?"
 CHOOSE_ACTOR_2 = "Выберите второго актёра:"
 CHOOSE_SCENE = "Выберите сцену:"
 CATALOG_EMPTY = "Каталог актёров пока пуст. Попробуйте позже."
@@ -97,11 +95,18 @@ PAY_CHOOSE = "{title}\n\nКак оплатить?"
 BTN_PAY_CARD = "💳 Оплатить картой"
 BTN_PAY_STARS = "⭐ Оплатить в Stars"
 BTN_BUY_STARS = "🇷🇺 Купить Stars по РУ-карте"
-PAY_CARD_HINT = "Оплата откроется в Tribute. После оплаты кристаллики придут автоматически."
 PAYMENT_OK_PACK = "Оплата прошла! +{n} 💎. Баланс: {balance} 💎"
 PAYMENT_OK_SUB = "Подписка активна до {until}. Спасибо!"
 PRODUCT_NOT_CONFIGURED = "Этот способ оплаты пока не настроен."
 
+PRODUCT_TITLES = {
+    "pack_50": "50 кристалликов",
+    "pack_100": "100 кристалликов",
+    "pack_300": "300 кристалликов",
+    "sub_week": "Подписка на неделю",
+    "sub_month": "Подписка на месяц",
+    "sub_3month": "Подписка на 3 месяца",
+}
 PLAN_NAMES = {"sub_week": "неделя", "sub_month": "месяц", "sub_3month": "3 месяца"}
 MODEL_NAMES = {"base": "обычное", "premium": "премиум"}
 
@@ -152,9 +157,19 @@ ADM_LANDSCAPE = "Горизонтальная"
 ADM_SCENE_PHOTO = "Пришлите фото места или нажмите «Без фото»."
 ADM_NO_PHOTO = "Без фото"
 ADM_SCENE_CREATED = "Сцена «{name}» добавлена."
+ADM_ACTOR_CARD = "{name}\n{description}\nФото: {refs}\nАктивен: {active}"
+ADM_SCENE_CARD = "{name}\n{prompt}\nОриентация: {orientation}\nФото: {photo}\nАктивна: {active}"
+ADM_YES = "да"
+ADM_NO = "нет"
+ADM_PHOTO_PRESENT = "есть"
+ADM_PHOTO_ABSENT = "нет"
 ADM_TEXT_REJECTED = "Описание не прошло стоп-лист."
 ADM_DELETED = "Удалено."
 ADM_TOO_LONG = "Слишком длинно."
+
+CMD_START_DESC = "Начать"
+CMD_MENU_DESC = "Меню"
+CMD_CANCEL_DESC = "Отмена"
 
 INVOICE_DESC_PACK = "+{n} кристалликов"
 INVOICE_DESC_SUB = "{days} дней подписки"

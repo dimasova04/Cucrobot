@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from bot.texts import PRODUCT_TITLES
+
 
 @dataclass(frozen=True)
 class Product:
@@ -11,14 +13,14 @@ class Product:
 
 
 PACKS = [
-    Product("pack_50", "pack", "50 кристалликов", crystals=50),
-    Product("pack_100", "pack", "100 кристалликов", crystals=100),
-    Product("pack_300", "pack", "300 кристалликов", crystals=300),
+    Product("pack_50", "pack", PRODUCT_TITLES["pack_50"], crystals=50),
+    Product("pack_100", "pack", PRODUCT_TITLES["pack_100"], crystals=100),
+    Product("pack_300", "pack", PRODUCT_TITLES["pack_300"], crystals=300),
 ]
 SUBS = [
-    Product("sub_week", "sub", "Подписка на неделю", days=7),
-    Product("sub_month", "sub", "Подписка на месяц", days=30),
-    Product("sub_3month", "sub", "Подписка на 3 месяца", days=90),
+    Product("sub_week", "sub", PRODUCT_TITLES["sub_week"], days=7),
+    Product("sub_month", "sub", PRODUCT_TITLES["sub_month"], days=30),
+    Product("sub_3month", "sub", PRODUCT_TITLES["sub_3month"], days=90),
 ]
 PRODUCTS = {p.code: p for p in PACKS + SUBS}
 

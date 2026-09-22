@@ -100,9 +100,9 @@ async def main():
     generator = Generator(sf, RunwareClient(settings.runware_api_key, settings.gen_timeout_sec), TelegramFileFetcher(bot), settings)
     dp = build_dispatcher(settings, sf, generator)
     await bot.set_my_commands([
-        BotCommand(command="start", description="Начать"),
-        BotCommand(command="menu", description="Меню"),
-        BotCommand(command="cancel", description="Отмена"),
+        BotCommand(command="start", description=texts.CMD_START_DESC),
+        BotCommand(command="menu", description=texts.CMD_MENU_DESC),
+        BotCommand(command="cancel", description=texts.CMD_CANCEL_DESC),
     ])
     routes = [("POST", settings.tribute_webhook_path, make_handler(sf, settings, bot))]
     await start_web_server(routes, settings.webhook_port)
