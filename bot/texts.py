@@ -100,4 +100,8 @@ PRODUCT_NOT_CONFIGURED = "Этот способ оплаты пока не на�
 PLAN_NAMES = {"sub_week": "неделя", "sub_month": "месяц", "sub_3month": "3 месяца"}
 MODEL_NAMES = {"base": "обычное", "premium": "премиум"}
 
+CUSTOM_SCENE_LABEL_TEXT = "своя (текст)"
+CUSTOM_SCENE_LABEL_PHOTO = "своя (фото)"
+DETAIL_NONE = "нет"
+
 ADMIN_ONLY = "Только для админов."

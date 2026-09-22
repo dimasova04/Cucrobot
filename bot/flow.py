@@ -42,8 +42,8 @@ def scene_label(data: dict, scene_name: str | None) -> str:
     if data.get("scene_id") and scene_name:
         return scene_name
     if data.get("custom_file_id"):
-        return "своя (фото)"
-    return "своя (текст)"
+        return texts.CUSTOM_SCENE_LABEL_PHOTO
+    return texts.CUSTOM_SCENE_LABEL_TEXT
 
 
 def summary(data: dict, actors_names: list[str], scene_name: str, model_tier: str, cost: int, balance: int) -> str:
@@ -51,10 +51,18 @@ def summary(data: dict, actors_names: list[str], scene_name: str, model_tier: st
         people=len(data.get("people", [])),
         actors=", ".join(actors_names),
         scene=scene_name,
-        detail=data.get("detail") or "нет",
+        detail=data.get("detail") or texts.DETAIL_NONE,
         model=texts.MODEL_NAMES[model_tier],
         cost=cost,
         balance=balance,
+    )
+
+
+def is_complete(data: dict) -> bool:
+    return bool(
+        data.get("people")
+        and data.get("actors")
+        and (data.get("scene_id") or data.get("custom_text") or data.get("custom_file_id"))
     )
 
 

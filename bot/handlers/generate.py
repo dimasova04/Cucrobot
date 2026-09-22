@@ -3,7 +3,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot import keyboards, texts
-from bot.flow import GenStates, empty_data, request_from_state, scene_label, summary, validate_custom_scene, validate_detail
+from bot.flow import (
+    GenStates,
+    empty_data,
+    is_complete,
+    request_from_state,
+    scene_label,
+    summary,
+    validate_custom_scene,
+    validate_detail,
+)
 from database.models import Generation
 from services import catalog
 from services.billing import subscriptions, wallet
@@ -220,11 +229,15 @@ async def model_chosen(cb: CallbackQuery, state: FSMContext, session, user, sett
 
 async def _run_generation(target: Message, state: FSMContext, session, user, settings, generator):
     st = await state.get_data()
-    if not st.get("people"):
+    if not is_complete(st):
         await state.clear()
         await target.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
         return
     tier = st.get("tier", "base")
+    if tier == "premium" and not subscriptions.is_active(user):
+        tier = "base"
+        st["tier"] = tier
+        await state.set_data(st)
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     if user.crystals < cost:
         await target.answer(texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals))
@@ -256,7 +269,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
 
 
 @generate_router.callback_query(GenStates.confirm, F.data == "gen:go")
-@generate_router.callback_query(F.data == "gen:more")
+@generate_router.callback_query(GenStates.confirm, F.data == "gen:more")
 async def gen_go(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
     await cb.answer()
     await _run_generation(cb.message, state, session, user, settings, generator)
