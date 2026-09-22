@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Payment
@@ -39,18 +40,21 @@ async def grant_product(
     product = get_product(product_code)
     if product is None:
         raise ValueError(f"unknown product {product_code}")
-    session.add(
-        Payment(
-            provider=provider, external_id=external_id, user_id=user_id, product=product_code,
-            amount=amount, currency=currency, status="ok", raw=raw,
-        )
+    payment = Payment(
+        provider=provider, external_id=external_id, user_id=user_id, product=product_code,
+        amount=amount, currency=currency, status="ok", raw=raw,
     )
-    await session.flush()
-    user = await get_user_for_update(session, user_id)
+    try:
+        async with session.begin_nested():
+            session.add(payment)
+            await session.flush()
+    except IntegrityError:
+        return None
     sub_until = None
     if product.kind == "pack":
         balance = await wallet.apply(session, user_id, product.crystals, "purchase", "payment", external_id)
     else:
+        user = await get_user_for_update(session, user_id)
         sub_until = subscriptions.extend(user, product.code, product.days)
         await session.flush()
         balance = user.crystals

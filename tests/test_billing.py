@@ -76,3 +76,20 @@ async def test_grant_product_pack_and_sub_idempotent(session_factory):
     async with session_factory() as db:
         u = await repo.get_user(db, 1)
         assert u.sub_plan == "sub_month" and u.crystals == 50
+
+
+async def test_grant_product_concurrent_duplicate_returns_none(session_factory, monkeypatch):
+    async def never_exists(session, provider, external_id):
+        return False
+    monkeypatch.setattr(grants, "payment_exists", never_exists)
+    async with session_factory() as db:
+        await repo.get_or_create_user(db, 1, "u")
+        await db.commit()
+    async with session_factory() as db:
+        assert (await grants.grant_product(db, "stars", "dup", 1, "pack_50", 250, "XTR", {})).balance == 50
+        await db.commit()
+    async with session_factory() as db:
+        assert await grants.grant_product(db, "stars", "dup", 1, "pack_50", 250, "XTR", {}) is None
+        await db.commit()
+    async with session_factory() as db:
+        assert (await repo.get_user(db, 1)).crystals == 50
