@@ -71,7 +71,8 @@ async def got_person_photo(message: Message, state: FSMContext, session, bot: Bo
         await message.answer(texts.NOT_A_PHOTO)
         return
     data = (await bot.download(file_id)).read()
-    if not faces.has_face(data):
+    # OpenCV блокирует поток: держим event loop свободным, пока идёт детекция.
+    if not await asyncio.to_thread(faces.has_face, data):
         await message.answer(texts.NO_FACE)
         return
     st = await state.get_data()
