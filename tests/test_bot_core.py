@@ -261,3 +261,12 @@ async def test_cancel_reaches_admin_inside_actor_dialog(dispatcher, dispatcher_s
     )
     assert texts.CANCELLED in answers
     assert texts.ADMIN_ONLY not in answers
+
+
+def test_admin_help_lists_every_admin_command():
+    import re
+    from bot.handlers.admin.stats import cmd_admin_help  # noqa: F401  (handler exists)
+
+    listed = set(re.findall(r"/(\w+)", texts.ADM_HELP))
+    for cmd in ("admin", "stats", "user", "give", "sub", "block", "unblock", "actors", "scenes", "cancel"):
+        assert cmd in listed

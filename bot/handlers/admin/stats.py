@@ -16,6 +16,11 @@ from services.billing.products import SUBS
 stats_router = Router(name="admin_stats")
 
 
+@stats_router.message(Command("admin"))
+async def cmd_admin_help(message: Message):
+    await message.answer(texts.ADM_HELP)
+
+
 @stats_router.message(Command("stats"))
 async def cmd_stats(message: Message, session):
     now = datetime.now(timezone.utc).replace(tzinfo=None)

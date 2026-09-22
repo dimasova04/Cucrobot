@@ -127,6 +127,18 @@ ADM_STATS = (
 ADM_USAGE_GIVE = "Формат: /give <user_id> <n>"
 ADM_USAGE_SUB = "Формат: /sub <user_id> <sub_week|sub_month|sub_3month>"
 ADM_USAGE_USER = "Формат: /user <user_id>"
+ADM_HELP = (
+    "Команды администратора:\n"
+    "/admin — этот список\n"
+    "/stats — статистика за сегодня и 7 дней\n"
+    "/user <user_id> — карточка пользователя\n"
+    "/give <user_id> <n> — начислить или списать кристаллики\n"
+    "/sub <user_id> <sub_week|sub_month|sub_3month> — выдать подписку\n"
+    "/block <user_id> и /unblock <user_id> — блокировка\n"
+    "/actors — актёры: добавить, включить, удалить\n"
+    "/scenes — сцены: добавить, включить, удалить\n"
+    "/cancel — выйти из диалога добавления"
+)
 ADM_USAGE_BLOCK = "Формат: /block <user_id>"
 ADM_BLOCK_OK = "Пользователь {uid} заблокирован."
 ADM_UNBLOCK_OK = "Пользователь {uid} разблокирован."
