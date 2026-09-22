@@ -40,7 +40,11 @@ async def cmd_give(message: Message, command: CommandObject, session):
     if await repo.get_user(session, uid) is None:
         await message.answer(texts.ADM_USER_NOT_FOUND)
         return
-    balance = await wallet.apply(session, uid, n, "admin", "admin", str(message.from_user.id))
+    try:
+        balance = await wallet.apply(session, uid, n, "admin", "admin", str(message.from_user.id))
+    except wallet.InsufficientCrystals as e:
+        await message.answer(texts.ADM_GIVE_INSUFFICIENT.format(balance=e.balance))
+        return
     await message.answer(texts.ADM_GIVE_OK.format(n=n, uid=uid, balance=balance))
 
 

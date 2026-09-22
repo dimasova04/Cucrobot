@@ -17,6 +17,9 @@ async def test_collect(session_factory):
         s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x", status="failed"))
         s.add(Payment(provider="stars", external_id="c1", user_id=1, product="pack_50", amount=250, currency="XTR"))
         s.add(Payment(provider="tribute", external_id="t1", user_id=1, product="sub_month", amount=49900, currency="rub"))
+        # заглушки неразобранных платежей в доход не попадают
+        s.add(Payment(provider="tribute", external_id="unresolved:t9", user_id=1, product="?", amount=99900, currency="rub", status="unresolved"))
+        s.add(Payment(provider="stars", external_id="unresolved:c9", user_id=1, product="?", amount=9999, currency="XTR", status="unresolved"))
         await s.commit()
     async with session_factory() as s:
         st = await stats.collect(s, now - timedelta(days=1))

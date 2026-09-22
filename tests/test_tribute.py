@@ -161,6 +161,9 @@ async def test_handler_unresolved_then_retryable(session_factory):
     async with session_factory() as s:
         user = await s.get(User, 5)
         assert user.crystals == 50
+        payments = (await s.execute(select(Payment))).scalars().all()
+        # заглушка убрана, остаётся только проведённый платёж
+        assert [(p.external_id, p.status) for p in payments] == [("t2", "ok")]
 
 
 @pytest.mark.asyncio

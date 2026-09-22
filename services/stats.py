@@ -27,12 +27,17 @@ async def collect(session: AsyncSession, since: datetime) -> Stats:
     for tier, n, c in rows.all():
         gens[tier] = n
         cost += float(c or 0)
+    # Только проведённые платежи: строки status="unresolved" — это заглушки,
+    # по ним ничего не начислено.
     stars = (await session.execute(
-        select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.created_at >= since, Payment.provider == "stars")
+        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.created_at >= since, Payment.provider == "stars", Payment.status == "ok"
+        )
     )).scalar_one()
     trib = (await session.execute(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.created_at >= since, Payment.provider == "tribute", func.lower(Payment.currency).in_(["rub", ""])
+            Payment.created_at >= since, Payment.provider == "tribute", Payment.status == "ok",
+            func.lower(Payment.currency).in_(["rub", ""]),
         )
     )).scalar_one()
     return Stats(new_users=int(new_users), generations=gens, cost_usd=cost, stars=int(stars), tribute_rub=int(trib) // 100)

@@ -177,3 +177,21 @@ async def test_admin_block_and_unblock(session_factory):
         msg = _AdminMessage()
         await cmd_block(msg, CommandObject(args="98765"), s)
         assert msg.answers == [texts.ADM_USER_NOT_FOUND]
+
+
+async def test_admin_give_cannot_go_below_zero(session_factory):
+    from aiogram.filters import CommandObject
+
+    from bot.handlers.admin.stats import cmd_give
+    from database import repo
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 5, "u")
+        user.crystals = 2
+        await s.commit()
+    async with session_factory() as s:
+        msg = _AdminMessage()
+        await cmd_give(msg, CommandObject(args="5 -10"), s)
+        assert msg.answers == [texts.ADM_GIVE_INSUFFICIENT.format(balance=2)]
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 5)).crystals == 2

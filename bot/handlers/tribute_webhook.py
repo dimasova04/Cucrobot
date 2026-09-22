@@ -1,8 +1,10 @@
 # bot/handlers/tribute_webhook.py
+import hashlib
 import json
 
 from aiohttp import web
 from loguru import logger
+from sqlalchemy import delete
 
 from bot import texts
 from database import repo
@@ -16,7 +18,11 @@ def make_handler(session_factory, settings, bot):
         raw = await request.read()
         sig = request.headers.get("trbt-signature", "")
         if not tribute.verify_signature(raw, sig, settings.tribute_api_key):
-            logger.error("tribute: bad signature headers={} body={}", dict(request.headers), raw[:500])
+            # Ни заголовков, ни тела в лог: там платёжные данные пользователя.
+            logger.error(
+                "tribute: bad signature path={} signature_header={} body_sha256={}",
+                request.path, "present" if sig else "missing", hashlib.sha256(raw).hexdigest()[:12],
+            )
             return web.Response(status=401, text="bad signature")
         try:
             body = json.loads(raw)
@@ -35,6 +41,15 @@ def make_handler(session_factory, settings, bot):
                     logger.error("tribute: cannot resolve product for {}", body)
                     return web.Response(text="unresolved")
                 res = await grants.grant_product(s, "tribute", ev.external_id, user.id, ev.product_code, ev.amount, ev.currency, body)
+                if res is not None:
+                    # Платёж разобрался со второй попытки: заглушка больше не нужна
+                    # и не должна портить статистику.
+                    await s.execute(
+                        delete(Payment).where(
+                            Payment.provider == "tribute",
+                            Payment.external_id == f"unresolved:{ev.external_id}",
+                        )
+                    )
                 await s.commit()
             if res is None:
                 logger.warning("tribute: duplicate {}", ev.external_id)
