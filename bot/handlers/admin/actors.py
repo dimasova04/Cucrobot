@@ -15,6 +15,7 @@ class AdminActorStates(StatesGroup):
     name = State()
     description = State()
     photos = State()
+    add_refs = State()
 
 
 # Зарегистрирован первым: иначе /cancel внутри диалога съели бы текстовые шаги.
@@ -122,7 +123,11 @@ async def cb_toggle(cb: CallbackQuery, session):
     aid = int(cb.data.rsplit(":", 1)[1])
     actor = await catalog.get_actor(session, aid)
     if actor:
-        await catalog.set_actor_active(session, aid, not actor.is_active)
+        try:
+            await catalog.set_actor_active(session, aid, not actor.is_active)
+        except ValueError:
+            await cb.answer(texts.ADM_ACTOR_NEEDS_PHOTOS.format(n=catalog.MIN_REFS - len(actor.refs)), show_alert=True)
+            return
     await cb.answer()
     await _list(cb.message, session)
 
@@ -142,6 +147,49 @@ async def cb_refs(cb: CallbackQuery, session):
         await cb.message.answer_media_group([InputMediaPhoto(media=r.file_id) for r in actor.refs])
 
 
+async def _refs_done(target: Message, state: FSMContext, session, actor_id: int):
+    actor = await catalog.get_actor(session, actor_id)
+    await state.clear()
+    if actor:
+        state_word = texts.ADM_ON if actor.is_active else texts.ADM_OFF
+        await target.answer(texts.ADM_ACTOR_REFS_SAVED.format(n=len(actor.refs), state=state_word))
+    await _list(target, session)
+
+
+@actors_router.callback_query(F.data.startswith("adm:actor:addrefs:"))
+async def cb_addrefs(cb: CallbackQuery, state: FSMContext):
+    aid = int(cb.data.rsplit(":", 1)[1])
+    await cb.answer()
+    await state.set_state(AdminActorStates.add_refs)
+    await state.set_data({"actor_id": aid})
+    await cb.message.answer(texts.ADM_ACTOR_MORE_PHOTOS, reply_markup=keyboards.grid([(texts.ADM_DONE, "adm:actor:refsdone")], 1))
+
+
+@actors_router.message(AdminActorStates.add_refs, F.photo | F.document)
+async def st_add_refs_photo(message: Message, state: FSMContext, session):
+    fid = _photo_file_id(message)
+    if not fid:
+        await message.answer(texts.NOT_A_PHOTO)
+        return
+    d = await state.get_data()
+    aid = d["actor_id"]
+    actor = await catalog.add_actor_refs(session, aid, [fid])
+    if len(actor.refs) >= catalog.MAX_REFS:
+        await _refs_done(message, state, session, aid)
+        return
+    await message.answer(
+        texts.ADM_ACTOR_PHOTO_OK.format(n=len(actor.refs)),
+        reply_markup=keyboards.grid([(texts.ADM_DONE, "adm:actor:refsdone")], 1),
+    )
+
+
+@actors_router.callback_query(AdminActorStates.add_refs, F.data == "adm:actor:refsdone")
+async def cb_refs_done(cb: CallbackQuery, state: FSMContext, session):
+    await cb.answer()
+    d = await state.get_data()
+    await _refs_done(cb.message, state, session, d["actor_id"])
+
+
 @actors_router.callback_query(F.data.regexp(r"^adm:actor:\d+$"))
 async def cb_card(cb: CallbackQuery, session):
     aid = int(cb.data.rsplit(":", 1)[1])
@@ -153,8 +201,15 @@ async def cb_card(cb: CallbackQuery, session):
         name=actor.name, description=actor.description, refs=len(actor.refs),
         active=texts.ADM_YES if actor.is_active else texts.ADM_NO,
     )
+    if len(actor.refs) < catalog.MIN_REFS:
+        text += "\n" + texts.ADM_ACTOR_NEEDS_PHOTOS.format(n=catalog.MIN_REFS - len(actor.refs))
     kb = keyboards.grid(
-        [(texts.ADM_TOGGLE, f"adm:actor:toggle:{aid}"), (texts.ADM_SHOW_REFS, f"adm:actor:refs:{aid}"), (texts.ADM_DELETE, f"adm:actor:del:{aid}")],
+        [
+            (texts.ADM_TOGGLE, f"adm:actor:toggle:{aid}"),
+            (texts.ADM_SHOW_REFS, f"adm:actor:refs:{aid}"),
+            (texts.ADM_ADD_PHOTOS, f"adm:actor:addrefs:{aid}"),
+            (texts.ADM_DELETE, f"adm:actor:del:{aid}"),
+        ],
         2, [[(texts.ADM_BACK, "adm:actor:list")]],
     )
     await cb.message.answer(text, reply_markup=kb)

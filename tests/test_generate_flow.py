@@ -79,7 +79,8 @@ async def test_show_actors_pages_by_ten(session_factory):
 
 async def test_show_scenes_pages_by_twelve(session_factory):
     async with session_factory() as s:
-        await catalog.seed_scenes_if_empty(s)
+        for i in range(12):
+            await catalog.create_scene(s, f"Сцена {i}", f"prompt {i}", "portrait", None, None)
         await s.commit()
     async with session_factory() as s:
         scenes = await catalog.list_scenes(s)

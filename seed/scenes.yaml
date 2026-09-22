@@ -34,3 +34,27 @@
 - name: "Ужин при свечах"
   orientation: landscape
   prompt: "at a candlelit dinner on a terrace at night, wine glasses, elegant outfits"
+- name: "Париж, Эйфелева башня"
+  orientation: portrait
+  prompt: "in Paris in front of the Eiffel Tower, tourist photo, daytime, casual clothes"
+- name: "Пляж на закате"
+  orientation: landscape
+  prompt: "walking along a beach at sunset, summer clothes, golden light"
+- name: "Горнолыжный курорт"
+  orientation: landscape
+  prompt: "at a ski resort with snowy mountains behind, ski jackets and goggles on the forehead"
+- name: "Стадион"
+  orientation: landscape
+  prompt: "at a football stadium during a match, fans behind, team scarves"
+- name: "За кулисами концерта"
+  orientation: portrait
+  prompt: "backstage at a concert, stage lights and instruments behind, casual outfits"
+- name: "Частный самолёт"
+  orientation: landscape
+  prompt: "boarding a private jet on the tarmac, sunglasses, smart casual outfits"
+- name: "Кухня, готовим вместе"
+  orientation: landscape
+  prompt: "cooking together in a bright kitchen, aprons, laughing"
+- name: "Спорткар"
+  orientation: landscape
+  prompt: "standing next to a red sports car on a city street, evening, stylish outfits"

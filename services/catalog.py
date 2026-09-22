@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import yaml
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Actor, ActorRef, Scene
@@ -38,7 +38,25 @@ async def create_actor(
 async def set_actor_active(session: AsyncSession, actor_id: int, active: bool) -> None:
     actor = await session.get(Actor, actor_id)
     if actor:
+        if active and len(actor.refs) < MIN_REFS:
+            raise ValueError("actor has no reference photos")
         actor.is_active = active
+
+
+async def add_actor_refs(session: AsyncSession, actor_id: int, file_ids: list[str]) -> Actor:
+    actor = await session.get(Actor, actor_id)
+    if actor is None:
+        raise ValueError(f"actor {actor_id} not found")
+    total = len(actor.refs) + len(file_ids)
+    if total > MAX_REFS:
+        raise ValueError(f"cannot exceed {MAX_REFS} reference photos, would have {total}")
+    start = len(actor.refs)
+    for i, fid in enumerate(file_ids):
+        actor.refs.append(ActorRef(file_id=fid, is_primary=(start + i == 0), order=start + i))
+    if len(actor.refs) >= MIN_REFS:
+        actor.is_active = True
+    await session.flush()
+    return actor
 
 
 async def delete_actor(session: AsyncSession, actor_id: int) -> None:
@@ -86,12 +104,35 @@ async def delete_scene(session: AsyncSession, scene_id: int) -> None:
         await session.flush()
 
 
-async def seed_scenes_if_empty(session: AsyncSession, path: str = "seed/scenes.yaml") -> int:
-    existing = await session.execute(select(Scene.id).limit(1))
-    if existing.scalar_one_or_none() is not None:
-        return 0
+async def seed_scenes(session: AsyncSession, path: str = "seed/scenes.yaml") -> int:
     items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    for i, item in enumerate(items):
-        session.add(Scene(name=item["name"], prompt=item["prompt"], orientation=item["orientation"], order=i))
+    existing_names = set((await session.execute(select(Scene.name))).scalars().all())
+    order = await session.scalar(select(func.count()).select_from(Scene))
+    added = 0
+    for item in items:
+        if item["name"] in existing_names:
+            continue
+        session.add(Scene(name=item["name"], prompt=item["prompt"], orientation=item["orientation"], order=order))
+        order += 1
+        added += 1
     await session.flush()
-    return len(items)
+    return added
+
+
+# Обратная совместимость: раньше сидировал только пустую таблицу.
+seed_scenes_if_empty = seed_scenes
+
+
+async def seed_actors(session: AsyncSession, path: str = "seed/actors.yaml") -> int:
+    items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    existing_names = set((await session.execute(select(Actor.name))).scalars().all())
+    order = await session.scalar(select(func.count()).select_from(Actor))
+    added = 0
+    for item in items:
+        if item["name"] in existing_names:
+            continue
+        session.add(Actor(name=item["name"], description=item["description"], order=order, is_active=False))
+        order += 1
+        added += 1
+    await session.flush()
+    return added

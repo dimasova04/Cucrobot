@@ -22,7 +22,7 @@ from bot.webhook_server import start_web_server
 from config.settings import get_settings
 from database.base import get_session_factory
 from database.migrate import upgrade_to_head
-from services.catalog import seed_scenes_if_empty
+from services.catalog import seed_actors, seed_scenes
 from services.generation.generator import Generator, TelegramFileFetcher, fail_stale_generations
 from services.generation.runware_client import RunwareClient
 
@@ -91,9 +91,11 @@ async def main():
     logger.info("migrations applied")
     sf = get_session_factory()
     async with sf() as s:
-        added = await seed_scenes_if_empty(s)
+        added_scenes = await seed_scenes(s)
+        added_actors = await seed_actors(s)
         await s.commit()
-    logger.info("seeded scenes: {}", added)
+    logger.info("seeded scenes: {}", added_scenes)
+    logger.info("seeded actors: {}", added_actors)
     logger.info("stale generations failed: {}", await fail_stale_generations(sf))
 
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=None))
