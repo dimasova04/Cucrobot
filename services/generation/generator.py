@@ -103,9 +103,11 @@ class Generator:
         model_air, max_refs, cost = self._model(req.tier)
 
         async with self._sf() as s:
-            actors = [a for a in [await catalog.get_actor(s, i) for i in req.actor_ids] if a]
+            # Выключенный актёр — то же самое, что несуществующий: его могли
+            # отключить, пока сессия пользователя висела в FSM.
+            actors = [a for a in [await catalog.get_actor(s, i) for i in req.actor_ids] if a and a.is_active]
             if len(actors) != len(req.actor_ids):
-                raise ValueError("unknown actor id")
+                raise ValueError("unknown or inactive actor id")
             scene = await catalog.get_scene(s, req.scene_id) if req.scene_id else None
             if scene:
                 scene_prompt, orientation, scene_ref_id, location = scene.prompt, scene.orientation, scene.ref_file_id, scene.name

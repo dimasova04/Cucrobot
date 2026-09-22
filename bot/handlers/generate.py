@@ -367,3 +367,10 @@ async def gen_change_actor(cb: CallbackQuery, state: FSMContext, session):
 async def gen_new(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     await _start_flow(cb.message, state)
+
+
+# Регистрируется после варианта в состоянии confirm: ловит «Ещё вариант»,
+# когда FSM уже протухла по TTL.
+@generate_router.callback_query(F.data == "gen:more")
+async def gen_more_expired(cb: CallbackQuery):
+    await cb.answer(texts.SESSION_EXPIRED, show_alert=True)

@@ -181,3 +181,18 @@ async def test_fail_stale_generations(session_factory):
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         assert (await s.get(Generation, g.id)).status == "failed"
+
+
+async def test_inactive_actor_raises_before_charge(session_factory):
+    actor_id, scene_id = await _seed(session_factory)
+    async with session_factory() as s:
+        await catalog.set_actor_active(s, actor_id, False)
+        await s.commit()
+    provider = FakeProvider([])
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    with pytest.raises(ValueError):
+        await gen.run(_req(actor_id, scene_id))
+    assert provider.calls == []
+    async with session_factory() as s:
+        assert await wallet.get_balance(s, 1) == 5
+        assert (await s.execute(select(func.count()).select_from(Generation))).scalar_one() == 0
