@@ -11,6 +11,13 @@ from services.generation.content_filter import is_allowed
 actors_router = Router(name="admin_actors")
 
 
+# Зарегистрирован первым: иначе /cancel внутри диалога съели бы текстовые шаги.
+@actors_router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(texts.CANCELLED, reply_markup=keyboards.main_menu())
+
+
 class AdminActorStates(StatesGroup):
     name = State()
     description = State()
@@ -139,7 +146,10 @@ async def cb_card(cb: CallbackQuery, session):
     await cb.answer()
     if not actor:
         return
-    text = f"{actor.name}\n{actor.description}\nФото: {len(actor.refs)}\nАктивен: {'да' if actor.is_active else 'нет'}"
+    text = texts.ADM_ACTOR_CARD.format(
+        name=actor.name, description=actor.description, refs=len(actor.refs),
+        active=texts.ADM_YES if actor.is_active else texts.ADM_NO,
+    )
     kb = keyboards.grid(
         [(texts.ADM_TOGGLE, f"adm:actor:toggle:{aid}"), (texts.ADM_SHOW_REFS, f"adm:actor:refs:{aid}"), (texts.ADM_DELETE, f"adm:actor:del:{aid}")],
         2, [[(texts.ADM_BACK, "adm:actor:list")]],

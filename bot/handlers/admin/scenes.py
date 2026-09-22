@@ -11,6 +11,13 @@ from services.generation.content_filter import is_allowed
 scenes_router = Router(name="admin_scenes")
 
 
+# Зарегистрирован первым: иначе /cancel внутри диалога съели бы текстовые шаги.
+@scenes_router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(texts.CANCELLED, reply_markup=keyboards.main_menu())
+
+
 class AdminSceneStates(StatesGroup):
     name = State()
     prompt = State()
@@ -130,7 +137,11 @@ async def cb_card(cb: CallbackQuery, session):
     await cb.answer()
     if not scene:
         return
-    text = f"{scene.name}\n{scene.prompt}\nОриентация: {scene.orientation}\nФото: {'есть' if scene.ref_file_id else 'нет'}\nАктивна: {'да' if scene.is_active else 'нет'}"
+    text = texts.ADM_SCENE_CARD.format(
+        name=scene.name, prompt=scene.prompt, orientation=scene.orientation,
+        photo=texts.ADM_PHOTO_PRESENT if scene.ref_file_id else texts.ADM_PHOTO_ABSENT,
+        active=texts.ADM_YES if scene.is_active else texts.ADM_NO,
+    )
     kb = keyboards.grid([(texts.ADM_TOGGLE, f"adm:scene:toggle:{sid}"), (texts.ADM_DELETE, f"adm:scene:del:{sid}")], 2, [[(texts.ADM_BACK, "adm:scene:list")]])
     if scene.ref_file_id:
         await cb.message.answer_photo(scene.ref_file_id, caption=text, reply_markup=kb)
