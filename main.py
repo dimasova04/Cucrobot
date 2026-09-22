@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.handlers.generate import generate_router
 from bot.handlers.menu import menu_router
 from bot.handlers.start import start_router
 from bot.middlewares import DbSessionMiddleware, RulesGateMiddleware
@@ -48,6 +49,7 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
     # Роутеры: админские первыми, затем пользовательские (дополняется в задачах 9–12).
     dp.include_router(start_router)
     dp.include_router(menu_router)
+    dp.include_router(generate_router)
     return dp
 
 
