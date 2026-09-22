@@ -40,3 +40,76 @@ def test_main_menu_has_five_buttons():
 
 def test_cancel_row():
     assert keyboards.cancel_row() == [(texts.BTN_CANCEL, "gen:cancel")]
+
+
+class _PhotoTarget:
+    """answer_photo падает первые `fails` раз."""
+
+    def __init__(self, fails: int):
+        self.fails = fails
+        self.calls = 0
+
+    async def answer_photo(self, *a, **kw):
+        self.calls += 1
+        if self.calls <= self.fails:
+            raise RuntimeError("telegram is down")
+        return SimpleNamespace(photo=[SimpleNamespace(file_id="fid")])
+
+
+async def test_send_result_photo_retries_once(monkeypatch):
+    from bot.handlers import generate
+
+    slept = []
+
+    async def fake_sleep(sec):
+        slept.append(sec)
+
+    monkeypatch.setattr(generate.asyncio, "sleep", fake_sleep)
+    target = _PhotoTarget(fails=1)
+    sent = await generate.send_result_photo(target, b"IMG", "caption")
+    assert sent is not None and target.calls == 2 and slept == [1]
+
+
+async def test_send_result_photo_gives_up_after_two_attempts(monkeypatch):
+    from bot.handlers import generate
+
+    async def fake_sleep(sec):
+        pass
+
+    monkeypatch.setattr(generate.asyncio, "sleep", fake_sleep)
+    target = _PhotoTarget(fails=5)
+    assert await generate.send_result_photo(target, b"IMG", "caption") is None
+    assert target.calls == 2
+
+
+async def test_error_handler_answers_callback():
+    from aiogram.types import ErrorEvent
+
+    from main import on_unhandled_error
+
+    answered = []
+
+    async def answer(text, **kw):
+        answered.append(text)
+
+    cb = SimpleNamespace(from_user=SimpleNamespace(id=1), answer=answer)
+    event = ErrorEvent.model_construct(
+        update=SimpleNamespace(callback_query=cb, message=None), exception=RuntimeError("boom")
+    )
+    assert await on_unhandled_error(event) is True
+    assert answered == [texts.GENERIC_ERROR]
+
+
+async def test_error_handler_swallows_send_failure():
+    from aiogram.types import ErrorEvent
+
+    from main import on_unhandled_error
+
+    async def boom(*a, **kw):
+        raise RuntimeError("cannot send")
+
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=1), answer=boom)
+    event = ErrorEvent.model_construct(
+        update=SimpleNamespace(callback_query=None, message=msg), exception=RuntimeError("boom")
+    )
+    assert await on_unhandled_error(event) is True

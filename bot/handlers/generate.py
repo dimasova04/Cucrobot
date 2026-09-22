@@ -1,6 +1,9 @@
+import asyncio
+
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from loguru import logger
 
 from bot import keyboards, texts
 from bot.flow import (
@@ -227,6 +230,22 @@ async def model_chosen(cb: CallbackQuery, state: FSMContext, session, user, sett
     await _show_confirm(cb.message, state, session, user, settings)
 
 
+async def send_result_photo(target: Message, image: bytes, caption: str, attempts: int = 2):
+    """Отправка результата с одним повтором. Кристаллики не возвращаются (спек §7):
+    генерация удалась, результат лежит в базе."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return await target.answer_photo(
+                BufferedInputFile(image, "photo.jpg"), caption=caption, reply_markup=keyboards.result_kb()
+            )
+        except Exception as e:
+            logger.warning("send result photo failed (attempt {}/{}): {}", attempt, attempts, e)
+            if attempt < attempts:
+                await asyncio.sleep(1)
+    logger.error("result photo not delivered after {} attempts", attempts)
+    return None
+
+
 async def _run_generation(target: Message, state: FSMContext, session, user, settings, generator):
     st = await state.get_data()
     if not is_complete(st):
@@ -257,7 +276,10 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         actors = [a.name for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
         scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
         caption = texts.RESULT_CAPTION.format(actors=", ".join(actors), scene=scene_label(st, scene.name if scene else None))
-        sent = await target.answer_photo(BufferedInputFile(outcome.image_bytes, "photo.jpg"), caption=caption, reply_markup=keyboards.result_kb())
+        sent = await send_result_photo(target, outcome.image_bytes, caption)
+        if sent is None:
+            await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
+            return
         gen = await session.get(Generation, outcome.generation_id)
         if gen and sent.photo:
             gen.result_file_id = sent.photo[-1].file_id

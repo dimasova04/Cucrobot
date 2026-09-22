@@ -5,9 +5,10 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, ErrorEvent
 from loguru import logger
 
+from bot import texts
 from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import balance_router
 from bot.handlers.generate import generate_router
@@ -44,9 +45,26 @@ def _storage(settings):
     return MemoryStorage()
 
 
+async def on_unhandled_error(event: ErrorEvent) -> bool:
+    """Последняя линия: залогировать и не оставить пользователя без ответа."""
+    logger.opt(exception=event.exception).error("unhandled update error")
+    update = event.update
+    cb = getattr(update, "callback_query", None)
+    msg = getattr(update, "message", None)
+    try:
+        if cb is not None and cb.from_user is not None:
+            await cb.answer(texts.GENERIC_ERROR, show_alert=True)
+        elif msg is not None and msg.from_user is not None:
+            await msg.answer(texts.GENERIC_ERROR)
+    except Exception as e:
+        logger.warning("failed to report error to user: {}", e)
+    return True
+
+
 def build_dispatcher(settings, session_factory, generator: Generator | None) -> Dispatcher:
     dp = Dispatcher(storage=_storage(settings))
     dp["generator"] = generator
+    dp.errors.register(on_unhandled_error)
     for obs in (dp.message, dp.callback_query, dp.pre_checkout_query):
         obs.middleware(DbSessionMiddleware(session_factory, settings))
     dp.message.middleware(RulesGateMiddleware())
