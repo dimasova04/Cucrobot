@@ -19,3 +19,12 @@ def test_economy_defaults(monkeypatch):
     assert s.model_base_air == "runware:400@2"
     assert s.model_premium_air == "google:4@3"
     assert s.model_base_max_refs == 4 and s.model_premium_max_refs == 14
+
+
+def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
+    monkeypatch.delenv("BOT_TOKEN", raising=False)
+    monkeypatch.delenv("ADMIN_IDS", raising=False)
+    env = tmp_path / ".env"
+    env.write_text("BOT_TOKEN=from-file\nADMIN_IDS=1,2\n", encoding="utf-8")
+    s = Settings(_env_file=env)
+    assert s.bot_token == "from-file" and s.admin_ids == [1, 2]
