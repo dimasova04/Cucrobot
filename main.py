@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import balance_router
 from bot.handlers.generate import generate_router
 from bot.handlers.menu import menu_router
@@ -50,7 +51,8 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
         obs.middleware(DbSessionMiddleware(session_factory, settings))
     dp.message.middleware(RulesGateMiddleware())
     dp.callback_query.middleware(RulesGateMiddleware())
-    # Роутеры: админские первыми, затем пользовательские (дополняется в задачах 9–12).
+    # Роутеры: админские первыми, затем пользовательские.
+    dp.include_router(build_admin_router(settings))
     dp.include_router(start_router)
     dp.include_router(menu_router)
     dp.include_router(generate_router)
