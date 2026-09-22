@@ -146,3 +146,6 @@ ADM_SCENE_CREATED = "Сцена «{name}» добавлена."
 ADM_TEXT_REJECTED = "Описание не прошло стоп-лист."
 ADM_DELETED = "Удалено."
 ADM_TOO_LONG = "Слишком длинно."
+
+INVOICE_DESC_PACK = "+{n} кристалликов"
+INVOICE_DESC_SUB = "{days} дней подписки"

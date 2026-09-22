@@ -51,14 +51,16 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
         obs.middleware(DbSessionMiddleware(session_factory, settings))
     dp.message.middleware(RulesGateMiddleware())
     dp.callback_query.middleware(RulesGateMiddleware())
-    # Роутеры: админские первыми, затем пользовательские.
+    # Роутеры: админские первыми, затем пользовательские. Роутеры с глобальными
+    # кнопками и платежами идут до generate_router, у которого есть catch-all
+    # хендлеры состояний.
     dp.include_router(build_admin_router(settings))
     dp.include_router(start_router)
     dp.include_router(menu_router)
-    dp.include_router(generate_router)
     dp.include_router(balance_router)
     dp.include_router(shop_router)
     dp.include_router(payments_router)
+    dp.include_router(generate_router)
     return dp
 
 

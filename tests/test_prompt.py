@@ -93,6 +93,21 @@ def test_content_filter_no_false_positives_on_common_words():
     assert not content_filter.is_allowed("boobs out")
 
 
+def test_content_filter_hyphenated_keywords_still_blocked():
+    assert not content_filter.is_allowed("sex-photo on the beach")
+    assert not content_filter.is_allowed("sexy-pose by the pool")
+    assert not content_filter.is_allowed("ass-shot from behind")
+    assert not content_filter.is_allowed("boobs-out selfie")
+    assert not content_filter.is_allowed("breast-shot close up")
+    assert not content_filter.is_allowed("голый-парень на пляже")
+    assert not content_filter.is_allowed("стринги-фото")
+    assert not content_filter.is_allowed("e-sex")
+    assert content_filter.is_allowed("gore-tex jacket")
+    assert content_filter.is_allowed("Gore-Tex boots")
+    assert content_filter.is_allowed("well-dressed couple")
+    assert content_filter.is_allowed("e-mail me")
+
+
 def test_build_validates_cardinality():
     inp = _inp()
     inp.people = ["p0", "p1", "p2"]

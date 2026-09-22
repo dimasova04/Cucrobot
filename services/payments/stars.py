@@ -1,5 +1,6 @@
 from aiogram.types import LabeledPrice
 
+from bot import texts
 from services.billing.products import PRODUCTS, get_product
 
 
@@ -10,7 +11,11 @@ def invoice_params(product_code: str, settings) -> dict:
     amount = settings.stars_price(product_code)
     if amount <= 0:
         raise ValueError(f"no stars price for {product_code}")
-    desc = f"+{product.crystals} кристалликов" if product.kind == "pack" else f"{product.days} дней подписки"
+    desc = (
+        texts.INVOICE_DESC_PACK.format(n=product.crystals)
+        if product.kind == "pack"
+        else texts.INVOICE_DESC_SUB.format(days=product.days)
+    )
     return {
         "title": product.title,
         "description": desc,
