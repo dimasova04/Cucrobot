@@ -2,6 +2,7 @@ import asyncio
 from datetime import timedelta
 
 import pytest
+from sqlalchemy import func, select
 
 from config.settings import Settings
 from database import repo
@@ -62,6 +63,15 @@ async def test_face_detector_returns_false_on_blank():
     blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()
     assert faces.has_face(blank) is False
     assert faces.has_face(b"not an image") is False
+    assert faces.detector_available() is True
+
+
+async def test_face_detector_fails_open_when_cascade_unavailable(monkeypatch):
+    import cv2, numpy as np
+    blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()
+    monkeypatch.setattr(faces, "_CASCADE", None)
+    monkeypatch.setattr(faces, "_cascade_load_attempted", True)
+    assert faces.has_face(blank) is True
 
 
 async def test_success_charges_and_records(session_factory, monkeypatch):
@@ -114,6 +124,18 @@ async def test_insufficient_balance_raises_before_generation(session_factory):
     with pytest.raises(wallet.InsufficientCrystals):
         await gen.run(_req(actor_id, scene_id))
     assert provider.calls == []
+
+
+async def test_unknown_actor_id_raises_before_charge(session_factory):
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([])
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    with pytest.raises(ValueError):
+        await gen.run(_req(999999, scene_id))
+    assert provider.calls == []
+    async with session_factory() as s:
+        assert await wallet.get_balance(s, 1) == 5
+        assert (await s.execute(select(func.count()).select_from(Generation))).scalar_one() == 0
 
 
 async def test_premium_uses_premium_model_and_cost(session_factory, monkeypatch):

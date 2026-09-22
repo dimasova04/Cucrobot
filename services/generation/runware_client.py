@@ -30,9 +30,13 @@ class RunwareClient:
     async def _get(self):
         async with self._lock:
             if self._client is None:
-                from runware import Runware
-                client = Runware(api_key=self._api_key)
-                await asyncio.wait_for(client.connect(), timeout=15)
+                try:
+                    from runware import Runware
+                    client = Runware(api_key=self._api_key)
+                    await asyncio.wait_for(client.connect(), timeout=15)
+                except Exception as e:
+                    self._client = None
+                    raise RunwareGenerationError(f"connect failed: {e}") from e
                 self._client = client
             return self._client
 

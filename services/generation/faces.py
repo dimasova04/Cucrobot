@@ -22,6 +22,10 @@ def _get_cascade():
     return _CASCADE
 
 
+def detector_available() -> bool:
+    return _get_cascade() is not None
+
+
 def has_face(image_bytes: bytes) -> bool:
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -29,7 +33,11 @@ def has_face(image_bytes: bytes) -> bool:
         return False
     cascade = _get_cascade()
     if cascade is None:
-        return False
+        # The face check is a UX helper, not the safety gate: if the detector
+        # is unavailable we must fail open (allow the photo) rather than
+        # rejecting every upload.
+        logger.warning("face detector unavailable, skipping check")
+        return True
     h, w = img.shape[:2]
     scale = 800 / max(h, w)
     if scale < 1:
