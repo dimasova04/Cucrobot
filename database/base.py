@@ -53,6 +53,8 @@ def get_session_factory():
 
 
 async def init_db() -> None:
+    """Схема без Alembic — для тестов и ручных прогонов.
+    Боевой старт применяет миграции: database/migrate.py."""
     import database.models  # noqa: F401
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

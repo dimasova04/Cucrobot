@@ -20,7 +20,8 @@ from bot.handlers.tribute_webhook import make_handler
 from bot.middlewares import DbSessionMiddleware, RulesGateMiddleware
 from bot.webhook_server import start_web_server
 from config.settings import get_settings
-from database.base import get_session_factory, init_db
+from database.base import get_session_factory
+from database.migrate import upgrade_to_head
 from services.catalog import seed_scenes_if_empty
 from services.generation.generator import Generator, TelegramFileFetcher, fail_stale_generations
 from services.generation.runware_client import RunwareClient
@@ -85,7 +86,9 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
 async def main():
     _setup_logging()
     settings = get_settings()
-    await init_db()
+    # env.py внутри вызывает asyncio.run(), поэтому только в отдельном потоке.
+    await asyncio.to_thread(upgrade_to_head)
+    logger.info("migrations applied")
     sf = get_session_factory()
     async with sf() as s:
         added = await seed_scenes_if_empty(s)
