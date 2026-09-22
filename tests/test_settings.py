@@ -28,3 +28,13 @@ def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
     env.write_text("BOT_TOKEN=from-file\nADMIN_IDS=1,2\n", encoding="utf-8")
     s = Settings(_env_file=env)
     assert s.bot_token == "from-file" and s.admin_ids == [1, 2]
+
+
+def test_frame_size_per_model(monkeypatch):
+    monkeypatch.setenv("BOT_TOKEN", "x")
+    s = Settings(_env_file=None)
+    assert s.frame_size("base", "portrait") == (1664, 2496)
+    assert s.frame_size("base", "landscape") == (2496, 1664)
+    assert s.frame_size("premium", "portrait") == (832, 1248)
+    w, h = s.frame_size("base", "portrait")
+    assert 3_686_400 <= w * h <= 16_777_216  # лимит Seedream 4.5

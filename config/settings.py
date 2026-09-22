@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
+    # Размеры кадра по модели: Seedream 4.5 требует >= 3.69 Мпикс, Nano Banana 2 работает с 1K.
+    model_base_portrait: str = "1664x2496"
+    model_base_landscape: str = "2496x1664"
+    model_premium_portrait: str = "832x1248"
+    model_premium_landscape: str = "1248x832"
 
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"
@@ -59,6 +64,11 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [int(x) for x in v.split(",") if x.strip()]
         return v
+
+    def frame_size(self, tier: str, orientation: str) -> tuple[int, int]:
+        raw = getattr(self, f"model_{tier}_{orientation}")
+        w, h = raw.lower().split("x")
+        return int(w), int(h)
 
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids

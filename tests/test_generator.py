@@ -89,7 +89,7 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     call = provider.calls[0]
     assert call["model"] == "bytedance:seedream@4.5"
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
-    assert (call["width"], call["height"]) == (832, 1248)
+    assert (call["width"], call["height"]) == (1664, 2496)  # базовая модель Seedream, вертикальная сцена
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 4
         row = await s.get(Generation, out.generation_id)

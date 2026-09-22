@@ -138,7 +138,7 @@ class Generator:
             for ai in actor_inputs:
                 ai.refs = [_data_uri(await self._fetcher.fetch(f)) for f in ai.refs]
             scene_ref = _data_uri(await self._fetcher.fetch(scene_ref_id)) if scene_ref_id else None
-            width, height = catalog.SIZES[orientation]
+            width, height = self._settings.frame_size(req.tier, orientation)
             prompt, refs = build(
                 GenerationInput(people, actor_inputs, scene_prompt, scene_ref, req.detail, width, height),
                 max_refs=max_refs,
