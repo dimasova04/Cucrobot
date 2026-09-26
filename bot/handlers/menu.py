@@ -6,6 +6,7 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
+from bot.intro import send_intro
 
 menu_router = Router(name="menu")
 
@@ -13,8 +14,7 @@ menu_router = Router(name="menu")
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext, user, settings):
     await state.clear()
-    await message.answer(texts.MENU, reply_markup=keyboards.main_menu())
-    await message.answer(texts.INTRO, reply_markup=keyboards.intro_kb())
+    await send_intro(message.bot, user.id)
     try:
         await send_bonus_card(message.bot, user.id, user, settings)
     except Exception as e:

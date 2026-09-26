@@ -75,6 +75,16 @@ async def show_profile(message: Message, user, settings):
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
+@profile_router.callback_query(F.data == "menu:bonus")
+async def cb_bonus(cb: CallbackQuery, user, settings):
+    st = bonus.bonus_status(user, settings)
+    if not st.ready:
+        await cb.answer(texts.BONUS_NOT_READY.format(when=_fmt_wait(st.wait)), show_alert=True)
+        return
+    await cb.answer()
+    await _try_send_bonus_card(cb.bot, user.id, user, settings)
+
+
 @profile_router.callback_query(F.data == "menu:profile")
 async def cb_profile(cb: CallbackQuery, user, settings):
     await cb.answer()

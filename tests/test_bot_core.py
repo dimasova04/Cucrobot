@@ -275,5 +275,22 @@ def test_admin_help_lists_every_admin_command():
 def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert cbs == ["menu:create", "menu:profile", "menu:help"]
-    assert "1." in texts.INTRO and "2." in texts.INTRO and "3." in texts.INTRO
+    assert cbs == ["menu:create", "menu:profile", "menu:bonus", "menu:help"]
+    assert "<b>" in texts.INTRO and "💎" in texts.INTRO
+
+
+async def test_send_intro_caches_file_id(monkeypatch):
+    from types import SimpleNamespace
+    from bot import intro
+
+    monkeypatch.setattr(intro, "_cached_file_id", None)
+    calls = []
+
+    class FakeBot:
+        async def send_photo(self, chat_id, photo, caption, parse_mode, reply_markup):
+            calls.append(photo)
+            return SimpleNamespace(photo=[SimpleNamespace(file_id="banner_id")])
+
+    await intro.send_intro(FakeBot(), 1)
+    await intro.send_intro(FakeBot(), 1)
+    assert calls[1] == "banner_id" and not isinstance(calls[0], str)

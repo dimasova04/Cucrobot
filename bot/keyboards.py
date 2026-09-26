@@ -18,7 +18,10 @@ def intro_kb() -> InlineKeyboardMarkup:
     return grid(
         [(texts.BTN_INTRO_CREATE, "menu:create")],
         1,
-        [[(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_HELP, "menu:help")]],
+        [
+            [(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_BONUS, "menu:bonus")],
+            [(texts.BTN_INTRO_HELP, "menu:help")],
+        ],
     )
 
 
