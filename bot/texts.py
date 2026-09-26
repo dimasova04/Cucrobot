@@ -113,11 +113,12 @@ SHOP_SUBS = (
     "🎁 {daily} кристалликов каждый день — забирай кнопкой в профиле\n"
     "🖼 Премиум-качество: лица как живые, без «пластилина»\n"
     "🎬 Все сцены, все звёзды, без ограничений\n"
-    "⚡ Это до {daily} фото в день и до {monthly} в месяц\n\n"
+    "⚡ Это до {daily} фото в день и до {monthly} в месяц\n"
+    "🎉 Плюс подарок сразу при покупке: 10, 50 или 200 кристалликов\n\n"
     "Выбирай срок:"
 )
 PACK_BTN = "{n} 💎 — {price}"
-SUB_BTN = "{name} — {price}"
+SUB_BTN = "{name} — {price} · +{gift} 💎"
 PRICE_RUB = "{rub} ₽"
 PRICE_STARS = "{stars} ⭐"
 PRICE_BOTH = "{rub} ₽ / {stars} ⭐"
@@ -131,7 +132,8 @@ PAY_CHOOSE_PACK = (
 )
 PAY_CHOOSE_SUB = (
     "⭐ <b>{title}</b>\n"
-    "🎁 {daily} кристалликов в день · 🖼 премиум-качество · 🎬 все сцены и звёзды\n\n"
+    "🎁 {daily} кристалликов в день · 🖼 премиум-качество · 🎬 все сцены и звёзды\n"
+    "🎉 Сразу в подарок: +{gift} 💎\n\n"
     "{price}\n\n"
     "💳 Картой или СБП — через Tribute\n"
     "⭐ Stars — прямо в Telegram\n\n"
@@ -141,7 +143,7 @@ BTN_PAY_CARD = "💳 Оплатить картой"
 BTN_PAY_STARS = "⭐ Оплатить в Stars"
 BTN_BUY_STARS = "🇷🇺 Купить Stars по РУ-карте"
 PAYMENT_OK_PACK = "Оплата прошла! +{n} 💎. Баланс: {balance} 💎"
-PAYMENT_OK_SUB = "Подписка активна до {until}. Спасибо!"
+PAYMENT_OK_SUB = "Подписка активна до {until} ⭐\nВ подарок +{n} 💎, баланс: {balance} 💎"
 PRODUCT_NOT_CONFIGURED = "Этот способ оплаты пока не настроен."
 
 PRODUCT_TITLES = {

@@ -18,9 +18,10 @@ PACKS = [
     Product("pack_300", "pack", PRODUCT_TITLES["pack_300"], crystals=300),
 ]
 SUBS = [
-    Product("sub_week", "sub", PRODUCT_TITLES["sub_week"], days=7),
-    Product("sub_month", "sub", PRODUCT_TITLES["sub_month"], days=30),
-    Product("sub_3month", "sub", PRODUCT_TITLES["sub_3month"], days=90),
+    # crystals у подписки — разовый подарок при покупке/продлении, сверх ежедневного бонуса
+    Product("sub_week", "sub", PRODUCT_TITLES["sub_week"], crystals=10, days=7),
+    Product("sub_month", "sub", PRODUCT_TITLES["sub_month"], crystals=50, days=30),
+    Product("sub_3month", "sub", PRODUCT_TITLES["sub_3month"], crystals=200, days=90),
 ]
 PRODUCTS = {p.code: p for p in PACKS + SUBS}
 

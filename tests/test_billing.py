@@ -14,6 +14,7 @@ def test_products_catalog():
     assert [p.code for p in products.PACKS] == ["pack_50", "pack_100", "pack_300"]
     assert [p.crystals for p in products.PACKS] == [50, 100, 300]
     assert [p.days for p in products.SUBS] == [7, 30, 90]
+    assert [p.crystals for p in products.SUBS] == [10, 50, 200]
     assert products.get_product("nope") is None
 
 
@@ -71,11 +72,11 @@ async def test_grant_product_pack_and_sub_idempotent(session_factory):
     async with session_factory() as db:
         assert await grants.grant_product(db, "stars", "ch_1", 1, "pack_50", 250, "XTR", {}) is None
         r = await grants.grant_product(db, "tribute", "p_9", 1, "sub_month", 49900, "RUB", {"x": 1})
-        assert r.sub_until is not None and r.balance == 50
+        assert r.sub_until is not None and r.balance == 100  # 50 за пакет + 50 подарок за месяц
         await db.commit()
     async with session_factory() as db:
         u = await repo.get_user(db, 1)
-        assert u.sub_plan == "sub_month" and u.crystals == 50
+        assert u.sub_plan == "sub_month" and u.crystals == 100
 
 
 async def test_grant_product_concurrent_duplicate_returns_none(session_factory, monkeypatch):

@@ -58,4 +58,6 @@ async def grant_product(
         sub_until = subscriptions.extend(user, product.code, product.days)
         await session.flush()
         balance = user.crystals
+        if product.crystals:
+            balance = await wallet.apply(session, user_id, product.crystals, "purchase", "payment", external_id)
     return GrantResult(product=product, balance=balance, sub_until=sub_until)

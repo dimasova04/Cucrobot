@@ -79,7 +79,7 @@ def test_price_label_and_shop_texts():
     assert price_label("sub_week", s) == "349 ₽ / 270 ⭐"
     assert price_label("pack_50", s) == "190 ⭐"
     sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
-    assert sub_btns[0] == "Неделя — 349 ₽ / 270 ⭐"
+    assert sub_btns[0] == "Неделя — 349 ₽ / 270 ⭐ · +10 💎"
     pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]
     assert pack_btns[0] == "50 💎 — 190 ⭐"
     assert "10 кристалликов каждый день" in texts.SHOP_SUBS.format(daily=10, monthly=300)

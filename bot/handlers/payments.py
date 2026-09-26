@@ -46,7 +46,7 @@ async def on_successful_payment(message: Message, session, user):
     text = (
         texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance)
         if res.product.kind == "pack"
-        else texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y"))
+        else texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y"), n=res.product.crystals, balance=res.balance)
     )
     try:
         await message.answer(text)

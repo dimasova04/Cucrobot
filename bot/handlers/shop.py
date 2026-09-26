@@ -34,5 +34,5 @@ async def choose_payment(cb: CallbackQuery, settings):
     if product.kind == "pack":
         text = texts.PAY_CHOOSE_PACK.format(title=product.title, n=product.crystals, price=price)
     else:
-        text = texts.PAY_CHOOSE_SUB.format(title=product.title, daily=settings.bonus_sub_amount, price=price)
+        text = texts.PAY_CHOOSE_SUB.format(title=product.title, daily=settings.bonus_sub_amount, price=price, gift=product.crystals)
     await cb.message.answer(text, parse_mode="HTML", reply_markup=kb)

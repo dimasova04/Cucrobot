@@ -67,7 +67,7 @@ def packs_kb(settings) -> InlineKeyboardMarkup:
 
 
 def subs_kb(settings) -> InlineKeyboardMarkup:
-    items = [(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code].capitalize(), price=price_label(p.code, settings)), f"buy:{p.code}") for p in SUBS]
+    items = [(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code].capitalize(), price=price_label(p.code, settings), gift=p.crystals), f"buy:{p.code}") for p in SUBS]
     return keyboards.grid(items, cols=1)
 
 

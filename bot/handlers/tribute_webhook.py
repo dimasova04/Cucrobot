@@ -57,7 +57,7 @@ def make_handler(session_factory, settings, bot):
             text = (
                 texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance)
                 if res.product.kind == "pack"
-                else texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y"))
+                else texts.PAYMENT_OK_SUB.format(until=res.sub_until.strftime("%d.%m.%Y"), n=res.product.crystals, balance=res.balance)
             )
             try:
                 await bot.send_message(ev.telegram_user_id, text)
