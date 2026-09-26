@@ -294,3 +294,20 @@ async def test_send_intro_caches_file_id(monkeypatch):
     await intro.send_intro(FakeBot(), 1)
     await intro.send_intro(FakeBot(), 1)
     assert calls[1] == "banner_id" and not isinstance(calls[0], str)
+
+
+
+async def test_build_help_lists_actors_and_scenes(session_factory):
+    from bot.handlers.menu import build_help
+    from services import catalog
+
+    async with session_factory() as s:
+        await catalog.seed_scenes_if_empty(s)
+        for i in range(8):
+            await catalog.create_actor(s, f"Star{i}", "desc", ["f1", "f2"], 1)
+        await s.commit()
+    async with session_factory() as s:
+        text = await build_help(s)
+    assert "Star0, Star1, Star2, Star3, Star4, Star5 и ещё 2" in text
+    assert "Красная дорожка" in text and "и ещё 12" in text
+    assert "Позы" in text and "Своя деталь" in text
