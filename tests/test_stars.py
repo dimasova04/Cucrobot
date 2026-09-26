@@ -13,7 +13,7 @@ def test_invoice_params():
     s = Settings(_env_file=None, bot_token="x")
     p = stars.invoice_params("pack_50", s)
     assert p["currency"] == "XTR" and p["provider_token"] == "" and p["payload"] == "pack_50"
-    assert p["prices"][0].amount == 250
+    assert p["prices"][0].amount == 100
     assert p["description"] == "+50 кристалликов"
     with pytest.raises(ValueError):
         stars.invoice_params("nope", s)
@@ -70,16 +70,21 @@ async def test_stars_grant_survives_failed_confirmation(session_factory):
         assert [p.external_id for p in payments] == ["ch1"]
 
 
-def test_price_label_and_shop_texts():
+def test_pay_buttons_show_both_methods_clearly():
     from bot import texts
-    from bot.handlers.balance import packs_kb, price_label, subs_kb
+    from bot.handlers.balance import packs_kb, subs_kb
+    from bot.handlers.shop import pay_kb
     from config.settings import Settings
 
-    s = Settings(_env_file=None, bot_token="x", price_rub_sub_week=349, stars_sub_week=270, stars_pack_50=190)
-    assert price_label("sub_week", s) == "349 ₽ / 270 ⭐"
-    assert price_label("pack_50", s) == "190 ⭐"
+    s = Settings(_env_file=None, bot_token="x", price_rub_sub_week=349, stars_sub_week=300,
+                 tribute_sub_week_url="https://t.me/tribute/app?startapp=s17o6")
+    labels = [b.text for row in pay_kb("sub_week", s).inline_keyboard for b in row]
+    assert labels == ["💳 СБП / карта — 349 ₽", "⭐ Звёзды — 300 ⭐"]
+    s2 = Settings(_env_file=None, bot_token="x", stars_pack_50=250)
+    labels = [b.text for row in pay_kb("pack_50", s2).inline_keyboard for b in row]
+    assert labels == ["⭐ Звёзды — 250 ⭐"]  # без ссылки Tribute кнопки карты нет
     sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
-    assert sub_btns[0] == "Неделя — 349 ₽ / 270 ⭐ · +10 💎"
+    assert sub_btns[0] == "Неделя · +10 💎 в подарок"
     pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]
-    assert pack_btns[0] == "50 💎 — 190 ⭐"
-    assert "10 кристалликов каждый день" in texts.SHOP_SUBS.format(daily=10, monthly=300)
+    assert pack_btns[0] == "50 💎"
+    assert "СБП, карта или Telegram Stars" in texts.SHOP_SUBS
