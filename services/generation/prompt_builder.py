@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
     "Keep every face exactly as in the reference images. "
-    "Everyone is fully clothed in casual or evening wear."
+    "Everyone is fully clothed, outfits fit the scene."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
@@ -56,7 +56,12 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     if max_refs < len(inp.people) + len(inp.actors):
         raise ValueError("max_refs too small for people + primary actor refs")
     ordered = _ordered_refs(inp)[:max_refs]
-    lines: list[str] = []
+    people = ", ".join(PERSON_LABELS[: len(inp.people)])
+    actors = " and ".join(a.name for a in inp.actors)
+    # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
+    lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
+    if inp.detail:
+        lines.append(inp.detail.strip().rstrip(".") + ".")
     for n, (kind, _data, idx) in enumerate(ordered, start=1):
         if kind == "person":
             lines.append(f"Image {n} is person {PERSON_LABELS[idx]}.")
@@ -68,11 +73,6 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
             lines.append(f"Image {n} also shows actor {inp.actors[idx].name}.")
         elif kind == "scene":
             lines.append(f"Image {n} shows the setting; place them in this exact setting.")
-    people = ", ".join(PERSON_LABELS[: len(inp.people)])
-    actors = " and ".join(a.name for a in inp.actors)
-    lines.append(f"Photorealistic photo: {people} together with {actors} {inp.scene_prompt.strip()}.")
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
-    if inp.detail:
-        lines.append(inp.detail.strip().rstrip(".") + ".")
     return " ".join(lines), [d for _k, d, _i in ordered]
