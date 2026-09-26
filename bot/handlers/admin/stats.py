@@ -27,12 +27,14 @@ async def cmd_stats(message: Message, session):
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     s1 = await stats.collect(session, today)
     s7 = await stats.collect(session, now - timedelta(days=7))
+    t = await stats.totals(session, now)
     await message.answer(texts.ADM_STATS.format(
         u1=s1.new_users, u7=s7.new_users,
         g1b=s1.generations.get("base", 0), g1p=s1.generations.get("premium", 0),
         g7b=s7.generations.get("base", 0), g7p=s7.generations.get("premium", 0),
         c1=s1.cost_usd, c7=s7.cost_usd, s1=s1.stars, s7=s7.stars, t1=s1.tribute_rub, t7=s7.tribute_rub,
-    ))
+        users=t.users, accepted=t.accepted, subs=t.active_subs, gens=t.generations_done, crystals=t.crystals_in_wallets,
+    ), parse_mode="HTML")
 
 
 @stats_router.message(Command("give"))

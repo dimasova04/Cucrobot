@@ -5,7 +5,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, ErrorEvent
+from aiogram.types import BotCommand, BotCommandScopeChat, ErrorEvent
 from loguru import logger
 
 from bot import texts
@@ -62,6 +62,19 @@ async def on_unhandled_error(event: ErrorEvent) -> bool:
     return True
 
 
+def admin_commands() -> list[BotCommand]:
+    return [
+        BotCommand(command="admin", description=texts.CMD_ADMIN_DESC),
+        BotCommand(command="stats", description=texts.CMD_STATS_DESC),
+        BotCommand(command="actors", description=texts.CMD_ACTORS_DESC),
+        BotCommand(command="scenes", description=texts.CMD_SCENES_DESC),
+        BotCommand(command="user", description=texts.CMD_USER_DESC),
+        BotCommand(command="give", description=texts.CMD_GIVE_DESC),
+        BotCommand(command="sub", description=texts.CMD_SUB_DESC),
+        BotCommand(command="block", description=texts.CMD_BLOCK_DESC),
+    ]
+
+
 def build_dispatcher(settings, session_factory, generator: Generator | None) -> Dispatcher:
     dp = Dispatcher(storage=_storage(settings))
     dp["generator"] = generator
@@ -99,11 +112,18 @@ async def main():
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=None))
     generator = Generator(sf, RunwareClient(settings.runware_api_key, settings.gen_timeout_sec), TelegramFileFetcher(bot), settings)
     dp = build_dispatcher(settings, sf, generator)
-    await bot.set_my_commands([
+    user_commands = [
         BotCommand(command="start", description=texts.CMD_START_DESC),
         BotCommand(command="menu", description=texts.CMD_MENU_DESC),
         BotCommand(command="cancel", description=texts.CMD_CANCEL_DESC),
-    ])
+    ]
+    await bot.set_my_commands(user_commands)
+    # Админские команды видны в меню «/» только в чатах админов.
+    for admin_id in settings.admin_ids:
+        try:
+            await bot.set_my_commands(user_commands + admin_commands(), scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception as e:  # админ ещё не открывал бота — Telegram отклонит scope
+            logger.warning("admin commands for {} not set: {}", admin_id, e)
     routes = [("POST", settings.tribute_webhook_path, make_handler(sf, settings, bot))]
     await start_web_server(routes, settings.webhook_port)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())

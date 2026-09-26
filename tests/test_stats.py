@@ -27,3 +27,32 @@ async def test_collect(session_factory):
     assert st.generations == {"base": 1, "premium": 1}
     assert abs(st.cost_usd - 0.052) < 1e-9
     assert st.stars == 250 and st.tribute_rub == 499
+
+
+async def test_totals(session_factory):
+    now = utcnow()
+    async with session_factory() as s:
+        u1 = await repo.get_or_create_user(s, 1, "a")
+        u1.rules_accepted_at = now
+        u1.crystals = 7
+        u1.sub_until = now + timedelta(days=3)
+        u2 = await repo.get_or_create_user(s, 2, "b")
+        u2.crystals = 5
+        u2.sub_until = now - timedelta(days=1)
+        s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x", status="done"))
+        s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x", status="failed"))
+        await s.commit()
+    async with session_factory() as s:
+        t = await stats.totals(s, now)
+    assert (t.users, t.accepted, t.active_subs, t.generations_done, t.crystals_in_wallets) == (2, 1, 1, 1, 12)
+
+
+def test_admin_commands_cover_help_list():
+    import re
+    from bot import texts
+    from main import admin_commands
+
+    listed = {c.command for c in admin_commands()}
+    for cmd in re.findall(r"/(\w+)", texts.ADM_HELP):
+        if cmd not in ("cancel", "unblock"):
+            assert cmd in listed, cmd

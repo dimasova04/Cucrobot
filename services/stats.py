@@ -8,6 +8,30 @@ from database.models import Generation, Payment, User
 
 
 @dataclass
+class Totals:
+    users: int
+    accepted: int
+    active_subs: int
+    generations_done: int
+    crystals_in_wallets: int
+
+
+async def totals(session: AsyncSession, now: datetime) -> Totals:
+    users = (await session.execute(select(func.count()).select_from(User))).scalar_one()
+    accepted = (await session.execute(
+        select(func.count()).select_from(User).where(User.rules_accepted_at.is_not(None))
+    )).scalar_one()
+    active_subs = (await session.execute(
+        select(func.count()).select_from(User).where(User.sub_until > now)
+    )).scalar_one()
+    gens = (await session.execute(
+        select(func.count()).select_from(Generation).where(Generation.status == "done")
+    )).scalar_one()
+    crystals = (await session.execute(select(func.coalesce(func.sum(User.crystals), 0)))).scalar_one()
+    return Totals(int(users), int(accepted), int(active_subs), int(gens), int(crystals))
+
+
+@dataclass
 class Stats:
     new_users: int
     generations: dict[str, int]
