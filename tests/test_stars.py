@@ -68,3 +68,18 @@ async def test_stars_grant_survives_failed_confirmation(session_factory):
         assert (await repo.get_user(s, 1)).crystals == 50
         payments = (await s.execute(select(Payment))).scalars().all()
         assert [p.external_id for p in payments] == ["ch1"]
+
+
+def test_price_label_and_shop_texts():
+    from bot import texts
+    from bot.handlers.balance import packs_kb, price_label, subs_kb
+    from config.settings import Settings
+
+    s = Settings(_env_file=None, bot_token="x", price_rub_sub_week=349, stars_sub_week=270, stars_pack_50=190)
+    assert price_label("sub_week", s) == "349 ₽ / 270 ⭐"
+    assert price_label("pack_50", s) == "190 ⭐"
+    sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
+    assert sub_btns[0] == "Неделя — 349 ₽ / 270 ⭐"
+    pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]
+    assert pack_btns[0] == "50 💎 — 190 ⭐"
+    assert "10 кристалликов каждый день" in texts.SHOP_SUBS.format(daily=10, monthly=300)

@@ -2,6 +2,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot import texts
+from bot.handlers.balance import price_label
 from services.billing.products import get_product
 
 shop_router = Router(name="shop")
@@ -29,4 +30,9 @@ async def choose_payment(cb: CallbackQuery, settings):
     if kb is None:
         await cb.message.answer(texts.PRODUCT_NOT_CONFIGURED)
         return
-    await cb.message.answer(texts.PAY_CHOOSE.format(title=product.title), reply_markup=kb)
+    price = price_label(code, settings)
+    if product.kind == "pack":
+        text = texts.PAY_CHOOSE_PACK.format(title=product.title, n=product.crystals, price=price)
+    else:
+        text = texts.PAY_CHOOSE_SUB.format(title=product.title, daily=settings.bonus_sub_amount, price=price)
+    await cb.message.answer(text, parse_mode="HTML", reply_markup=kb)

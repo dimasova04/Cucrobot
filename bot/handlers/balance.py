@@ -52,13 +52,22 @@ def _profile_text(user, settings) -> str:
     )
 
 
-def packs_kb() -> InlineKeyboardMarkup:
-    items = [(texts.PACK_BTN.format(n=p.crystals), f"buy:{p.code}") for p in PACKS]
+def price_label(code: str, settings) -> str:
+    rub, stars = settings.rub_price(code), settings.stars_price(code)
+    if rub > 0 and stars > 0:
+        return texts.PRICE_BOTH.format(rub=rub, stars=stars)
+    if rub > 0:
+        return texts.PRICE_RUB.format(rub=rub)
+    return texts.PRICE_STARS.format(stars=stars)
+
+
+def packs_kb(settings) -> InlineKeyboardMarkup:
+    items = [(texts.PACK_BTN.format(n=p.crystals, price=price_label(p.code, settings)), f"buy:{p.code}") for p in PACKS]
     return keyboards.grid(items, cols=3)
 
 
-def subs_kb() -> InlineKeyboardMarkup:
-    items = [(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code]), f"buy:{p.code}") for p in SUBS]
+def subs_kb(settings) -> InlineKeyboardMarkup:
+    items = [(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code].capitalize(), price=price_label(p.code, settings)), f"buy:{p.code}") for p in SUBS]
     return keyboards.grid(items, cols=1)
 
 
@@ -109,15 +118,20 @@ async def quality_locked(cb: CallbackQuery):
 
 
 @profile_router.callback_query(F.data == "shop:packs")
-async def open_packs(cb: CallbackQuery):
+async def open_packs(cb: CallbackQuery, settings):
     await cb.answer()
-    await cb.message.answer(texts.SHOP_PACKS, reply_markup=packs_kb())
+    await cb.message.answer(
+        texts.SHOP_PACKS.format(premium=settings.cost_premium), parse_mode="HTML", reply_markup=packs_kb(settings)
+    )
 
 
 @profile_router.callback_query(F.data == "shop:subs")
-async def open_subs(cb: CallbackQuery):
+async def open_subs(cb: CallbackQuery, settings):
     await cb.answer()
-    await cb.message.answer(texts.SHOP_SUBS, reply_markup=subs_kb())
+    daily = settings.bonus_sub_amount
+    await cb.message.answer(
+        texts.SHOP_SUBS.format(daily=daily, monthly=daily * 30), parse_mode="HTML", reply_markup=subs_kb(settings)
+    )
 
 
 @profile_router.callback_query(F.data == "bonus:claim")

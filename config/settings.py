@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     stars_sub_week: int = 300
     stars_sub_month: int = 900
     stars_sub_3month: int = 2200
+    # Цены в рублях только для показа в боте; реальную цену берёт Tribute. 0 = не показывать.
+    price_rub_pack_50: int = 0
+    price_rub_pack_100: int = 0
+    price_rub_pack_300: int = 0
+    price_rub_sub_week: int = 0
+    price_rub_sub_month: int = 0
+    price_rub_sub_3month: int = 0
 
     start_crystals: int = 3
     bonus_free_amount: int = 3
@@ -81,6 +88,9 @@ class Settings(BaseSettings):
 
     def stars_price(self, product_code: str) -> int:
         return getattr(self, f"stars_{product_code}")
+
+    def rub_price(self, product_code: str) -> int:
+        return getattr(self, f"price_rub_{product_code}", 0)
 
 
 @lru_cache
