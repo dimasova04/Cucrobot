@@ -1,5 +1,6 @@
 import pytest
 
+from database.models import Actor
 from services import catalog
 from services.generation.content_filter import is_allowed
 
@@ -25,26 +26,18 @@ async def test_seed_scenes_adds_missing_only(session_factory):
         assert await catalog.seed_scenes(s) == 19
 
 
-async def test_seed_actors_once(session_factory):
-    async with session_factory() as s:
-        assert await catalog.seed_actors(s) == 16
-        await s.commit()
-    async with session_factory() as s:
-        assert await catalog.seed_actors(s) == 0
-        actors = await catalog.list_actors(s, active_only=False)
-        assert len(actors) == 16
-        assert all(not a.is_active for a in actors)
-        assert all(a.refs == [] for a in actors)
-        assert all(a.name and a.description for a in actors)
+async def _photoless_actor(session):
+    a = Actor(name="Без фото", description="desc", is_active=False)
+    session.add(a)
+    await session.flush()
+    return a
 
 
 async def test_add_actor_refs_activates_and_caps(session_factory):
     async with session_factory() as s:
-        await catalog.seed_actors(s)
+        aid = (await _photoless_actor(s)).id
         await s.commit()
     async with session_factory() as s:
-        actor = (await catalog.list_actors(s, active_only=False))[0]
-        aid = actor.id
         await catalog.add_actor_refs(s, aid, ["r1"])
         await s.commit()
     async with session_factory() as s:
@@ -68,12 +61,11 @@ async def test_add_actor_refs_activates_and_caps(session_factory):
 
 async def test_set_actor_active_requires_refs(session_factory):
     async with session_factory() as s:
-        await catalog.seed_actors(s)
+        aid = (await _photoless_actor(s)).id
         await s.commit()
     async with session_factory() as s:
-        actor = (await catalog.list_actors(s, active_only=False))[0]
         with pytest.raises(ValueError):
-            await catalog.set_actor_active(s, actor.id, True)
+            await catalog.set_actor_active(s, aid, True)
 
 
 async def test_actor_crud_and_ref_validation(session_factory):

@@ -121,18 +121,3 @@ async def seed_scenes(session: AsyncSession, path: str = "seed/scenes.yaml") -> 
 
 # Обратная совместимость: раньше сидировал только пустую таблицу.
 seed_scenes_if_empty = seed_scenes
-
-
-async def seed_actors(session: AsyncSession, path: str = "seed/actors.yaml") -> int:
-    items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    existing_names = set((await session.execute(select(Actor.name))).scalars().all())
-    order = await session.scalar(select(func.count()).select_from(Actor))
-    added = 0
-    for item in items:
-        if item["name"] in existing_names:
-            continue
-        session.add(Actor(name=item["name"], description=item["description"], order=order, is_active=False))
-        order += 1
-        added += 1
-    await session.flush()
-    return added
