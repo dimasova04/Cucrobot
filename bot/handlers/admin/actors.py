@@ -38,7 +38,7 @@ def _photo_file_id(message: Message) -> str | None:
 
 async def _list(target: Message, session):
     actors = await catalog.list_actors(session, active_only=False)
-    items = [(f"{'✅' if a.is_active else '⛔'} {a.name} ({len(a.refs)})", f"adm:actor:{a.id}") for a in actors]
+    items = [(f"{'✅' if a.is_active else '⛔'} {a.name}", f"adm:actor:{a.id}") for a in actors]
     await target.answer(texts.ADM_ACTORS, reply_markup=keyboards.grid(items, 2, [[(texts.ADM_ADD, "adm:actor:add")]]))
 
 

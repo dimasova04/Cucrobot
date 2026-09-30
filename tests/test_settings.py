@@ -13,7 +13,7 @@ def test_admin_ids_parsed_from_csv(monkeypatch):
 def test_economy_defaults(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)
-    assert (s.start_crystals, s.bonus_free_amount, s.bonus_free_hours) == (3, 3, 48)
+    assert (s.start_crystals, s.bonus_free_amount, s.bonus_free_hours) == (3, 3, 24)
     assert (s.bonus_sub_amount, s.bonus_sub_hours) == (10, 24)
     assert (s.cost_base, s.cost_premium) == (1, 3)
     assert s.model_base_air == "bytedance:seedream@4.5"
