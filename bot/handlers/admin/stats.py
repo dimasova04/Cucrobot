@@ -34,6 +34,7 @@ async def cmd_stats(message: Message, session):
         g7b=s7.generations.get("base", 0), g7p=s7.generations.get("premium", 0),
         c1=s1.cost_usd, c7=s7.cost_usd, s1=s1.stars, s7=s7.stars, t1=s1.tribute_rub, t7=s7.tribute_rub,
         users=t.users, accepted=t.accepted, subs=t.active_subs, gens=t.generations_done, crystals=t.crystals_in_wallets,
+        ref_users=t.ref_users,
     ), parse_mode="HTML")
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.base import Base, utcnow
@@ -18,6 +18,20 @@ class User(Base):
     last_bonus_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     preferred_tier: Mapped[str] = mapped_column(String(16), default="base", server_default="base")
+    # Реферальная привязка: ставится один раз при первом /start с ref-пейлоадом.
+    ref_code: Mapped[str | None] = mapped_column(String(32), index=True)
+    ref_attributed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ReferralCode(Base):
+    __tablename__ = "referral_codes"
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    title: Mapped[str] = mapped_column(String(64), default="")
+    # Telegram id партнёра, которому доступна /partner по этому коду.
+    partner_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
 
 class CrystalTransaction(Base):

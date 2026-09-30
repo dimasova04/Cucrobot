@@ -14,6 +14,7 @@ class Totals:
     active_subs: int
     generations_done: int
     crystals_in_wallets: int
+    ref_users: int
 
 
 async def totals(session: AsyncSession, now: datetime) -> Totals:
@@ -28,7 +29,10 @@ async def totals(session: AsyncSession, now: datetime) -> Totals:
         select(func.count()).select_from(Generation).where(Generation.status == "done")
     )).scalar_one()
     crystals = (await session.execute(select(func.coalesce(func.sum(User.crystals), 0)))).scalar_one()
-    return Totals(int(users), int(accepted), int(active_subs), int(gens), int(crystals))
+    ref_users = (await session.execute(
+        select(func.count()).select_from(User).where(User.ref_code.is_not(None))
+    )).scalar_one()
+    return Totals(int(users), int(accepted), int(active_subs), int(gens), int(crystals), int(ref_users))
 
 
 @dataclass

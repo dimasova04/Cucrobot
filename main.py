@@ -13,6 +13,7 @@ from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import profile_router
 from bot.handlers.generate import generate_router
 from bot.handlers.menu import menu_router
+from bot.handlers.partner import partner_router
 from bot.handlers.payments import payments_router
 from bot.handlers.shop import shop_router
 from bot.handlers.start import start_router
@@ -72,6 +73,10 @@ def admin_commands() -> list[BotCommand]:
         BotCommand(command="give", description=texts.CMD_GIVE_DESC),
         BotCommand(command="sub", description=texts.CMD_SUB_DESC),
         BotCommand(command="block", description=texts.CMD_BLOCK_DESC),
+        BotCommand(command="refs", description=texts.CMD_REFS_DESC),
+        BotCommand(command="ref_add", description=texts.CMD_REF_ADD_DESC),
+        BotCommand(command="ref_off", description=texts.CMD_REF_OFF_DESC),
+        BotCommand(command="ref_on", description=texts.CMD_REF_ON_DESC),
     ]
 
 
@@ -92,6 +97,7 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
     dp.include_router(profile_router)
     dp.include_router(shop_router)
     dp.include_router(payments_router)
+    dp.include_router(partner_router)
     dp.include_router(generate_router)
     return dp
 

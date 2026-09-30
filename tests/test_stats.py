@@ -36,6 +36,7 @@ async def test_totals(session_factory):
         u1.rules_accepted_at = now
         u1.crystals = 7
         u1.sub_until = now + timedelta(days=3)
+        u1.ref_code = "part"
         u2 = await repo.get_or_create_user(s, 2, "b")
         u2.crystals = 5
         u2.sub_until = now - timedelta(days=1)
@@ -45,6 +46,7 @@ async def test_totals(session_factory):
     async with session_factory() as s:
         t = await stats.totals(s, now)
     assert (t.users, t.accepted, t.active_subs, t.generations_done, t.crystals_in_wallets) == (2, 1, 1, 1, 12)
+    assert t.ref_users == 1
 
 
 def test_admin_commands_cover_help_list():

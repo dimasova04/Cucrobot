@@ -12,7 +12,7 @@ import database.models  # noqa: F401 — регистрирует модели �
 
 TABLES = {
     "users", "crystal_transactions", "generations", "payments",
-    "actors", "actor_refs", "scenes",
+    "actors", "actor_refs", "scenes", "referral_codes",
 }
 
 
