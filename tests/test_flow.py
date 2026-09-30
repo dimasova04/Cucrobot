@@ -20,47 +20,57 @@ def test_scene_label():
     assert scene_label({**d, "scene_id": 3}, "Яхта") == "Яхта"
 
 
-def test_result_buttons_one_person_one_actor():
-    d = {"people": ["a"], "actors": [1]}
+def test_result_buttons_one_actor():
+    d = {"people": ["a"], "actors": [1], "last_generation_id": 7}
     cbs = [cb for _, cb in result_buttons(d)]
     assert cbs == [
         "gen:more",
-        "gen:random_scene",
         "gen:change_scene",
         "gen:change_actor",
         "gen:add_actor",
-        "gen:add_person",
         "gen:detail",
+        "gen:hd:7",
         "gen:new",
     ]
 
 
-def test_result_buttons_two_people_two_actors():
-    d = {"people": ["a", "b"], "actors": [1, 2]}
+def test_result_buttons_two_actors_hide_add_actor():
+    d = {"people": ["a"], "actors": [1, 2], "last_generation_id": 7}
     cbs = [cb for _, cb in result_buttons(d)]
-    assert cbs == ["gen:more", "gen:random_scene", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:new"]
-    assert "gen:add_actor" not in cbs
-    assert "gen:add_person" not in cbs
+    assert cbs == ["gen:more", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:hd:7", "gen:new"]
 
 
-def test_result_buttons_two_people_one_actor():
-    d = {"people": ["a", "b"], "actors": [1]}
+def test_result_buttons_hero_hides_add_actor():
+    d = {"people": ["a"], "actors": [], "hero_file_id": "h1", "last_generation_id": 7}
     cbs = [cb for _, cb in result_buttons(d)]
-    assert "gen:add_actor" in cbs
-    assert "gen:add_person" not in cbs
+    assert cbs == ["gen:more", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:hd:7", "gen:new"]
 
 
-def test_result_buttons_one_person_two_actors():
-    d = {"people": ["a"], "actors": [1, 2]}
-    cbs = [cb for _, cb in result_buttons(d)]
-    assert "gen:add_actor" not in cbs
-    assert "gen:add_person" in cbs
+def test_result_buttons_without_generation_id_have_no_hd():
+    cbs = [cb for _, cb in result_buttons({"people": ["a"], "actors": [1]})]
+    assert not [c for c in cbs if c.startswith("gen:hd")]
+
+
+def test_result_kb_puts_new_photo_on_its_own_row():
+    from bot import keyboards
+
+    kb = keyboards.result_kb({"people": ["a"], "actors": [1], "last_generation_id": 7})
+    rows = kb.inline_keyboard
+    assert [len(r) for r in rows] == [2, 2, 2, 1]
+    assert rows[-1][0].callback_data == "gen:new"
 
 
 def test_request_from_state():
     d = {"people": ["a"], "actors": [1, 2], "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": "x"}
     r = request_from_state(9, d, "premium")
     assert r.user_id == 9 and r.actor_ids == [1, 2] and r.scene_id == 5 and r.tier == "premium" and r.detail == "x"
+    assert r.hero_file_id is None
+
+
+def test_request_from_state_with_hero():
+    d = {"people": ["a"], "actors": [], "hero_file_id": "h1", "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": None}
+    r = request_from_state(9, d, "base")
+    assert r.actor_ids == [] and r.hero_file_id == "h1"
 
 
 def test_is_complete():
@@ -75,6 +85,9 @@ def test_is_complete():
     assert is_complete(d)
     d.update(actors=[])
     assert not is_complete(d)
+    # «свой герой» заменяет актёра из каталога
+    d.update(hero_file_id="h1")
+    assert is_complete(d)
 
 
 def test_paginate():

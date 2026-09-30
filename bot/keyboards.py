@@ -61,8 +61,15 @@ def yes_no_kb(yes_cb: str, no_cb: str, yes_text: str, no_text: str) -> InlineKey
 
 
 def result_kb(data: dict) -> InlineKeyboardMarkup:
-    return grid(result_buttons(data), cols=2)
+    buttons = result_buttons(data)
+    # «🆕 Новое фото» — всегда отдельной строкой во всю ширину.
+    return grid(buttons[:-1], cols=2, extra_rows=[[buttons[-1]]])
 
 
 def cancel_row() -> list[tuple[str, str]]:
     return [(texts.BTN_CANCEL, "gen:cancel")]
+
+
+def back_row(target: str) -> list[tuple[str, str]]:
+    """Строка «Назад» с явной целью: photo / actors / scenes / result."""
+    return [(texts.BTN_BACK, f"nav:back:{target}")]

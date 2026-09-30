@@ -8,8 +8,8 @@ from services.generation.generator import GenerationRequest
 
 class GenStates(StatesGroup):
     person1 = State()
-    person2 = State()
     actor1 = State()
+    hero = State()
     scene = State()
     custom_scene = State()
     detail = State()
@@ -32,7 +32,10 @@ def paginate(items: list, page: int, size: int) -> tuple[list, bool, bool]:
 
 
 def empty_data() -> dict:
-    return {"people": [], "actors": [], "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None}
+    return {
+        "people": [], "actors": [], "hero_file_id": None,
+        "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None,
+    }
 
 
 def effective_tier(user) -> str:
@@ -68,18 +71,20 @@ def scene_label(data: dict, scene_name: str | None) -> str:
 
 
 def result_buttons(data: dict) -> list[tuple[str, str]]:
-    """Кнопки под результатом: набор зависит от того, сколько людей/актёров уже в сессии."""
+    """Кнопки под результатом. Последняя кнопка («Новое фото») всегда идёт
+    отдельной строкой во всю ширину — см. keyboards.result_kb."""
     buttons = [
         (texts.BTN_MORE, "gen:more"),
-        (texts.BTN_RANDOM_SCENE, "gen:random_scene"),
         (texts.BTN_CHANGE_SCENE, "gen:change_scene"),
         (texts.BTN_CHANGE_ACTOR, "gen:change_actor"),
     ]
-    if len(data.get("actors") or []) == 1:
+    # «Ещё актёр» не показываем со «своим героем»: его нельзя смешивать с каталогом.
+    if not data.get("hero_file_id") and len(data.get("actors") or []) == 1:
         buttons.append((texts.BTN_ADD_ACTOR, "gen:add_actor"))
-    if len(data.get("people") or []) == 1:
-        buttons.append((texts.BTN_ADD_PERSON_RESULT, "gen:add_person"))
     buttons.append((texts.BTN_DETAIL, "gen:detail"))
+    gen_id = data.get("last_generation_id")
+    if gen_id:
+        buttons.append((texts.BTN_HD, f"gen:hd:{gen_id}"))
     buttons.append((texts.BTN_NEW_PHOTO, "gen:new"))
     return buttons
 
@@ -87,7 +92,7 @@ def result_buttons(data: dict) -> list[tuple[str, str]]:
 def is_complete(data: dict) -> bool:
     return bool(
         data.get("people")
-        and data.get("actors")
+        and (data.get("actors") or data.get("hero_file_id"))
         and (data.get("scene_id") or data.get("custom_text") or data.get("custom_file_id"))
     )
 
@@ -97,6 +102,7 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
         user_id=user_id,
         people_file_ids=list(data["people"]),
         actor_ids=list(data["actors"]),
+        hero_file_id=data.get("hero_file_id"),
         scene_id=data.get("scene_id"),
         custom_scene_text=data.get("custom_text"),
         custom_scene_file_id=data.get("custom_file_id"),
