@@ -9,6 +9,27 @@ from database.models import Actor, ActorRef, Scene
 SIZES = {"portrait": (832, 1248), "landscape": (1248, 832)}
 MIN_REFS, MAX_REFS = 2, 4
 
+# Имена из порноиндустрии: таких актёров в боте не заводим (см. правила, п. 2).
+# Сравнение — по подстроке в имени, приведённом к нижнему регистру.
+BLOCKED_ACTOR_NAMES = [
+    "сиффреди", "siffredi",
+    "синс", "sins",
+    "видаль", "vidal",
+    "вудман", "woodman",
+    "дюпри", "dupree",
+    "кейран", "keiran",
+    "мэдисон", "madison",
+    "манчини", "mancini",
+    "анджело", "angelo",
+    "порно", "porn",
+    "xxx",
+]
+
+
+def is_actor_name_allowed(name: str) -> bool:
+    low = (name or "").lower()
+    return not any(bad in low for bad in BLOCKED_ACTOR_NAMES)
+
 
 async def list_actors(session: AsyncSession, active_only: bool = True) -> list[Actor]:
     q = select(Actor).order_by(Actor.order, Actor.id)

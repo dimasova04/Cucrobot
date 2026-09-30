@@ -67,6 +67,9 @@ async def st_name(message: Message, state: FSMContext):
     if len(message.text) > 64:
         await message.answer(texts.ADM_TOO_LONG)
         return
+    if not catalog.is_actor_name_allowed(message.text):
+        await message.answer(texts.ADM_ACTOR_NOT_ALLOWED)
+        return
     await state.update_data(name=message.text.strip())
     await state.set_state(AdminActorStates.description)
     await message.answer(texts.ADM_ACTOR_DESC)

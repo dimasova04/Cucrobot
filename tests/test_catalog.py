@@ -87,3 +87,20 @@ async def test_actor_crud_and_ref_validation(session_factory):
         await s.commit()
     async with session_factory() as s:
         assert await catalog.list_actors(s, active_only=False) == []
+
+
+def test_blocked_actor_names():
+    from services import catalog
+
+    assert catalog.is_actor_name_allowed("Том Харди")
+    assert catalog.is_actor_name_allowed("Jason Statham")
+    assert catalog.is_actor_name_allowed("Анджелина Джоли")
+    for bad in [
+        "Рокко Сиффреди", "rocco siffredi", "Джонни Синс", "Johnny SINS",
+        "Ману Видаль", "vidal", "Пьер Вудман", "Pierre Woodman",
+        "Дюпри", "dupree", "Кейран Ли", "Keiran Lee",
+        "Мэдисон", "madison ivy", "Манчини", "mancini",
+        "Анджело", "angelo", "порно-звезда", "Porn Star", "XXX",
+    ]:
+        assert not catalog.is_actor_name_allowed(bad), bad
+    assert all(b == b.lower() for b in catalog.BLOCKED_ACTOR_NAMES)
