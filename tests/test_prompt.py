@@ -30,6 +30,7 @@ def test_prompt_one_person_one_actor():
     prompt, refs = build(_inp(), max_refs=4)
     assert refs == ["p0", "a0_0", "a0_1"]
     assert prompt.startswith("A candid photorealistic photo of A together with Actor0 on a yacht.")
+    assert "Exactly 2 people in the frame, no other people in focus." in prompt
     assert "Image 1 is person A." in prompt
     assert "Image 2 shows actor Actor0 (desc0)." in prompt
     assert "Image 3 also shows actor Actor0." in prompt
@@ -48,7 +49,8 @@ def test_scene_ref_included_on_premium_and_detail_appended():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s", detail="in winter coats"), max_refs=14)
     assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
     assert "Image 5 shows the setting; place them in this exact setting." in prompt
-    assert "on a yacht. in winter coats." in prompt.replace("yacht.", "yacht.")  # деталь сразу после сцены
+    # счётчик людей идёт сразу за первой фразой, затем деталь пользователя
+    assert "on a yacht. Exactly 4 people in the frame, no other people in focus. in winter coats." in prompt
     assert prompt.index("in winter coats.") < prompt.index("Image 1 is person A.")
 
 
@@ -108,6 +110,12 @@ def test_content_filter_hyphenated_keywords_still_blocked():
     assert content_filter.is_allowed("Gore-Tex boots")
     assert content_filter.is_allowed("well-dressed couple")
     assert content_filter.is_allowed("e-mail me")
+
+
+def test_prompt_states_people_count():
+    for people, actors, expected in [(1, 1, 2), (2, 1, 3), (1, 2, 3), (2, 2, 4)]:
+        prompt, _ = build(_inp(people=people, actors=actors), max_refs=14)
+        assert f"Exactly {expected} people in the frame, no other people in focus." in prompt
 
 
 def test_build_validates_cardinality():

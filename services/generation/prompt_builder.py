@@ -60,6 +60,7 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     actors = " and ".join(a.name for a in inp.actors)
     # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
     lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
+    lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
     if inp.detail:
         lines.append(inp.detail.strip().rstrip(".") + ".")
     for n, (kind, _data, idx) in enumerate(ordered, start=1):

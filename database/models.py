@@ -59,6 +59,8 @@ class Generation(Base):
     cost_usd: Mapped[float | None] = mapped_column(Float)
     crystals_charged: Mapped[int] = mapped_column(Integer, default=0)
     result_file_id: Mapped[str | None] = mapped_column(String(255))
+    # Прямая ссылка Runware на оригинал: живёт ~7 дней, нужна для «Скачать в HD».
+    result_url: Mapped[str | None] = mapped_column(String(1024))
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     error: Mapped[str | None] = mapped_column(Text)

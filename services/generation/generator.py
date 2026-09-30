@@ -22,6 +22,13 @@ class AlreadyRunning(Exception):
     pass
 
 
+# Имя, под которым «свой герой» попадает в Generation.actors. Подпись
+# пользователю берётся из bot.texts.HERO_LABEL — сервисы не знают про тексты бота.
+HERO_ACTOR_NAME = "свой герой"
+# Нейтральная англоязычная метка для промпта: имени у героя нет.
+HERO_PROMPT_NAME = "the second person"
+
+
 @dataclass
 class GenerationRequest:
     user_id: int
@@ -32,6 +39,8 @@ class GenerationRequest:
     custom_scene_file_id: str | None
     detail: str | None
     tier: str  # base / premium
+    # «Свой герой»: одно фото вместо актёра из каталога. Взаимоисключающе с actor_ids.
+    hero_file_id: str | None = None
 
 
 @dataclass
@@ -100,6 +109,8 @@ class Generator:
             self._running.discard(req.user_id)
 
     async def _run(self, req: GenerationRequest) -> GenerationOutcome:
+        if not req.actor_ids and not req.hero_file_id:
+            raise ValueError("request needs at least one actor id or a hero photo")
         model_air, max_refs, cost = self._model(req.tier)
 
         async with self._sf() as s:
@@ -119,9 +130,14 @@ class Generator:
             balance = await wallet.get_balance(s, req.user_id)
             if balance < cost:
                 raise wallet.InsufficientCrystals(needed=cost, balance=balance)
+            actors_json = (
+                [{"id": a.id, "name": a.name} for a in actors]
+                if actors
+                else [{"id": None, "name": HERO_ACTOR_NAME}]
+            )
             gen = Generation(
                 user_id=req.user_id, model_air=model_air, model_tier=req.tier,
-                actors=[{"id": a.id, "name": a.name} for a in actors],
+                actors=actors_json,
                 location=location, user_detail=req.detail, crystals_charged=cost,
             )
             s.add(gen)
@@ -131,7 +147,7 @@ class Generator:
             gen_id = gen.id
             actor_inputs = [
                 ActorInput(a.name, a.description, [r.file_id for r in a.refs]) for a in actors
-            ]
+            ] or [ActorInput(HERO_PROMPT_NAME, "", [req.hero_file_id])]
 
         try:
             people = [_data_uri(await self._fetcher.fetch(f)) for f in req.people_file_ids]
@@ -147,7 +163,7 @@ class Generator:
             if result.nsfw:
                 return await self._finish(gen_id, req.user_id, "rejected", None, result.cost, "nsfw")
             image = await download_bytes(result.url)
-            return await self._finish(gen_id, req.user_id, "done", image, result.cost, None)
+            return await self._finish(gen_id, req.user_id, "done", image, result.cost, None, result.url)
         except Exception as e:
             logger.exception("generation {} failed", gen_id)
             return await self._finish(gen_id, req.user_id, "failed", None, None, str(e))
@@ -159,11 +175,14 @@ class Generator:
             logger.warning("runware first attempt failed: {}", e)
             return await self._provider.generate(model, prompt, refs, width, height)
 
-    async def _finish(self, gen_id, user_id, status, image, cost, error) -> GenerationOutcome:
+    async def _finish(self, gen_id, user_id, status, image, cost, error, url=None) -> GenerationOutcome:
         async with self._sf() as s:
             gen = await s.get(Generation, gen_id)
             gen.status, gen.cost_usd, gen.error, gen.finished_at = status, cost, error, utcnow()
-            if status != "done":
+            if status == "done":
+                # Ссылка Runware живёт ~7 дней: её хватает для «Скачать в HD».
+                gen.result_url = url
+            else:
                 await wallet.refund_generation(s, user_id, gen_id)
             await s.commit()
         return GenerationOutcome(status, gen_id, image, cost, error)
