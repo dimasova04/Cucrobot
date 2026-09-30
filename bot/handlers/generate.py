@@ -1,58 +1,42 @@
-import logging
-from aiogram import Router, F
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from bot import texts
-from bot.keyboards import back_cancel_kb, result_kb
-from database.models import Generation, User
-
-logger = logging.getLogger(__name__)
-
-# Объявляем роутер
-generate_router = Router()
-
-
 @generate_router.callback_query(F.data == "gen:detail")
-async def detail_handler(cb: CallbackQuery, state: FSMContext):
+async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    
+    # Режим доработки существующего изображения (In-painting)
+    st["edit_mode"] = True
+    # Фиксируем ID текущей генерации, чтобы использовать его как reference_image
+    st["edit_base_id"] = st.get("last_generation_id")
+    # Не сбрасываем seed и прошлые настройки!
+    await state.set_data(st)
+    await state.set_state(GenerateState.asking_detail)
     await cb.answer()
-    await cb.message.answer(texts.ASK_DETAIL, reply_markup=back_cancel_kb())
+    
+    # Показываем клавиатуру с кнопкой "◀️ Назад"
+    await cb.message.answer(
+        texts.ASK_DETAIL,
+        reply_markup=get_back_keyboard()
+    )
 
 
-@generate_router.callback_query(F.data == "gen:retry")
-async def retry_handler(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
-    user_id = cb.from_user.id
-
-    stmt = select(User).where(User.telegram_id == user_id)
-    result = await session.execute(stmt)
-    user = result.scalar_one_or_none()
-
-    if not user or user.crystals < 1:
-        await cb.answer(texts.NOT_ENOUGH.format(cost=1, balance=user.crystals if user else 0), show_alert=True)
+@generate_router.message(GenerateState.asking_detail, F.text)
+async def gen_handle_detail(msg: Message, state: FSMContext, session: AsyncSession):
+    text = msg.text.strip()
+    if text == texts.BTN_BACK or text == texts.BTN_CANCEL:
+        await state.set_state(GenerateState.viewing_result)
+        await msg.answer(texts.BACK_TO_RESULT, reply_markup=get_result_keyboard())
         return
 
-    await cb.answer()
-    await cb.message.answer(texts.GENERATING)
-
-
-@generate_router.callback_query(F.data == "gen:hd")
-async def hd_handler(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
-    data = await state.get_data()
-    gen_id = data.get("last_generation_id")
-
-    if not gen_id:
-        await cb.answer(texts.HD_EXPIRED, show_alert=True)
+    if len(text) > 100:
+        await msg.answer(texts.DETAIL_TOO_LONG)
         return
 
-    stmt = select(Generation).where(Generation.id == gen_id)
-    result = await session.execute(stmt)
-    generation = result.scalar_one_or_none()
-
-    if not generation or not generation.result_url:
-        await cb.answer(texts.HD_EXPIRED, show_alert=True)
-        return
-
-    await cb.answer()
-    await cb.message.answer(f"📥 Ваше фото в высоком качестве:\n{generation.result_url}")
+    st = await state.get_data()
+    
+    # Сохраняем введенную деталь в сессию, сохраняя предыдущие контексты
+    st["custom_detail"] = text
+    await state.set_data(st)
+    
+    # Запускаем генерацию с учётом сохранённого edit_base_id и seed
+    await run_generation_pipeline(msg, state, session)

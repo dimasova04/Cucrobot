@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 RULES = (
     "Перед началом прочитайте правила:\n\n"
     "1. Вам есть 18 лет.\n"
@@ -47,26 +45,6 @@ BTN_CHANGE_SCENE = "🎬 Выбрать сцену"
 BTN_CHANGE_ACTOR = "⭐ Другой актёр"
 BTN_ADD_ACTOR = "➕ Ещё актёр"
 BTN_HD = "📥 Скачать в HD"
-
-# Базовые названия продуктов
-_BASE_TITLES = {
-    "sub_week": "Подписка на 1 неделю",
-    "sub_month": "Подписка на 1 месяц",
-    "sub_3month": "Подписка на 3 месяца",
-    "sub_6month": "Подписка на 6 месяцев",
-    "sub_year": "Подписка на 1 год",
-    "sub_lite": "Lite (10 💎)",
-    "sub_pro": "Pro (30 💎)",
-    "sub_max": "Max (100 💎)",
-    "pack_10": "Пакет 10 💎",
-    "pack_30": "Пакет 30 💎",
-    "pack_50": "Пакет 50 💎",
-    "pack_100": "Пакет 100 💎",
-    "pack_300": "Пакет 300 💎",
-}
-
-# Если ключ не найден, автоматически возвращается его имя (без ошибки KeyError)
-PRODUCT_TITLES = defaultdict(lambda: "Пакет 💎", _BASE_TITLES)
 
 HELP = (
     "<b>Как это работает</b>\n"
