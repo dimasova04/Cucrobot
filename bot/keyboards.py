@@ -5,7 +5,9 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     WebAppInfo,
 )
+
 from bot import texts
+from bot.flow import result_buttons
 
 
 def main_menu() -> ReplyKeyboardMarkup:
@@ -19,52 +21,55 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 
 def intro_kb(webapp_url: str = "") -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton(text=texts.BTN_INTRO_CREATE, callback_data="menu:create")],
+    kb = grid(
+        [(texts.BTN_INTRO_CREATE, "menu:create")],
+        1,
         [
-            InlineKeyboardButton(text=texts.BTN_INTRO_PROFILE, callback_data="menu:profile"),
-            InlineKeyboardButton(text=texts.BTN_INTRO_BONUS, callback_data="menu:bonus"),
+            [(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_BONUS, "menu:bonus")],
+            [(texts.BTN_INTRO_HELP, "menu:help")],
         ],
-        [InlineKeyboardButton(text=texts.BTN_INTRO_HELP, callback_data="menu:help")],
-    ]
+    )
     if webapp_url:
-        buttons.append([InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+        kb.inline_keyboard.append(
+            [InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))]
+        )
+    return kb
 
 
-def result_kb() -> InlineKeyboardMarkup:
+def rules_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=texts.BTN_RETRY_SCENE, callback_data="gen:retry"),
-                InlineKeyboardButton(text=texts.BTN_CHANGE_SCENE, callback_data="gen:change_scene"),
-            ],
-            [
-                InlineKeyboardButton(text=texts.BTN_CHANGE_ACTOR, callback_data="gen:change_actor"),
-                InlineKeyboardButton(text=texts.BTN_DETAIL, callback_data="gen:detail"),
-            ],
-            [
-                InlineKeyboardButton(text=texts.BTN_HD, callback_data="gen:hd"),
-            ],
-            [
-                InlineKeyboardButton(text=texts.BTN_NEW_PHOTOSHOOT, callback_data="gen:new_photoshoot"),
-            ],
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text=texts.RULES_ACCEPT_BTN, callback_data="rules:accept")]]
     )
 
 
-def back_cancel_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="flow:back")],
-            [InlineKeyboardButton(text=texts.BTN_CANCEL, callback_data="flow:cancel")],
-        ]
-    )
+def grid(
+    items: list[tuple[str, str]],
+    cols: int = 2,
+    extra_rows: list[list[tuple[str, str]]] | None = None,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text=t, callback_data=d) for t, d in items[i : i + cols]]
+        for i in range(0, len(items), cols)
+    ]
+    for r in extra_rows or []:
+        rows.append([InlineKeyboardButton(text=t, callback_data=d) for t, d in r])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def cancel_only_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=texts.BTN_CANCEL, callback_data="flow:cancel")]
-        ]
-    )
+def yes_no_kb(yes_cb: str, no_cb: str, yes_text: str, no_text: str) -> InlineKeyboardMarkup:
+    return grid([(yes_text, yes_cb), (no_text, no_cb)], cols=2)
+
+
+def result_kb(data: dict) -> InlineKeyboardMarkup:
+    buttons = result_buttons(data)
+    # «🆕 Новое фото» — всегда отдельной строкой во всю ширину.
+    return grid(buttons[:-1], cols=2, extra_rows=[[buttons[-1]]])
+
+
+def cancel_row() -> list[tuple[str, str]]:
+    return [(texts.BTN_CANCEL, "gen:cancel")]
+
+
+def back_row(target: str) -> list[tuple[str, str]]:
+    """Строка «Назад» с явной целью: photo / actors / scenes / result."""
+    return [(texts.BTN_BACK, f"nav:back:{target}")]
