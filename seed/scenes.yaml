@@ -1,109 +1,54 @@
-import logging
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from database.models import Scene
-
-logger = logging.getLogger(__name__)
-
-INITIAL_SCENES = [
-    {
-        "slug": "yacht",
-        "name_ru": "Яхта",
-        "prompt": "A luxury yacht at sea, sunny day, clear sky, ocean view, high resolution, realistic",
-        "is_active": True,
-        "is_default": True,
-        "sort_order": 1,
-    },
-    {
-        "slug": "nightclub",
-        "name_ru": "Ночной клуб",
-        "prompt": "A vibrant nightclub interior, neon lighting, party crowd blurred in background, high quality photo",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 2,
-    },
-    {
-        "slug": "limo",
-        "name_ru": "Лимузин",
-        "prompt": "Inside a luxury limousine, soft ambient interior lighting, leather seats, elite atmosphere",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 3,
-    },
-    {
-        "slug": "office",
-        "name_ru": "Офис",
-        "prompt": "Modern luxury office with panoramic city windows, stylish environment, professional lighting",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 4,
-    },
-    {
-        "slug": "film_set",
-        "name_ru": "Съёмочная площадка",
-        "prompt": "A professional movie studio set, studio lights, cinema cameras visible, backstage atmosphere",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 5,
-    },
-    {
-        "slug": "street_selfie",
-        "name_ru": "Селфи на улице",
-        "prompt": "Casual selfie on a modern city street, warm daylight, natural depth of field, high resolution",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 6,
-    },
-    {
-        "slug": "hotel_corridor",
-        "name_ru": "Отель, коридор",
-        "prompt": "A woman in a black open swimsuit and a man standing next to her in a luxury hotel corridor. He looks at her and holds her by her waist and elbow. She holds the door handle of the hotel room with both hands, photorealistic, high detail, 8k resolution",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 7,
-    },
-    {
-        "slug": "hotel_room_evening",
-        "name_ru": "Номер отеля, вечер",
-        "prompt": "A warm luxury hotel room at night, cozy ambient lamp lighting, panoramic window, elegant setting",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 8,
-    },
-    {
-        "slug": "sofa_movie",
-        "name_ru": "Диван, вечер кино",
-        "prompt": "Cozy living room, sitting together on a comfortable sofa watching movie, warm atmospheric light",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 9,
-    },
-    {
-        "slug": "candlelight_dinner",
-        "name_ru": "Ужин при свечах",
-        "prompt": "An intimate candlelight dinner in a high-end restaurant, soft romantic lighting, elegant table setting",
-        "is_active": True,
-        "is_default": False,
-        "sort_order": 10,
-    },
-]
-
-
-async def seed_scenes(session: AsyncSession) -> None:
-    for data in INITIAL_SCENES:
-        result = await session.execute(
-            select(Scene).where(Scene.slug == data["slug"])
-        )
-        existing = result.scalar_one_or_none()
-        if not existing:
-            scene = Scene(**data)
-            session.add(scene)
-        else:
-            # Обновляем существующие записи (например промпт отеля)
-            existing.prompt = data["prompt"]
-            existing.name_ru = data["name_ru"]
-            existing.is_active = data["is_active"]
-            existing.sort_order = data["sort_order"]
-    await session.commit()
-    logger.info("Scenes seeded/updated successfully.")
+- name: "Яхта"
+  orientation: landscape
+  prompt: "on the deck of a luxury yacht at sea, sunny day, summer clothes, relaxed poses"
+- name: "Ночной клуб"
+  orientation: portrait
+  prompt: "in a night club with neon lights and a crowd behind, party outfits, laughing"
+- name: "Лимузин"
+  orientation: landscape
+  prompt: "inside a limousine with city lights through the window, evening wear, holding glasses of champagne"
+- name: "Офис"
+  orientation: landscape
+  prompt: "in a modern office, standing by a glass wall, business attire, friendly conversation"
+- name: "Съёмочная площадка"
+  orientation: landscape
+  prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
+- name: "Селфи на улице"
+  orientation: portrait
+  prompt: "a close selfie hugging on a city street, big smiles, phone camera look"
+- name: "Отель, коридор"
+  orientation: portrait
+  prompt: "standing at a hotel room door in a hotel corridor, holding key cards, smiling at the camera, dressed"
+- name: "Номер отеля, вечер"
+  orientation: landscape
+  prompt: "in a hotel suite in the evening, city view window, champagne glasses on the table, dressed in evening clothes"
+- name: "Диван, вечер кино"
+  orientation: landscape
+  prompt: "on a sofa at home watching a movie, popcorn bowl, warm lamp light, casual home clothes"
+- name: "Ужин при свечах"
+  orientation: landscape
+  prompt: "at a candlelit dinner on a terrace at night, wine glasses, elegant outfits"
+- name: "Париж, Эйфелева башня"
+  orientation: portrait
+  prompt: "in Paris in front of the Eiffel Tower, tourist photo, daytime, casual clothes"
+- name: "Пляж на закате"
+  orientation: landscape
+  prompt: "walking along a beach at sunset, summer clothes, golden light"
+- name: "Горнолыжный курорт"
+  orientation: landscape
+  prompt: "at a ski resort with snowy mountains behind, ski jackets and goggles on the forehead"
+- name: "Стадион"
+  orientation: landscape
+  prompt: "at a football stadium during a match, fans behind, team scarves"
+- name: "За кулисами концерта"
+  orientation: portrait
+  prompt: "backstage at a concert, stage lights and instruments behind, casual outfits"
+- name: "Частный самолёт"
+  orientation: landscape
+  prompt: "boarding a private jet on the tarmac, sunglasses, smart casual outfits"
+- name: "Кухня, готовим вместе"
+  orientation: landscape
+  prompt: "cooking together in a bright kitchen, aprons, laughing"
+- name: "Спорткар"
+  orientation: landscape
+  prompt: "standing next to a red sports car on a city street, evening, stylish outfits"
