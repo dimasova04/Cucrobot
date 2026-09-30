@@ -7,12 +7,12 @@ from services.generation.content_filter import is_allowed
 
 async def test_seed_scenes_once(session_factory):
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 20
+        assert await catalog.seed_scenes(s) == 18
         await s.commit()
     async with session_factory() as s:
         assert await catalog.seed_scenes(s) == 0
         scenes = await catalog.list_scenes(s)
-        assert len(scenes) == 20
+        assert len(scenes) == 18
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)
@@ -20,10 +20,10 @@ async def test_seed_scenes_once(session_factory):
 
 async def test_seed_scenes_adds_missing_only(session_factory):
     async with session_factory() as s:
-        s.add(catalog.Scene(name="Кафе", prompt="placeholder", orientation="landscape"))
+        s.add(catalog.Scene(name="Яхта", prompt="placeholder", orientation="landscape"))
         await s.commit()
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 19
+        assert await catalog.seed_scenes(s) == 17
 
 
 async def _photoless_actor(session):

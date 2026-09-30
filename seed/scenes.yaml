@@ -1,9 +1,3 @@
-- name: "Красная дорожка"
-  orientation: portrait
-  prompt: "on the red carpet at a movie premiere, photographers and flashes behind, evening outfits"
-- name: "Кафе"
-  orientation: landscape
-  prompt: "sitting together at a cozy cafe table with coffee cups, warm daylight, candid smiles"
 - name: "Яхта"
   orientation: landscape
   prompt: "on the deck of a luxury yacht at sea, sunny day, summer clothes, relaxed poses"
