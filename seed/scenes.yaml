@@ -1,97 +1,140 @@
-- slug: yacht
-  name_ru: Яхта
-  prompt: A luxury yacht deck at sea, sunny outdoor lighting, ocean horizon, high resolution photorealistic
-  is_active: true
-  is_default: true
-  sort_order: 1
+import logging
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-- slug: nightclub
-  name_ru: Ночной клуб
-  prompt: A vibrant nightclub interior with atmospheric neon lighting and club atmosphere, photorealistic 8k
-  is_active: true
-  is_default: false
-  sort_order: 2
+from database.models import Scene
 
-- slug: limo
-  name_ru: Лимузин
-  prompt: Inside a luxury limousine interior, soft ambient LED lights, leather seats
-  is_active: true
-  is_default: false
-  sort_order: 3
+logger = logging.getLogger(__name__)
 
-- slug: office
-  name_ru: Офис
-  prompt: Modern luxury corporate office background with panoramic glass windows, clean sharp lighting
-  is_active: true
-  is_default: false
-  sort_order: 4
+INITIAL_SCENES = [
+    {
+        "slug": "yacht",
+        "name_ru": "Яхта",
+        "prompt": "A luxury yacht deck at sea, sunny outdoor lighting, ocean horizon, high resolution photorealistic",
+        "is_active": True,
+        "is_default": True,
+        "sort_order": 1,
+    },
+    {
+        "slug": "nightclub",
+        "name_ru": "Ночной клуб",
+        "prompt": "A vibrant nightclub interior with atmospheric neon lighting and club atmosphere, photorealistic 8k",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 2,
+    },
+    {
+        "slug": "limo",
+        "name_ru": "Лимузин",
+        "prompt": "Inside a luxury limousine interior, soft ambient LED lights, leather seats",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 3,
+    },
+    {
+        "slug": "office",
+        "name_ru": "Офис",
+        "prompt": "Modern luxury corporate office background with panoramic glass windows, clean sharp lighting",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 4,
+    },
+    {
+        "slug": "film_set",
+        "name_ru": "Съёмочная площадка",
+        "prompt": "A professional movie studio photoshoot set with studio lighting rigs and film cameras in background",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 5,
+    },
+    {
+        "slug": "street_selfie",
+        "name_ru": "Селфи на улице",
+        "prompt": "Casual selfie style shot on a modern aesthetic city street, warm daylight",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 6,
+    },
+    {
+        "slug": "hotel_corridor",
+        "name_ru": "Отель, коридор",
+        "prompt": "A woman in a black open swimsuit and a man standing next to her in a luxury hotel corridor. He looks at her and holds her by her waist and elbow. She holds the door handle of the hotel room with both hands, photorealistic, high detail, 8k resolution",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 7,
+    },
+    {
+        "slug": "hotel_room_evening",
+        "name_ru": "Номер отеля, вечер",
+        "prompt": "Cozy luxury hotel room in the evening, warm dim lighting, elegant interior",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 8,
+    },
+    {
+        "slug": "sofa_movie",
+        "name_ru": "Диван, вечер кино",
+        "prompt": "Sitting together on a comfortable living room sofa watching TV, warm home atmosphere",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 9,
+    },
+    {
+        "slug": "candlelight_dinner",
+        "name_ru": "Ужин при свечах",
+        "prompt": "A romantic candlelight dinner setting at an upscale restaurant",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 10,
+    },
+    {
+        "slug": "pierre_casting_1",
+        "name_ru": "На кастинге у Пьера",
+        "prompt": "Casting couch photoshoot setup, minimalist interior, soft professional studio light",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 11,
+    },
+    {
+        "slug": "selfie_after",
+        "name_ru": "Селфи после",
+        "prompt": "Intimate cozy bedroom indoor selfie, relaxed atmosphere, natural lighting",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 12,
+    },
+    {
+        "slug": "pierre_casting_2",
+        "name_ru": "На кастинге у Пьера 2",
+        "prompt": "Studio interview room casting setting with camera lights in ambient blurred background",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 13,
+    },
+    {
+        "slug": "for_1000_euro",
+        "name_ru": "За 1000 евро",
+        "prompt": "Luxury hotel room suite setting, pile of euro money bills on table nearby, high quality photo",
+        "is_active": True,
+        "is_default": False,
+        "sort_order": 14,
+    },
+]
 
-- slug: film_set
-  name_ru: Съёмочная площадка
-  prompt: A professional movie studio photoshoot set with studio lighting rigs and film cameras in background
-  is_active: true
-  is_default: false
-  sort_order: 5
 
-- slug: street_selfie
-  name_ru: Селфи на улице
-  prompt: Casual selfie style shot on a modern aesthetic city street, warm daylight
-  is_active: true
-  is_default: false
-  sort_order: 6
-
-- slug: hotel_corridor
-  name_ru: "Отель, коридор"
-  prompt: A woman in a black open swimsuit and a man standing next to her in a luxury hotel corridor. He looks at her and holds her by her waist and elbow. She holds the door handle of the hotel room with both hands, photorealistic, high detail, 8k resolution
-  is_active: true
-  is_default: false
-  sort_order: 7
-
-- slug: hotel_room_evening
-  name_ru: "Номер отеля, вечер"
-  prompt: Cozy luxury hotel room in the evening, warm dim lighting, elegant interior
-  is_active: true
-  is_default: false
-  sort_order: 8
-
-- slug: sofa_movie
-  name_ru: "Диван, вечер кино"
-  prompt: Sitting together on a comfortable living room sofa watching TV, warm home atmosphere
-  is_active: true
-  is_default: false
-  sort_order: 9
-
-- slug: candlelight_dinner
-  name_ru: Ужин при свечах
-  prompt: A romantic candlelight dinner setting at an upscale restaurant
-  is_active: true
-  is_default: false
-  sort_order: 10
-
-- slug: pierre_casting_1
-  name_ru: На кастинге у Пьера
-  prompt: Casting couch photoshoot setup, minimalist interior, soft professional studio light
-  is_active: true
-  is_default: false
-  sort_order: 11
-
-- slug: selfie_after
-  name_ru: Селфи после
-  prompt: Intimate cozy bedroom indoor selfie, relaxed atmosphere, natural lighting
-  is_active: true
-  is_default: false
-  sort_order: 12
-
-- slug: pierre_casting_2
-  name_ru: На кастинге у Пьера 2
-  prompt: Studio interview room casting setting with camera lights in ambient blurred background
-  is_active: true
-  is_default: false
-  sort_order: 13
-
-- slug: for_1000_euro
-  name_ru: За 1000 евро
-  prompt: Luxury hotel room suite setting, pile of euro money bills on table nearby, high quality photo
-  is_active: true
-  is_default: false
-  sort_order: 14
+async def seed_scenes(session: AsyncSession) -> None:
+    for data in INITIAL_SCENES:
+        result = await session.execute(
+            select(Scene).where(Scene.slug == data["slug"])
+        )
+        existing = result.scalar_one_or_none()
+        if not existing:
+            scene = Scene(**data)
+            session.add(scene)
+        else:
+            existing.prompt = data["prompt"]
+            existing.name_ru = data["name_ru"]
+            existing.is_active = data["is_active"]
+            existing.sort_order = data["sort_order"]
+    await session.commit()
+    logger.info("Scenes seeded/updated successfully.")
