@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.base import utcnow
 from database.models import Generation, Payment, User
 
 
@@ -69,3 +70,76 @@ async def collect(session: AsyncSession, since: datetime) -> Stats:
         )
     )).scalar_one()
     return Stats(new_users=int(new_users), generations=gens, cost_usd=cost, stars=int(stars), tribute_rub=int(trib) // 100)
+
+
+def _day_key(value) -> str:
+    """func.date(...) отдаёт date в Postgres и строку 'YYYY-MM-DD' в SQLite."""
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%Y-%m-%d")
+    return str(value)[:10]
+
+
+async def daily_series(session: AsyncSession, days: int = 30, now: datetime | None = None) -> list[dict]:
+    """Ряд по дням (UTC) за последние `days` суток, включая сегодня.
+
+    Дни без событий тоже присутствуют — графику нужен сплошной ряд.
+    """
+    now = now or utcnow()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = today - timedelta(days=days - 1)
+    buckets: dict[str, dict] = {
+        _day_key(start + timedelta(days=i)): {
+            "date": _day_key(start + timedelta(days=i)),
+            "new_users": 0,
+            "generations": 0,
+            "cost_usd": 0.0,
+            "stars": 0,
+            "tribute_rub": 0,
+        }
+        for i in range(days)
+    }
+
+    def put(key, field, value):
+        row = buckets.get(_day_key(key))
+        if row is not None:
+            row[field] = value
+
+    users = await session.execute(
+        select(func.date(User.created_at), func.count())
+        .where(User.created_at >= start)
+        .group_by(func.date(User.created_at))
+    )
+    for day, n in users.all():
+        put(day, "new_users", int(n))
+
+    gens = await session.execute(
+        select(func.date(Generation.started_at), func.count(), func.coalesce(func.sum(Generation.cost_usd), 0.0))
+        .where(Generation.started_at >= start, Generation.status == "done")
+        .group_by(func.date(Generation.started_at))
+    )
+    for day, n, cost in gens.all():
+        put(day, "generations", int(n))
+        put(day, "cost_usd", round(float(cost or 0), 4))
+
+    stars = await session.execute(
+        select(func.date(Payment.created_at), func.coalesce(func.sum(Payment.amount), 0))
+        .where(Payment.created_at >= start, Payment.provider == "stars", Payment.status == "ok")
+        .group_by(func.date(Payment.created_at))
+    )
+    for day, amount in stars.all():
+        put(day, "stars", int(amount))
+
+    trib = await session.execute(
+        select(func.date(Payment.created_at), func.coalesce(func.sum(Payment.amount), 0))
+        .where(
+            Payment.created_at >= start,
+            Payment.provider == "tribute",
+            Payment.status == "ok",
+            func.lower(Payment.currency).in_(["rub", ""]),
+        )
+        .group_by(func.date(Payment.created_at))
+    )
+    for day, amount in trib.all():
+        put(day, "tribute_rub", int(amount) // 100)
+
+    return [buckets[k] for k in sorted(buckets)]

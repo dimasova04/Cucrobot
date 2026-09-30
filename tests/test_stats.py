@@ -58,3 +58,38 @@ def test_admin_commands_cover_help_list():
     for cmd in re.findall(r"/(\w+)", texts.ADM_HELP):
         if cmd not in ("cancel", "unblock"):
             assert cmd in listed, cmd
+
+
+async def test_daily_series_buckets_days_and_fills_gaps(session_factory):
+    now = utcnow()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    async with session_factory() as s:
+        u1 = await repo.get_or_create_user(s, 1, "a")
+        u1.created_at = today + timedelta(hours=3)
+        u2 = await repo.get_or_create_user(s, 2, "b")
+        u2.created_at = today - timedelta(days=2, hours=-1)
+        s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x",
+                         status="done", cost_usd=0.01, started_at=today + timedelta(hours=1)))
+        s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x",
+                         status="failed", started_at=today + timedelta(hours=2)))
+        s.add(Payment(provider="stars", external_id="c1", user_id=1, product="pack_50",
+                      amount=199, currency="XTR", created_at=today + timedelta(hours=4)))
+        s.add(Payment(provider="tribute", external_id="t1", user_id=1, product="sub_month",
+                      amount=59000, currency="rub", created_at=today + timedelta(hours=5)))
+        s.add(Payment(provider="tribute", external_id="unresolved:t9", user_id=1, product="?",
+                      amount=99900, currency="rub", status="unresolved", created_at=today + timedelta(hours=6)))
+        await s.commit()
+
+    async with session_factory() as s:
+        series = await stats.daily_series(s, 7, now)
+
+    assert len(series) == 7
+    assert [r["date"] for r in series] == sorted(r["date"] for r in series)
+    assert series[-1]["date"] == today.strftime("%Y-%m-%d")
+    last = series[-1]
+    assert last["new_users"] == 1 and last["generations"] == 1
+    assert last["stars"] == 199 and last["tribute_rub"] == 590
+    assert abs(last["cost_usd"] - 0.01) < 1e-9
+    assert series[-3]["new_users"] == 1
+    assert series[-2] == {"date": series[-2]["date"], "new_users": 0, "generations": 0,
+                          "cost_usd": 0.0, "stars": 0, "tribute_rub": 0}
