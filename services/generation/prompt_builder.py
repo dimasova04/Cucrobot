@@ -45,7 +45,8 @@ def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
     return out
 
 
-def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
+def _validate(inp: GenerationInput, budget: int) -> None:
+    """`budget` — сколько слотов референсов доступно под людей и актёров."""
     if not 1 <= len(inp.people) <= len(PERSON_LABELS):
         raise ValueError(f"people must be 1..{len(PERSON_LABELS)}, got {len(inp.people)}")
     if not inp.actors:
@@ -53,17 +54,14 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     for a in inp.actors:
         if not a.refs:
             raise ValueError(f"actor {a.name!r} has no reference images")
-    if max_refs < len(inp.people) + len(inp.actors):
+    if budget < len(inp.people) + len(inp.actors):
         raise ValueError("max_refs too small for people + primary actor refs")
-    ordered = _ordered_refs(inp)[:max_refs]
-    people = ", ".join(PERSON_LABELS[: len(inp.people)])
-    actors = " and ".join(a.name for a in inp.actors)
-    # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
-    lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
-    lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
-    if inp.detail:
-        lines.append(inp.detail.strip().rstrip(".") + ".")
-    for n, (kind, _data, idx) in enumerate(ordered, start=1):
+
+
+def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start: int) -> list[str]:
+    """Строки «кто есть кто» для референсов; нумерация с `start`."""
+    lines: list[str] = []
+    for n, (kind, _data, idx) in enumerate(ordered, start=start):
         if kind == "person":
             lines.append(f"Image {n} is person {PERSON_LABELS[idx]}.")
         elif kind == "actor_primary":
@@ -74,6 +72,42 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
             lines.append(f"Image {n} also shows actor {inp.actors[idx].name}.")
         elif kind == "scene":
             lines.append(f"Image {n} shows the setting; place them in this exact setting.")
+    return lines
+
+
+def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
+    _validate(inp, max_refs)
+    ordered = _ordered_refs(inp)[:max_refs]
+    people = ", ".join(PERSON_LABELS[: len(inp.people)])
+    actors = " and ".join(a.name for a in inp.actors)
+    # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
+    lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
+    lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
+    if inp.detail:
+        lines.append(inp.detail.strip().rstrip(".") + ".")
+    lines.extend(_ref_lines(inp, ordered, start=1))
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
     return " ".join(lines), [d for _k, d, _i in ordered]
+
+
+def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs: int) -> tuple[str, list[str]]:
+    """Дорисовка детали на уже готовом кадре: предыдущее фото идёт первым
+    референсом, остальное — те же люди/актёры/сцена из каталога.
+    Возвращает (промпт, референсы) — предыдущее фото всегда refs[0]."""
+    if not previous_image:
+        raise ValueError("previous_image is required for an edit")
+    if not (detail or "").strip():
+        raise ValueError("detail is required for an edit")
+    _validate(inp, max_refs - 1)
+    ordered = _ordered_refs(inp)[: max_refs - 1]
+    lines: list[str] = [
+        "Image 1 is the previous photo: keep the same composition, framing, "
+        "background, lighting, poses and outfits.",
+        "Change only this: " + detail.strip().rstrip(".") + ".",
+        "Do not add new objects or people.",
+    ]
+    lines.extend(_ref_lines(inp, ordered, start=2))
+    lines.append(SAFETY_CLAUSE)
+    lines.append(REALISM_CLAUSE)
+    return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]

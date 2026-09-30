@@ -61,6 +61,8 @@ class Generation(Base):
     result_file_id: Mapped[str | None] = mapped_column(String(255))
     # Прямая ссылка Runware на оригинал: живёт ~7 дней, нужна для «Скачать в HD».
     result_url: Mapped[str | None] = mapped_column(String(1024))
+    # Сид кадра: правка детали переиспользует его, чтобы картинка не уехала.
+    seed: Mapped[int | None] = mapped_column(Integer)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     error: Mapped[str | None] = mapped_column(Text)

@@ -1,7 +1,9 @@
 import pytest
 
 from services.generation import content_filter
-from services.generation.prompt_builder import SAFETY_CLAUSE, ActorInput, GenerationInput, build
+from services.generation.prompt_builder import (
+    REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit,
+)
 
 
 def test_content_filter():
@@ -133,3 +135,39 @@ def test_build_validates_cardinality():
         build(inp, max_refs=14)
     with pytest.raises(ValueError):
         build(_inp(people=2, actors=2), max_refs=3)
+
+
+def test_build_edit_puts_previous_photo_first():
+    prompt, refs = build_edit(_inp(people=2, actors=2, scene_ref="s"), "prev", "в пальто", max_refs=14)
+    # предыдущий кадр — всегда первый референс, дальше прежний порядок
+    assert refs == ["prev", "p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
+    assert prompt.startswith(
+        "Image 1 is the previous photo: keep the same composition, framing, "
+        "background, lighting, poses and outfits. Change only this: в пальто. "
+        "Do not add new objects or people."
+    )
+    # строки «кто есть кто» нумеруются со второй картинки
+    assert "Image 2 is person A." in prompt
+    assert "Image 3 is person B." in prompt
+    assert "Image 4 shows actor Actor0 (desc0)." in prompt
+    assert "Image 5 shows actor Actor1 (desc1)." in prompt
+    assert "Image 6 shows the setting; place them in this exact setting." in prompt
+    assert "Image 7 also shows actor Actor0." in prompt
+    assert SAFETY_CLAUSE in prompt and REALISM_CLAUSE in prompt
+
+
+def test_build_edit_keeps_scene_text_out_of_the_prompt():
+    prompt, _ = build_edit(_inp(), "prev", "даём пять", max_refs=14)
+    assert "A candid photorealistic photo" not in prompt
+    assert "on a yacht" not in prompt
+    assert "Change only this: даём пять." in prompt
+
+
+def test_build_edit_validates_inputs():
+    with pytest.raises(ValueError):
+        build_edit(_inp(), "", "в пальто", max_refs=14)
+    with pytest.raises(ValueError):
+        build_edit(_inp(), "prev", "   ", max_refs=14)
+    with pytest.raises(ValueError):
+        # один слот уходит под предыдущий кадр: людям и актёрам места не остаётся
+        build_edit(_inp(people=2, actors=2), "prev", "в пальто", max_refs=4)

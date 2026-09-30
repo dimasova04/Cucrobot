@@ -337,3 +337,96 @@ async def test_hd_button_rejects_foreign_generation(session_factory):
 
     assert cb.answered == [(texts.HD_EXPIRED, True)]
     assert not message.documents
+
+
+async def test_detail_button_marks_edit_of_previous_result():
+    state = _FakeState(
+        data={"people": ["p1"], "actors": [1], "hero_file_id": None, "scene_id": 3,
+              "last_generation_id": 77},
+        state=GenStates.result,
+    )
+    message = _FakeCbMessage()
+    cb = _FakeCb("gen:detail", message)
+    await generate_mod.gen_ask_detail(cb, state)
+    assert state._data["edit_mode"] is True
+    assert state._data["edit_base_id"] == 77
+    assert state._state == GenStates.detail
+    assert message.answers[0][0] == texts.ASK_DETAIL
+
+
+async def test_detail_text_sends_additive_edit_request(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 61, "u")
+        user.crystals = 10
+        await s.commit()
+
+        state = _FakeState(
+            data={"people": ["p1"], "actors": [actor.id], "hero_file_id": None,
+                  "scene_id": scene.id, "custom_text": None, "custom_file_id": None,
+                  "detail": None, "last_generation_id": 77,
+                  "edit_mode": True, "edit_base_id": 77},
+            state=GenStates.detail,
+        )
+        message = _FakeCbMessage()
+        message.text = "в пальто"
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=78, image_bytes=b"IMG",
+                              cost_usd=0.1, error=None, seed=99)
+        )
+        await generate_mod.detail_text(message, state, s, user, settings, generator)
+
+    req = generator.calls[0]
+    assert req.edit_mode is True and req.base_generation_id == 77 and req.detail == "в пальто"
+    # флаги правки одноразовые: следующий запуск — обычная генерация
+    assert "edit_mode" not in state._data and "edit_base_id" not in state._data
+    assert state._data["last_generation_id"] == 78 and state._data["last_seed"] == 99
+
+
+async def test_new_photoshoot_is_not_an_edit(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 62, "u")
+        user.crystals = 10
+        await s.commit()
+
+        state = _FakeState(
+            data={"people": ["p1"], "actors": [actor.id], "hero_file_id": None,
+                  "scene_id": scene.id, "custom_text": None, "custom_file_id": None,
+                  "detail": "в пальто", "last_generation_id": 77, "last_seed": 42,
+                  "edit_mode": True, "edit_base_id": 77},
+            state=GenStates.result,
+        )
+        message = _FakeCbMessage()
+        cb = _FakeCb("gen:more", message)
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="failed", generation_id=79, image_bytes=None,
+                              cost_usd=None, error="boom")
+        )
+        await generate_mod.gen_more(cb, state, s, user, settings, generator)
+
+    req = generator.calls[0]
+    assert req.edit_mode is False and req.base_generation_id is None
+    assert state._data["last_seed"] is None
+
+
+async def test_change_scene_and_actor_drop_the_edit_flags(session_factory):
+    async with session_factory() as s:
+        await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        await s.commit()
+        data = {"people": ["p1"], "actors": [1], "hero_file_id": None, "scene_id": 1,
+                "custom_text": None, "custom_file_id": None, "detail": None,
+                "edit_mode": True, "edit_base_id": 77}
+
+        state = _FakeState(data=dict(data), state=GenStates.result)
+        await generate_mod.gen_change_scene(_FakeCb("gen:change_scene", _FakeCbMessage()), state, s)
+        assert "edit_mode" not in state._data and "edit_base_id" not in state._data
+
+        state = _FakeState(data=dict(data), state=GenStates.result)
+        await generate_mod.gen_change_actor(_FakeCb("gen:change_actor", _FakeCbMessage()), state, s)
+        assert "edit_mode" not in state._data and "edit_base_id" not in state._data

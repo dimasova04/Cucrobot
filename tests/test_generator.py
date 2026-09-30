@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from datetime import timedelta
 
 import pytest
@@ -26,8 +27,11 @@ class FakeProvider:
         self.results = list(results)
         self.calls = []
 
-    async def generate(self, model, prompt, refs, width, height):
-        self.calls.append({"model": model, "prompt": prompt, "refs": refs, "width": width, "height": height})
+    async def generate(self, model, prompt, refs, width, height, seed=None):
+        self.calls.append({
+            "model": model, "prompt": prompt, "refs": refs,
+            "width": width, "height": height, "seed": seed,
+        })
         r = self.results.pop(0)
         if isinstance(r, Exception):
             raise r
@@ -48,13 +52,14 @@ async def _seed(factory, crystals=5):
         await catalog.seed_scenes_if_empty(s)
         scenes = await catalog.list_scenes(s)
         await s.commit()
-        return a.id, scenes[0].id
+        # вертикальная сцена: на ней проверяем размер кадра
+        return a.id, next(sc for sc in scenes if sc.orientation == "portrait").id
 
 
-def _req(actor_id, scene_id, tier="base", **kw):
+def _req(actor_id, scene_id, tier="base", detail=None, **kw):
     return GenerationRequest(
         user_id=1, people_file_ids=["fp1"], actor_ids=[actor_id], scene_id=scene_id,
-        custom_scene_text=None, custom_scene_file_id=None, detail=None, tier=tier, **kw
+        custom_scene_text=None, custom_scene_file_id=None, detail=detail, tier=tier, **kw
     )
 
 
@@ -240,3 +245,102 @@ async def test_inactive_actor_raises_before_charge(session_factory):
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         assert (await s.execute(select(func.count()).select_from(Generation))).scalar_one() == 0
+
+
+async def test_detail_edit_reuses_previous_image_and_seed(session_factory, monkeypatch):
+    """«Своя деталь» — правка поверх готового кадра: предыдущее фото идёт
+    первым референсом, сид тот же."""
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([
+        ImageResult(url="http://x/first.jpg", cost=0.002, nsfw=False, seed=4242),
+        ImageResult(url="http://x/second.jpg", cost=0.002, nsfw=False, seed=4242),
+    ])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        return b"PREV" if url == "http://x/first.jpg" else b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+
+    first = await gen.run(_req(actor_id, scene_id))
+    assert first.status == "done" and first.seed == 4242
+    assert provider.calls[0]["seed"] is None  # обычная генерация — без сида
+    async with session_factory() as s:
+        assert (await s.get(Generation, first.generation_id)).seed == 4242
+
+    second = await gen.run(_req(
+        actor_id, scene_id, detail="в пальто",
+        edit_mode=True, base_generation_id=first.generation_id,
+    ))
+    assert second.status == "done"
+    call = provider.calls[1]
+    assert call["seed"] == 4242
+    assert call["refs"][0] == "data:image/jpeg;base64," + base64.b64encode(b"PREV").decode()
+    assert call["prompt"].startswith("Image 1 is the previous photo:")
+    assert "Change only this: в пальто." in call["prompt"]
+    assert "Do not add new objects or people." in call["prompt"]
+    # ссылки на людей и актёра нумеруются со второй картинки
+    assert "Image 2 is person A." in call["prompt"]
+    async with session_factory() as s:
+        row = await s.get(Generation, second.generation_id)
+        assert row.status == "done" and row.crystals_charged == 1 and row.user_detail == "в пальто"
+
+
+async def test_detail_edit_falls_back_when_base_download_fails(session_factory, monkeypatch):
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([ImageResult(url="http://x/fresh.jpg", cost=0.002, nsfw=False, seed=7)])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        if url == "http://x/gone.jpg":
+            raise RuntimeError("link expired")
+        return b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    async with session_factory() as s:
+        base = Generation(
+            user_id=1, model_air="m", model_tier="base", actors=[], location="x",
+            crystals_charged=1, status="done", result_url="http://x/gone.jpg", seed=4242,
+        )
+        s.add(base)
+        await s.commit()
+        base_id = base.id
+
+    out = await gen.run(_req(
+        actor_id, scene_id, detail="в пальто", edit_mode=True, base_generation_id=base_id,
+    ))
+    assert out.status == "done"
+    call = provider.calls[0]
+    assert call["seed"] is None  # откат к обычной генерации
+    assert call["prompt"].startswith("A candid photorealistic photo of")
+    assert len(call["refs"]) == 3
+
+
+async def test_detail_edit_ignores_foreign_or_unfinished_base(session_factory, monkeypatch):
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False, seed=7)])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        return b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 2, "other")
+        foreign = Generation(
+            user_id=2, model_air="m", model_tier="base", actors=[], location="x",
+            crystals_charged=1, status="done", result_url="http://x/foreign.jpg", seed=1,
+        )
+        s.add(foreign)
+        await s.commit()
+        foreign_id = foreign.id
+
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    out = await gen.run(_req(
+        actor_id, scene_id, detail="в пальто", edit_mode=True, base_generation_id=foreign_id,
+    ))
+    assert out.status == "done"
+    assert provider.calls[0]["seed"] is None
+    assert provider.calls[0]["prompt"].startswith("A candid photorealistic photo of")

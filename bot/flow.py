@@ -108,4 +108,7 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
         custom_scene_file_id=data.get("custom_file_id"),
         detail=data.get("detail"),
         tier=tier,
+        # Флаги правки ставит только кнопка «Своя деталь» под результатом.
+        edit_mode=bool(data.get("edit_mode")),
+        base_generation_id=data.get("edit_base_id"),
     )

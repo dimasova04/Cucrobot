@@ -113,6 +113,17 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
+async def _drop_edit(state: FSMContext, st: dict) -> dict:
+    """Снимает одноразовые флаги правки детали: любая другая кнопка под
+    результатом — обычная генерация."""
+    had = "edit_mode" in st or "edit_base_id" in st
+    st.pop("edit_mode", None)
+    st.pop("edit_base_id", None)
+    if had:
+        await state.set_data(st)
+    return st
+
+
 async def _check_result_session(cb: CallbackQuery, state: FSMContext) -> dict | None:
     """Общая проверка для кнопок под результатом: если FSM-данные протухли
     (TTL стораджа или рестарт), отвечаем алертом вместо запуска генерации."""
@@ -328,10 +339,16 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     if user.crystals < cost:
         await target.answer(f"{texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals)}\n\n{texts.NOT_ENOUGH_HINT}")
         return
+    req = request_from_state(user.id, st, tier)
+    # Правка детали одноразовая: следующая кнопка снова даёт обычную генерацию.
+    had_edit = st.pop("edit_mode", None)
+    st.pop("edit_base_id", None)
+    if had_edit:
+        await state.set_data(st)
     await session.commit()  # release our row before generator opens its own sessions
     wait_msg = await target.answer(texts.GENERATING)
     try:
-        outcome = await generator.run(request_from_state(user.id, st, tier))
+        outcome = await generator.run(req)
     except AlreadyRunning:
         await wait_msg.edit_text(texts.ALREADY_RUNNING)
         return
@@ -347,8 +364,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
             actors = [a.name for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
         scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
         caption = texts.RESULT_CAPTION.format(actors=", ".join(actors), scene=scene_label(st, scene.name if scene else None))
-        # Кнопке «Скачать в HD» нужен id генерации.
+        # Кнопке «Скачать в HD» нужен id генерации, «Своей детали» — сид кадра.
         st["last_generation_id"] = outcome.generation_id
+        st["last_seed"] = outcome.seed
         await state.set_data(st)
         sent = await send_result_photo(target, outcome.image_bytes, caption, st)
         if sent is None:
@@ -373,6 +391,10 @@ async def gen_more(cb: CallbackQuery, state: FSMContext, session, user, settings
     st = await _check_result_session(cb, state)
     if st is None:
         return
+    # Новая фотосессия — именно новая: без правки поверх кадра и с новым сидом.
+    st = await _drop_edit(state, st)
+    st["last_seed"] = None
+    await state.set_data(st)
     await cb.answer()
     await _run_generation(cb.message, state, session, user, settings, generator)
 
@@ -382,6 +404,8 @@ async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
     st = await _check_result_session(cb, state)
     if st is None:
         return
+    # Сцена меняется — править прежний кадр бессмысленно.
+    await _drop_edit(state, st)
     await cb.answer()
     await _show_scenes(cb.message, state, session)
 
@@ -391,6 +415,8 @@ async def gen_change_actor(cb: CallbackQuery, state: FSMContext, session):
     st = await _check_result_session(cb, state)
     if st is None:
         return
+    # Актёр меняется — править прежний кадр бессмысленно.
+    await _drop_edit(state, st)
     await cb.answer()
     await _show_actors(cb.message, state, session, mode="change")
 
@@ -430,6 +456,11 @@ async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
     st = await _check_result_session(cb, state)
     if st is None:
         return
+    # Деталь дорисовываем на том же кадре: генератор возьмёт его как первый
+    # референс и тот же сид. Без id предыдущей генерации — обычная генерация.
+    st["edit_mode"] = True
+    st["edit_base_id"] = st.get("last_generation_id")
+    await state.set_data(st)
     await cb.answer()
     await _ask_detail(cb.message, state)
 
@@ -452,7 +483,7 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session):
         await _show_scenes(cb.message, state, session)
         return
     if target == "result":
-        st = await state.get_data()
+        st = await _drop_edit(state, await state.get_data())
         if is_complete(st):
             await state.set_state(GenStates.result)
             await cb.message.answer(texts.BACK_TO_RESULT, reply_markup=keyboards.result_kb(st))

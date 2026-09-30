@@ -14,10 +14,14 @@ class ImageResult:
     url: str
     cost: float | None
     nsfw: bool
+    # Сид кадра: нужен, чтобы правка детали держалась того же изображения.
+    seed: int | None = None
 
 
 class ImageProvider(Protocol):
-    async def generate(self, model: str, prompt: str, refs: list[str], width: int, height: int) -> ImageResult: ...
+    async def generate(
+        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None
+    ) -> ImageResult: ...
 
 
 class RunwareClient:
@@ -40,12 +44,15 @@ class RunwareClient:
                 self._client = client
             return self._client
 
-    async def generate(self, model: str, prompt: str, refs: list[str], width: int, height: int) -> ImageResult:
+    async def generate(
+        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None
+    ) -> ImageResult:
         from runware import IImageInference
 
         client = await self._get()
         req = IImageInference(
             model=model,
+            seed=seed,
             positivePrompt=prompt,
             width=width,
             height=height,
@@ -69,8 +76,14 @@ class RunwareClient:
         url = getattr(img, "imageURL", None)
         if not url:
             raise RunwareGenerationError("no imageURL in result")
-        logger.info("runware ok model={} cost={} nsfw={}", model, img.cost, img.NSFWContent)
-        return ImageResult(url=url, cost=img.cost, nsfw=bool(img.NSFWContent))
+        result_seed = getattr(img, "seed", None)
+        logger.info(
+            "runware ok model={} cost={} nsfw={} seed={}", model, img.cost, img.NSFWContent, result_seed
+        )
+        return ImageResult(
+            url=url, cost=img.cost, nsfw=bool(img.NSFWContent),
+            seed=int(result_seed) if result_seed is not None else None,
+        )
 
     async def close(self) -> None:
         if self._client is not None:
