@@ -16,6 +16,9 @@ from services.billing import wallet
 
 start_router = Router(name="start")
 
+# Пейлоад диплинка из мини-приложения: t.me/<bot>?start=create
+CREATE_PAYLOAD = "create"
+
 
 async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
     try:
@@ -27,10 +30,19 @@ async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
 @start_router.message(CommandStart(deep_link=True))
 async def cmd_start_deep_link(message: Message, command: CommandObject, state: FSMContext, session, user, settings):
     """`/start ref_xxx` — привязка к партнёру до экрана правил: реферал
-    засчитывается, даже если правила так и не примут."""
+    засчитывается, даже если правила так и не примут.
+
+    `/start create` — возврат из мини-приложения кнопкой «Сделать фото»:
+    сразу открываем сценарий создания, без главного меню.
+    """
     code = referrals.code_from_payload(command.args)
     if code is not None and await referrals.attribute(session, user, code):
         logger.info("user {} attributed to ref code {}", user.id, code)
+    if command.args == CREATE_PAYLOAD and user.rules_accepted_at is not None:
+        from bot.handlers.generate import start_create_flow
+
+        await start_create_flow(message, state)
+        return
     await cmd_start(message, state, user, settings)
 
 
@@ -40,7 +52,7 @@ async def cmd_start(message: Message, state: FSMContext, user, settings):
     if user.rules_accepted_at is None:
         await message.answer(texts.RULES, reply_markup=keyboards.rules_kb())
         return
-    await send_intro(message.bot, user.id)
+    await send_intro(message.bot, user.id, settings.webapp_url)
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
@@ -63,8 +75,8 @@ async def accept_rules(cb: CallbackQuery, session, user, settings):
     await cb.message.edit_reply_markup(reply_markup=None)
     if granted:
         await cb.message.answer(texts.WELCOME.format(n=granted), reply_markup=keyboards.main_menu())
-        await send_intro(cb.bot, locked.id)
+        await send_intro(cb.bot, locked.id, settings.webapp_url)
         await _try_send_bonus_card(cb.bot, locked.id, locked, settings)
     else:
         await cb.message.answer(texts.MENU, reply_markup=keyboards.main_menu())
-        await send_intro(cb.bot, locked.id)
+        await send_intro(cb.bot, locked.id, settings.webapp_url)

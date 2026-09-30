@@ -15,7 +15,7 @@ menu_router = Router(name="menu")
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext, user, settings):
     await state.clear()
-    await send_intro(message.bot, user.id)
+    await send_intro(message.bot, user.id, settings.webapp_url)
     try:
         await send_bonus_card(message.bot, user.id, user, settings)
     except Exception as e:

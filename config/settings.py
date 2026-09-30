@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"
     webhook_port: int = 8080
+    # Публичный адрес мини-приложения; пусто — кнопки «Кабинет» просто не будет.
+    webapp_url: str = ""
     tribute_pack_50_url: str = ""
     tribute_pack_50_id: str = ""
     tribute_pack_100_url: str = ""

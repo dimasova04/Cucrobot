@@ -24,6 +24,8 @@ BTN_INTRO_CREATE = "📸 Сделать фото со звездой"
 BTN_INTRO_PROFILE = "👤 Профиль"
 BTN_INTRO_BONUS = "🎁 Бонус"
 BTN_INTRO_HELP = "❓ Как это работает"
+BTN_WEBAPP = "🧭 Кабинет"
+WEBAPP_MENU_BUTTON = "Кабинет"
 
 BTN_CREATE = "📸 Создать фото"
 BTN_PROFILE = "👤 Профиль"

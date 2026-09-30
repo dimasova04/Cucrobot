@@ -5,7 +5,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, BotCommandScopeChat, ErrorEvent
+from aiogram.types import BotCommand, BotCommandScopeChat, ErrorEvent, MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
 from bot import texts
@@ -19,6 +19,7 @@ from bot.handlers.shop import shop_router
 from bot.handlers.start import start_router
 from bot.handlers.tribute_webhook import make_handler
 from bot.middlewares import DbSessionMiddleware, RulesGateMiddleware
+from bot.webapp_api import make_routes as make_webapp_routes
 from bot.webhook_server import start_web_server
 from config.settings import get_settings
 from database.base import get_session_factory
@@ -80,6 +81,20 @@ def admin_commands() -> list[BotCommand]:
     ]
 
 
+async def set_menu_button(bot: Bot, settings) -> None:
+    """Кнопка меню рядом с полем ввода открывает мини-приложение."""
+    if not settings.webapp_url:
+        return
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text=texts.WEBAPP_MENU_BUTTON, web_app=WebAppInfo(url=settings.webapp_url)
+            )
+        )
+    except Exception as e:
+        logger.warning("menu button not set: {}", e)
+
+
 def build_dispatcher(settings, session_factory, generator: Generator | None) -> Dispatcher:
     dp = Dispatcher(storage=_storage(settings))
     dp["generator"] = generator
@@ -130,7 +145,10 @@ async def main():
             await bot.set_my_commands(user_commands + admin_commands(), scope=BotCommandScopeChat(chat_id=admin_id))
         except Exception as e:  # админ ещё не открывал бота — Telegram отклонит scope
             logger.warning("admin commands for {} not set: {}", admin_id, e)
+    await set_menu_button(bot, settings)
     routes = [("POST", settings.tribute_webhook_path, make_handler(sf, settings, bot))]
+    if settings.webapp_url:
+        routes += make_webapp_routes(sf, settings, bot)
     await start_web_server(routes, settings.webhook_port)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 

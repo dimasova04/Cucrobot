@@ -38,7 +38,7 @@ def _photo_file_id(message: Message) -> str | None:
     return None
 
 
-async def _start_flow(message: Message, state: FSMContext):
+async def start_create_flow(message: Message, state: FSMContext):
     await state.clear()
     await state.set_data(empty_data())
     await state.set_state(GenStates.person1)
@@ -47,13 +47,13 @@ async def _start_flow(message: Message, state: FSMContext):
 
 @generate_router.message(F.text == texts.BTN_CREATE)
 async def btn_create(message: Message, state: FSMContext):
-    await _start_flow(message, state)
+    await start_create_flow(message, state)
 
 
 @generate_router.callback_query(F.data == "menu:create")
 async def cb_create(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
-    await _start_flow(cb.message, state)
+    await start_create_flow(cb.message, state)
 
 
 def _nav_row(prefix: str, page: int, has_prev: bool, has_next: bool) -> list[list[tuple[str, str]]]:
@@ -417,4 +417,4 @@ async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
 @generate_router.callback_query(F.data == "gen:new")
 async def gen_new(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
-    await _start_flow(cb.message, state)
+    await start_create_flow(cb.message, state)

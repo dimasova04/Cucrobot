@@ -311,3 +311,77 @@ async def test_build_help_lists_actors_and_scenes(session_factory):
     assert "Star0, Star1, Star2, Star3, Star4, Star5 и ещё 2" in text
     assert "Красная дорожка" in text and "и ещё 12" in text
     assert "Позы" in text and "Своя деталь" in text
+
+
+def test_intro_keyboard_gets_webapp_button_when_url_is_set():
+    kb = keyboards.intro_kb("https://example.test/app")
+    last = kb.inline_keyboard[-1][0]
+    assert last.text == texts.BTN_WEBAPP
+    assert last.web_app.url == "https://example.test/app"
+    # без адреса клавиатура прежняя
+    assert len(keyboards.intro_kb().inline_keyboard) == len(kb.inline_keyboard) - 1
+
+
+class _FakeState:
+    def __init__(self):
+        self.cleared = 0
+        self.data = None
+        self.state = None
+
+    async def clear(self):
+        self.cleared += 1
+
+    async def set_data(self, data):
+        self.data = data
+
+    async def set_state(self, state):
+        self.state = state
+
+
+async def test_start_create_deep_link_opens_photo_flow(session_factory):
+    """Кнопка «Сделать фото» в мини-аппе ведёт на t.me/<bot>?start=create."""
+    from aiogram.filters import CommandObject
+
+    from bot.flow import GenStates
+    from bot.handlers.start import cmd_start_deep_link
+    from config.settings import Settings
+    from database import repo
+    from database.base import utcnow
+
+    settings = Settings(_env_file=None, bot_token="x")
+    state = _FakeState()
+    answers = []
+
+    class _Msg:
+        async def answer(self, text, **kw):
+            answers.append(text)
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 5, "u")
+        user.rules_accepted_at = utcnow()
+        await cmd_start_deep_link(_Msg(), CommandObject(args="create"), state, s, user, settings)
+
+    assert answers == [texts.SEND_PERSON_1]
+    assert state.state == GenStates.person1
+
+
+async def test_start_create_deep_link_falls_back_to_rules(session_factory):
+    from aiogram.filters import CommandObject
+
+    from bot.handlers.start import cmd_start_deep_link
+    from config.settings import Settings
+    from database import repo
+
+    settings = Settings(_env_file=None, bot_token="x")
+    state = _FakeState()
+    answers = []
+
+    class _Msg:
+        async def answer(self, text, **kw):
+            answers.append(text)
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 6, "u")
+        await cmd_start_deep_link(_Msg(), CommandObject(args="create"), state, s, user, settings)
+
+    assert answers == [texts.RULES]

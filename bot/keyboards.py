@@ -1,4 +1,10 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 
 from bot import texts
 from bot.flow import result_buttons
@@ -14,8 +20,8 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
-def intro_kb() -> InlineKeyboardMarkup:
-    return grid(
+def intro_kb(webapp_url: str = "") -> InlineKeyboardMarkup:
+    kb = grid(
         [(texts.BTN_INTRO_CREATE, "menu:create")],
         1,
         [
@@ -23,6 +29,11 @@ def intro_kb() -> InlineKeyboardMarkup:
             [(texts.BTN_INTRO_HELP, "menu:help")],
         ],
     )
+    if webapp_url:
+        kb.inline_keyboard.append(
+            [InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))]
+        )
+    return kb
 
 
 def rules_kb() -> InlineKeyboardMarkup:

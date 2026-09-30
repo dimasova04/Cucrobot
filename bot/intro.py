@@ -10,7 +10,7 @@ BANNER_PATH = Path(__file__).resolve().parent.parent / "assets" / "menu_banner.j
 _cached_file_id: str | None = None
 
 
-async def send_intro(bot: Bot, chat_id: int) -> None:
+async def send_intro(bot: Bot, chat_id: int, webapp_url: str = "") -> None:
     """Главное меню: баннер + HTML-подпись + inline-кнопки. file_id кэшируется после первой отправки."""
     global _cached_file_id
     photo = _cached_file_id or FSInputFile(BANNER_PATH)
@@ -19,7 +19,7 @@ async def send_intro(bot: Bot, chat_id: int) -> None:
         photo,
         caption=texts.INTRO,
         parse_mode="HTML",
-        reply_markup=keyboards.intro_kb(),
+        reply_markup=keyboards.intro_kb(webapp_url),
     )
     if sent.photo:
         _cached_file_id = sent.photo[-1].file_id
