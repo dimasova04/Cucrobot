@@ -61,6 +61,7 @@ Telegram-бот «фото с актёром»: пользователь при�
 
 ## Админ-команды
 Пошаговая инструкция по добавлению актёров и сцен: [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md).
+Сводка проекта и роадмап для быстрого входа: [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md).
 
 `/stats`, `/give <id> <n>`, `/sub <id> <sub_week|sub_month|sub_3month>`, `/user <id>`,
 `/block <id>`, `/unblock <id>`, `/actors`, `/scenes`.
