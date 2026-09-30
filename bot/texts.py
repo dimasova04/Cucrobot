@@ -37,12 +37,14 @@ BTN_CANCEL = "Отмена"
 BTN_BACK = "◀️ Назад"
 BTN_PREV = "⬅️"
 BTN_NEXT = "➡️"
-BTN_MORE = "🔄 Новая фотосессия"
+
+BTN_RETRY_SCENE = "🔄 Переснять фото"
+BTN_NEW_PHOTOSHOOT = "🆕 Новая фотосессия"
+
 BTN_CHANGE_SCENE = "🎬 Выбрать сцену"
 BTN_CHANGE_ACTOR = "⭐ Другой актёр"
 BTN_ADD_ACTOR = "➕ Ещё актёр"
 BTN_HD = "📥 Скачать в HD"
-BTN_NEW_PHOTO = "🆕 Новое фото"
 
 HELP = (
     "<b>Как это работает</b>\n"
