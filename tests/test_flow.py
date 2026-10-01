@@ -25,12 +25,26 @@ def test_validators():
 def test_new_scene_drops_previous_detail():
     from bot.flow import apply_catalog_scene, apply_custom_scene
 
-    data = {"scene_id": 1, "custom_text": "старое", "custom_file_id": "f", "detail": "белый купальник"}
+    data = {
+        "scene_id": 1, "custom_text": "старое", "custom_file_id": "f",
+        "detail": "белый купальник", "details": ["белый купальник", "очки"],
+    }
     apply_catalog_scene(data, 8)
-    assert data["scene_id"] == 8 and data["detail"] is None
+    assert data["scene_id"] == 8 and data["detail"] is None and data["details"] == []
     assert data["custom_text"] is None and data["custom_file_id"] is None
+    data["details"] = ["очки"]
+    data["detail"] = "очки"
     apply_custom_scene(data, text="на крыше")
     assert data["scene_id"] is None and data["custom_text"] == "на крыше" and data["detail"] is None
+    assert data["details"] == []
+
+
+def test_compose_details_keeps_a_single_line_and_joins_the_rest():
+    from bot.flow import compose_details
+
+    assert compose_details([]) is None
+    assert compose_details(["в пальто"]) == "в пальто"
+    assert compose_details(["в пальто.", "очки", "шляпа."]) == "в пальто. очки. шляпа"
 
 
 def test_scene_label():
@@ -95,6 +109,19 @@ def test_request_from_state_inserts_self_into_the_latest_frame():
     assert r.people_file_ids == ["wife", "me"]
     assert r.self_role == "watch" and r.insert_prompt
     assert r.edit_mode is True and r.base_generation_id == 8 and r.detail is None
+
+
+def test_request_from_state_quality_detail_does_not_send_the_stack():
+    d = {
+        "people": ["a"], "actors": [1], "scene_id": 5,
+        "custom_text": None, "custom_file_id": None,
+        "detail": "в пальто. очки", "details": ["в пальто", "очки"],
+        "edit_mode": True, "edit_base_id": 12,
+        "_quality_detail": "улучши качество",
+    }
+    r = request_from_state(9, d, "base")
+    assert r.edit_mode is True and r.base_generation_id == 12
+    assert r.detail == "улучши качество"
 
 
 def test_request_from_state_with_named_actor():
