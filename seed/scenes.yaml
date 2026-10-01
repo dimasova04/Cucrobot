@@ -13,21 +13,27 @@
 - name: "Съёмочная площадка"
   orientation: landscape
   prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
-- name: "Отель, коридор"
+- name: "Дверь номера"
   orientation: portrait
   prompt: "standing at a hotel room door in a hotel corridor. Она в черном открытом купальнике. Он смотрит на нее и держит ее за талию и локоть. Она держит руками ручку двери"
-- name: "Номер отеля, вечер"
+- name: "Кровать в белых халатах"
   orientation: landscape
-  prompt: "in a hotel suite in the evening, city view window, champagne glasses on the table, evening clothes"
-- name: "На кастинге у Пьера"
+  prompt: "in a hotel bedroom, both wearing white bathrobes, sitting on a white bed, warm evening light"
+- name: "Селфи с размазанной тушью"
   orientation: portrait
-  prompt: "at a private film casting in a bright studio with cameras and lights, she wears a black swimsuit, he stands close and looks at her"
-- name: "Селфи после"
-  orientation: portrait
-  prompt: "a close phone selfie right after the shoot, dressing room behind, she is in a swimsuit, he is beside her, both looking at the phone"
-- name: "На кастинге у Пьера 2"
-  orientation: landscape
-  prompt: "another angle of a private film casting, studio couch and soft lights, she poses in a white swimsuit, he sits close and watches her"
+  prompt: "a close phone selfie, her mascara is smudged under the eyes, he is beside her, both looking at the phone"
 - name: "За 1000 евро"
   orientation: portrait
   prompt: "in a small casting room under a soft key light, she poses in a black swimsuit, he looks at her and holds her elbow"
+- name: "Утро после"
+  orientation: landscape
+  prompt: "in a sunlit bedroom in the morning, messy white sheets, she wears an oversized shirt, he sits on the edge of the bed"
+- name: "Гримёрка"
+  orientation: portrait
+  prompt: "in a backstage dressing room with a lit mirror, she wears a black swimsuit, he stands close and looks at her"
+- name: "Лифт отеля"
+  orientation: portrait
+  prompt: "inside a hotel elevator with mirrored walls, she wears a black swimsuit, he stands close and holds her waist"
+- name: "Его кухня"
+  orientation: landscape
+  prompt: "in his kitchen at night, she sits on the counter in a short robe, he stands in front of her"

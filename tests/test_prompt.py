@@ -135,8 +135,10 @@ def test_build_validates_cardinality():
         build(inp, max_refs=14)
     inp = _inp()
     inp.actors[0].refs = []
-    with pytest.raises(ValueError):
-        build(inp, max_refs=14)
+    prompt, refs = build(inp, max_refs=14)
+    assert refs == ["p0"]
+    assert "together with Actor0" in prompt
+    assert "shows actor" not in prompt
     with pytest.raises(ValueError):
         build(_inp(people=2, actors=2), max_refs=3)
 

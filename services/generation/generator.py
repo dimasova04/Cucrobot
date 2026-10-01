@@ -14,7 +14,7 @@ from database.base import utcnow
 from database.models import Generation
 from services import catalog
 from services.billing import wallet
-from services.generation.prompt_builder import ActorInput, GenerationInput, build, build_edit
+from services.generation.prompt_builder import ActorInput, GenerationInput, build, build_edit, build_insert
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
 
@@ -22,11 +22,10 @@ class AlreadyRunning(Exception):
     pass
 
 
-# Имя, под которым «свой герой» попадает в Generation.actors. Подпись
-# пользователю берётся из bot.texts.HERO_LABEL — сервисы не знают про тексты бота.
-HERO_ACTOR_NAME = "свой герой"
-# Нейтральная англоязычная метка для промпта: имени у героя нет.
-HERO_PROMPT_NAME = "the second person"
+CAST_NOTES = {
+    "watch": "Person B is in the frame only watching the others. He does not touch them.",
+    "join": "Person B is in the frame together with the others and takes part in the same pose.",
+}
 
 
 @dataclass
@@ -39,9 +38,12 @@ class GenerationRequest:
     custom_scene_file_id: str | None
     detail: str | None
     tier: str  # base / premium
-    # «Свой герой»: одно фото вместо актёра из каталога. Взаимоисключающе с actor_ids.
-    hero_file_id: str | None = None
-    # Правка детали: дорисовываем на готовом кадре, а не генерим заново.
+    # Имена не из каталога: (имя для промпта, file_id фото, можно пусто).
+    named_actors: list[tuple[str, list[str]]] | None = None
+    # watch / join — только если на фото есть человек пользователя.
+    self_role: str | None = None
+    # Вписать человека в готовый кадр. Вместе с edit_mode и base_generation_id.
+    insert_prompt: str | None = None
     base_generation_id: int | None = None
     edit_mode: bool = False
 
@@ -113,8 +115,9 @@ class Generator:
             self._running.discard(req.user_id)
 
     async def _run(self, req: GenerationRequest) -> GenerationOutcome:
-        if not req.actor_ids and not req.hero_file_id:
-            raise ValueError("request needs at least one actor id or a hero photo")
+        named = list(req.named_actors or [])
+        if not req.actor_ids and not named:
+            raise ValueError("request needs at least one actor")
         model_air, max_refs, cost = self._model(req.tier)
 
         async with self._sf() as s:
@@ -136,15 +139,12 @@ class Generator:
             balance = await wallet.get_balance(s, req.user_id)
             if balance < cost:
                 raise wallet.InsufficientCrystals(needed=cost, balance=balance)
-            actors_json = (
-                [{"id": a.id, "name": a.name} for a in actors]
-                if actors
-                else [{"id": None, "name": HERO_ACTOR_NAME}]
-            )
+            actors_json = [{"id": a.id, "name": a.name} for a in actors]
+            actors_json += [{"id": None, "name": name} for name, _files in named]
             gen = Generation(
                 user_id=req.user_id, model_air=model_air, model_tier=req.tier,
                 actors=actors_json,
-                location=location, user_detail=req.detail, crystals_charged=cost,
+                location=location, user_detail=req.detail or req.insert_prompt, crystals_charged=cost,
             )
             s.add(gen)
             await s.flush()
@@ -153,7 +153,8 @@ class Generator:
             gen_id = gen.id
             actor_inputs = [
                 ActorInput(a.name, a.description, [r.file_id for r in a.refs]) for a in actors
-            ] or [ActorInput(HERO_PROMPT_NAME, "", [req.hero_file_id])]
+            ]
+            actor_inputs += [ActorInput(name, "", list(files)) for name, files in named]
 
         try:
             people = [_data_uri(await self._fetcher.fetch(f)) for f in req.people_file_ids]
@@ -161,9 +162,14 @@ class Generator:
                 ai.refs = [_data_uri(await self._fetcher.fetch(f)) for f in ai.refs]
             scene_ref = _data_uri(await self._fetcher.fetch(scene_ref_id)) if scene_ref_id else None
             width, height = self._settings.frame_size(req.tier, orientation)
-            inp = GenerationInput(people, actor_inputs, scene_prompt, scene_ref, req.detail, width, height)
+            inp = GenerationInput(
+                people, actor_inputs, scene_prompt, scene_ref, req.detail, width, height,
+                cast_note=CAST_NOTES.get(req.self_role or ""),
+            )
             previous_image, seed = await self._load_base_image(base)
-            if previous_image:
+            if previous_image and req.insert_prompt:
+                prompt, refs = build_insert(inp, previous_image, req.insert_prompt, max_refs=max_refs)
+            elif previous_image:
                 prompt, refs = build_edit(inp, previous_image, req.detail or "", max_refs=max_refs)
             else:
                 seed = None  # обычная генерация: каждый кадр со своим сидом
@@ -184,7 +190,7 @@ class Generator:
 
     async def _edit_base(self, s, req: GenerationRequest) -> tuple[str, int | None] | None:
         """(ссылка на предыдущий кадр, его сид) — если правка детали применима."""
-        if not (req.edit_mode and req.base_generation_id and req.detail):
+        if not (req.edit_mode and req.base_generation_id and (req.detail or req.insert_prompt)):
             return None
         base = await s.get(Generation, req.base_generation_id)
         if base is None or base.user_id != req.user_id or base.status != "done" or not base.result_url:

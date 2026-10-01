@@ -113,6 +113,25 @@ async def delete_scene(session: AsyncSession, scene_id: int) -> None:
         await session.flush()
 
 
+async def seed_actors(session: AsyncSession, path: str = "seed/actors.yaml") -> int:
+    """Имена кнопок. Без фото актёр всё равно виден: лицо тогда держится на имени."""
+    items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    existing_names = set((await session.execute(select(Actor.name))).scalars().all())
+    order = await session.scalar(select(func.count()).select_from(Actor)) or 0
+    added = 0
+    for item in items:
+        if item["name"] in existing_names:
+            continue
+        session.add(Actor(
+            name=item["name"], description=(item.get("description") or "").strip(),
+            is_active=True, order=order,
+        ))
+        order += 1
+        added += 1
+    await session.flush()
+    return added
+
+
 async def seed_scenes(session: AsyncSession, path: str = "seed/scenes.yaml") -> int:
     items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     existing_names = set((await session.execute(select(Scene.name))).scalars().all())

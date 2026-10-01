@@ -39,24 +39,20 @@ def test_result_buttons_one_actor():
     assert cbs == [
         "gen:more",
         "gen:change_scene",
-        "gen:change_actor",
-        "gen:add_actor",
+        "gen:add_person",
         "gen:detail",
         "gen:hd:7",
         "gen:new",
     ]
 
 
-def test_result_buttons_two_actors_hide_add_actor():
-    d = {"people": ["a"], "actors": [1, 2], "last_generation_id": 7}
-    cbs = [cb for _, cb in result_buttons(d)]
-    assert cbs == ["gen:more", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:hd:7", "gen:new"]
+def test_add_person_hides_self_once_he_is_in_the_frame():
+    from bot.flow import add_person_buttons
 
-
-def test_result_buttons_hero_hides_add_actor():
-    d = {"people": ["a"], "actors": [], "hero_file_id": "h1", "last_generation_id": 7}
-    cbs = [cb for _, cb in result_buttons(d)]
-    assert cbs == ["gen:more", "gen:change_scene", "gen:change_actor", "gen:detail", "gen:hd:7", "gen:new"]
+    first = [cb for _, cb in add_person_buttons({"actors": [1]})]
+    assert first == ["add:self", "add:other"]
+    again = [cb for _, cb in add_person_buttons({"actors": [1], "self_file_id": "me"})]
+    assert again == ["add:other"]
 
 
 def test_result_buttons_without_generation_id_have_no_hd():
@@ -69,7 +65,7 @@ def test_result_kb_puts_new_photo_on_its_own_row():
 
     kb = keyboards.result_kb({"people": ["a"], "actors": [1], "last_generation_id": 7})
     rows = kb.inline_keyboard
-    assert [len(r) for r in rows] == [2, 2, 2, 1]
+    assert [len(r) for r in rows] == [2, 2, 1, 1]
     assert rows[-1][0].callback_data == "gen:new"
 
 
@@ -77,13 +73,29 @@ def test_request_from_state():
     d = {"people": ["a"], "actors": [1, 2], "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": "x"}
     r = request_from_state(9, d, "premium")
     assert r.user_id == 9 and r.actor_ids == [1, 2] and r.scene_id == 5 and r.tier == "premium" and r.detail == "x"
-    assert r.hero_file_id is None
+    assert r.named_actors == [] and r.insert_prompt is None
 
 
-def test_request_from_state_with_hero():
-    d = {"people": ["a"], "actors": [], "hero_file_id": "h1", "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": None}
+def test_request_from_state_inserts_self_into_the_latest_frame():
+    d = {
+        "people": ["wife"], "actors": [1], "named": [], "scene_id": 5,
+        "custom_text": None, "custom_file_id": None, "detail": "купальник",
+        "self_role": None, "last_generation_id": 8,
+        "pending_insert": {"kind": "self", "role": "watch", "file_id": "me"},
+    }
     r = request_from_state(9, d, "base")
-    assert r.actor_ids == [] and r.hero_file_id == "h1"
+    assert r.people_file_ids == ["wife", "me"]
+    assert r.self_role == "watch" and r.insert_prompt
+    assert r.edit_mode is True and r.base_generation_id == 8 and r.detail is None
+
+
+def test_request_from_state_with_named_actor():
+    d = {
+        "people": ["a"], "actors": [], "named": [{"name": "Рокко", "files": ["h1"]}],
+        "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": None,
+    }
+    r = request_from_state(9, d, "base")
+    assert r.actor_ids == [] and r.named_actors == [("Рокко", ["h1"])]
 
 
 def test_is_complete():
@@ -98,8 +110,7 @@ def test_is_complete():
     assert is_complete(d)
     d.update(actors=[])
     assert not is_complete(d)
-    # «свой герой» заменяет актёра из каталога
-    d.update(hero_file_id="h1")
+    d.update(named=[{"name": "Рокко", "files": []}])
     assert is_complete(d)
 
 

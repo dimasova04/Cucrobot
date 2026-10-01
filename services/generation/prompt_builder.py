@@ -41,6 +41,8 @@ class GenerationInput:
     detail: str | None
     width: int
     height: int
+    # Как человек с фото пользователя ведёт себя в новом кадре. Правка детали его не трогает.
+    cast_note: str | None = None
 
 
 def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
@@ -65,10 +67,9 @@ def _validate(inp: GenerationInput, budget: int) -> None:
         raise ValueError(f"people must be 1..{len(PERSON_LABELS)}, got {len(inp.people)}")
     if not inp.actors:
         raise ValueError("at least one actor is required")
-    for a in inp.actors:
-        if not a.refs:
-            raise ValueError(f"actor {a.name!r} has no reference images")
-    if budget < len(inp.people) + len(inp.actors):
+    # Имя без фото слот не занимает: лицо тогда держится только на тексте.
+    needed = len(inp.people) + sum(1 for a in inp.actors if a.refs)
+    if budget < needed:
         raise ValueError("max_refs too small for people + primary actor refs")
 
 
@@ -96,6 +97,8 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     actors = " and ".join(a.name for a in inp.actors)
     # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
     lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
+    if inp.cast_note:
+        lines.append(inp.cast_note.strip().rstrip(".") + ".")
     lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
     if inp.detail:
         lines.append(
@@ -137,6 +140,26 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
         "Do not invent a new scene and do not add objects that were not requested.",
         "Apply only this change, and apply it fully: " + detail.strip().rstrip(".") + ".",
         "If the change is about clothes, hair or pose, change only that and leave the rest of the photo as it is.",
+        "Other images exist only so the faces stay recognizable. Ignore clothes and props in them.",
+    ]
+    lines.extend(_ref_lines(inp, ordered, start=2))
+    lines.append(SAFETY_CLAUSE)
+    lines.append(REALISM_CLAUSE)
+    return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]
+
+
+def build_insert(inp: GenerationInput, previous_image: str, instruction: str, max_refs: int) -> tuple[str, list[str]]:
+    """Вписать ещё одного человека в готовый кадр, не собирая сцену заново."""
+    if not previous_image:
+        raise ValueError("previous_image is required for an insert")
+    if not (instruction or "").strip():
+        raise ValueError("instruction is required for an insert")
+    _validate(inp, max_refs - 1)
+    ordered = [item for item in _ordered_refs(inp) if item[0] in ("person", "actor_primary")]
+    ordered = ordered[: max_refs - 1]
+    lines = [
+        "Image 1 is the finished photo. Edit that exact photo.",
+        instruction.strip().rstrip(".") + ".",
         "Other images exist only so the faces stay recognizable. Ignore clothes and props in them.",
     ]
     lines.extend(_ref_lines(inp, ordered, start=2))

@@ -1,5 +1,4 @@
 import asyncio
-import random
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
@@ -12,11 +11,15 @@ from bot.flow import (
     ACTORS_PER_PAGE,
     SCENES_PER_PAGE,
     GenStates,
+    add_person_buttons,
     apply_catalog_scene,
     apply_custom_scene,
+    commit_pending,
     effective_tier,
     empty_data,
     is_complete,
+    name_taken,
+    norm_name,
     paginate,
     request_from_state,
     scene_label,
@@ -29,6 +32,7 @@ from services import catalog
 from services.billing import wallet
 from services.generation import faces
 from services.generation import generator as gen_service
+from services.generation.content_filter import is_allowed
 from services.generation.generator import AlreadyRunning
 
 generate_router = Router(name="generate")
@@ -76,33 +80,32 @@ async def _show_actors(
     target: Message, state: FSMContext, session,
     exclude: list[int] | None = None, page: int = 0, mode: str | None = None,
 ):
-    """Показывает список актёров в состоянии actor1.
+    """Список актёров.
 
-    `mode` определяет, что делать при выборе актёра (см. actor1_chosen):
-    None — обычный первый выбор (случайная сцена, сразу генерация),
-    "add" — добираем второго актёра (кнопка «Ещё актёр» под результатом),
-    "change" — заменяем актёра целиком (кнопка «Другой актёр» под результатом).
+    mode None — первый актёр, дальше сцена.
+    mode "insert" — вписать ещё одного в готовый кадр.
     """
     all_actors = await catalog.list_actors(session)
-    if not all_actors:
-        await state.clear()
-        await target.answer(texts.CATALOG_EMPTY, reply_markup=keyboards.main_menu())
-        return
-    actors = [a for a in all_actors if a.id not in (exclude or [])]
+    st_now = await state.get_data()
+    taken_names = {norm_name(item.get("name", "")) for item in st_now.get("named") or []}
+    actors = [
+        a for a in all_actors
+        if a.id not in (exclude or []) and norm_name(a.name) not in taken_names
+    ]
     chunk, has_prev, has_next = paginate(actors, page, ACTORS_PER_PAGE)
     items = [(a.name, f"act:{a.id}") for a in chunk]
     extra = _nav_row("act", page, has_prev, has_next)
-    if mode != "add":
-        # «Свой герой» нельзя мешать с добором второго актёра из каталога.
-        extra.append([(texts.BTN_HERO, "act:hero")])
-    extra.append(keyboards.back_row("photo"))
+    extra.append([(texts.BTN_WRITE_OWN, "act:write")])
+    extra.append(keyboards.back_row("add" if mode == "insert" else "photo"))
     extra.append(keyboards.cancel_row())
     st = await state.get_data()
     if mode is not None:
         st["_pick_mode"] = mode
-        await state.set_data(st)
+    else:
+        st.pop("_pick_mode", None)
+    await state.set_data(st)
     await state.set_state(GenStates.actor1)
-    text = texts.CHOOSE_ACTOR_2 if mode == "add" else texts.CHOOSE_ACTOR
+    text = texts.CHOOSE_ACTOR_INSERT if mode == "insert" else texts.CHOOSE_ACTOR
     await target.answer(text, reply_markup=keyboards.grid(items, 2, extra))
 
 
@@ -157,17 +160,69 @@ async def got_person1_photo(message: Message, state: FSMContext, session, bot: B
     await _show_actors(message, state, session)
 
 
-async def _ask_hero(target: Message, state: FSMContext):
-    await state.set_state(GenStates.hero)
+async def _ask_actor_name(target: Message, state: FSMContext):
+    await state.set_state(GenStates.actor_name)
     await target.answer(
-        texts.SEND_HERO,
+        texts.ASK_ACTOR_NAME,
         reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("actors"), keyboards.cancel_row()]),
     )
 
 
-@generate_router.message(GenStates.hero, F.photo | F.document)
-async def got_hero_photo(message: Message, state: FSMContext, session, bot: Bot, user, settings, generator):
-    """«Свой герой»: одно фото любого человека вместо актёра из каталога."""
+async def _ask_actor_photos(target: Message, state: FSMContext, more: bool = False):
+    await state.set_state(GenStates.actor_photos)
+    await target.answer(
+        texts.ASK_ACTOR_PHOTO_MORE if more else texts.ASK_ACTOR_PHOTOS,
+        reply_markup=keyboards.grid(
+            [],
+            extra_rows=[[(texts.BTN_SKIP, "act:photos:skip")], keyboards.back_row("name"), keyboards.cancel_row()],
+        ),
+    )
+
+
+async def _catalog_name_keys(session, actor_ids: list[int]) -> set[str]:
+    keys = set()
+    for aid in actor_ids:
+        actor = await catalog.get_actor(session, aid)
+        if actor:
+            keys.add(norm_name(actor.name))
+    return keys
+
+
+@generate_router.message(GenStates.person1)
+async def not_a_photo(message: Message):
+    await message.answer(texts.NOT_A_PHOTO)
+
+
+@generate_router.callback_query(GenStates.actor1, F.data == "act:write")
+async def act_write(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _ask_actor_name(cb.message, state)
+
+
+@generate_router.message(GenStates.actor_name, F.text)
+async def actor_name_text(message: Message, state: FSMContext, session):
+    raw = (message.text or "").strip()
+    if not raw:
+        await message.answer(texts.NAME_EMPTY)
+        return
+    if len(raw) > 64:
+        await message.answer(texts.NAME_TOO_LONG)
+        return
+    if not is_allowed(raw):
+        await message.answer(texts.TEXT_REJECTED)
+        return
+    st = await state.get_data()
+    if name_taken(st, raw) or norm_name(raw) in await _catalog_name_keys(session, st.get("actors") or []):
+        await message.answer(texts.ALREADY_ON_PHOTO)
+        return
+    st["pending_name"] = raw
+    st["pending_files"] = []
+    await state.set_data(st)
+    await _ask_actor_photos(message, state)
+
+
+@generate_router.message(GenStates.actor_photos, F.photo | F.document)
+async def actor_photo(message: Message, state: FSMContext, session, bot: Bot, user, settings, generator):
     file_id = _photo_file_id(message)
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
@@ -177,34 +232,52 @@ async def got_hero_photo(message: Message, state: FSMContext, session, bot: Bot,
         await message.answer(texts.NO_FACE)
         return
     st = await state.get_data()
-    st["hero_file_id"] = file_id
-    st["actors"] = []
-    if not (st.get("scene_id") or st.get("custom_text") or st.get("custom_file_id")):
-        # Быстрый флоу: сцену выбираем сами, пользователь поменяет её кнопкой.
-        scenes = await catalog.list_scenes(session)
-        if not scenes:
-            await state.clear()
-            await message.answer(texts.CATALOG_EMPTY, reply_markup=keyboards.main_menu())
-            return
-        st.update(scene_id=random.choice(scenes).id, custom_text=None, custom_file_id=None)
+    files = list(st.get("pending_files") or [])
+    files.append(file_id)
+    st["pending_files"] = files
     await state.set_data(st)
-    await _run_generation(message, state, session, user, settings, generator)
+    if len(files) >= 2:
+        await _finish_named_actor(message, state, session, user, settings, generator)
+        return
+    await _ask_actor_photos(message, state, more=True)
 
 
-@generate_router.message(GenStates.person1)
-@generate_router.message(GenStates.hero)
-async def not_a_photo(message: Message):
+@generate_router.callback_query(GenStates.actor_photos, F.data == "act:photos:skip")
+async def actor_photos_skip(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+    await cb.answer()
+    await _finish_named_actor(cb.message, state, session, user, settings, generator)
+
+
+@generate_router.message(GenStates.actor_name)
+async def actor_name_not_text(message: Message):
+    await message.answer(texts.NAME_EMPTY)
+
+
+@generate_router.message(GenStates.actor_photos)
+async def actor_photos_not_photo(message: Message):
     await message.answer(texts.NOT_A_PHOTO)
 
 
-# Зарегистрирован раньше act:<id>: "act:hero" не должно уйти в выбор актёра.
-@generate_router.callback_query(GenStates.actor1, F.data == "act:hero")
-async def act_hero(cb: CallbackQuery, state: FSMContext):
+async def _finish_named_actor(target, state, session, user, settings, generator):
     st = await state.get_data()
+    name = st.pop("pending_name", None)
+    files = list(st.pop("pending_files", []) or [])
+    mode = st.get("_pick_mode")
+    if not name:
+        await state.set_data(st)
+        await _ask_actor_name(target, state)
+        return
+    if mode == "insert":
+        st.pop("_pick_mode", None)
+        st["pending_insert"] = {"kind": "named", "name": name, "files": files}
+        await state.set_data(st)
+        await _run_generation(target, state, session, user, settings, generator)
+        return
     st.pop("_pick_mode", None)
+    st["actors"] = []
+    st["named"] = [{"name": name, "files": files}]
     await state.set_data(st)
-    await cb.answer()
-    await _ask_hero(cb.message, state)
+    await _show_scenes(target, state, session)
 
 
 # Зарегистрирован раньше act:<id>, иначе "act:page:2" попал бы в выбор актёра.
@@ -213,7 +286,7 @@ async def actors_page(cb: CallbackQuery, state: FSMContext, session):
     page = int(cb.data.rsplit(":", 1)[1])
     st = await state.get_data()
     mode = st.get("_pick_mode")
-    exclude = st.get("actors") if mode == "add" else None
+    exclude = st.get("actors") if mode == "insert" else None
     await cb.answer()
     await _show_actors(cb.message, state, session, exclude=exclude, page=page, mode=mode)
 
@@ -223,29 +296,24 @@ async def actor1_chosen(cb: CallbackQuery, state: FSMContext, session, user, set
     actor_id = int(cb.data.split(":")[1])
     st = await state.get_data()
     mode = st.pop("_pick_mode", None)
-    if mode == "add":
-        actors = st.get("actors", [])
-        if actor_id not in actors:
-            actors.append(actor_id)
-        st["actors"] = actors
-    else:
-        # Обычный выбор и «Другой актёр» сбрасывают «своего героя».
-        st["actors"] = [actor_id]
-        st["hero_file_id"] = None
-        if mode is None:
-            # Первый выбор актёра в быстром флоу: сразу берём случайную активную
-            # сцену и запускаем генерацию — без промежуточных вопросов.
-            scenes = await catalog.list_scenes(session)
-            if not scenes:
-                await state.clear()
-                await cb.answer()
-                await cb.message.answer(texts.CATALOG_EMPTY, reply_markup=keyboards.main_menu())
-                return
-            scene = random.choice(scenes)
-            st.update(scene_id=scene.id, custom_text=None, custom_file_id=None)
+    actor = await catalog.get_actor(session, actor_id)
+    if actor is None:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    if mode == "insert":
+        if actor_id in (st.get("actors") or []):
+            await cb.answer(texts.ALREADY_ON_PHOTO, show_alert=True)
+            return
+        st["pending_insert"] = {"kind": "actor", "actor_id": actor_id, "name": actor.name}
+        await state.set_data(st)
+        await cb.answer()
+        await _run_generation(cb.message, state, session, user, settings, generator)
+        return
+    st["actors"] = [actor_id]
+    st["named"] = []
     await state.set_data(st)
     await cb.answer()
-    await _run_generation(cb.message, state, session, user, settings, generator)
+    await _show_scenes(cb.message, state, session)
 
 
 async def _ask_detail(target: Message, state: FSMContext):
@@ -340,6 +408,8 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     tier = effective_tier(user)
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     if user.crystals < cost:
+        st.pop("pending_insert", None)
+        await state.set_data(st)
         await target.answer(f"{texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals)}\n\n{texts.NOT_ENOUGH_HINT}")
         return
     req = request_from_state(user.id, st, tier)
@@ -361,10 +431,11 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     await session.refresh(user)
     await state.set_state(GenStates.result)
     if outcome.status == "done":
-        if st.get("hero_file_id"):
-            actors = [texts.HERO_LABEL]
-        else:
-            actors = [a.name for a in [await catalog.get_actor(session, i) for i in st["actors"]] if a]
+        commit_pending(st)
+        actors = [a.name for a in [await catalog.get_actor(session, i) for i in st.get("actors") or []] if a]
+        actors += [item["name"] for item in st.get("named") or []]
+        if st.get("self_file_id"):
+            actors.append(texts.SELF_LABEL)
         scene = await catalog.get_scene(session, st["scene_id"]) if st.get("scene_id") else None
         caption = texts.RESULT_CAPTION.format(actors=", ".join(actors), scene=scene_label(st, scene.name if scene else None))
         # Кнопке «Скачать в HD» нужен id генерации, «Своей детали» — сид кадра.
@@ -384,8 +455,12 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         except Exception as e:
             logger.warning("bonus card send failed: {}", e)
     elif outcome.status == "rejected":
+        st.pop("pending_insert", None)
+        await state.set_data(st)
         await wait_msg.edit_text(texts.GEN_REJECTED)
     else:
+        st.pop("pending_insert", None)
+        await state.set_data(st)
         await wait_msg.edit_text(texts.GEN_FAILED)
 
 
@@ -413,27 +488,101 @@ async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
     await _show_scenes(cb.message, state, session)
 
 
-@generate_router.callback_query(F.data == "gen:change_actor")
-async def gen_change_actor(cb: CallbackQuery, state: FSMContext, session):
+async def _show_add_person(target: Message, state: FSMContext):
+    st = await state.get_data()
+    await state.set_state(GenStates.result)
+    await target.answer(
+        texts.ADD_PERSON,
+        reply_markup=keyboards.grid(
+            add_person_buttons(st),
+            1,
+            [keyboards.back_row("result"), keyboards.cancel_row()],
+        ),
+    )
+
+
+@generate_router.callback_query(F.data == "gen:add_person")
+async def gen_add_person(cb: CallbackQuery, state: FSMContext):
     st = await _check_result_session(cb, state)
     if st is None:
         return
-    # Актёр меняется — править прежний кадр бессмысленно.
-    await _drop_edit(state, st)
-    await cb.answer()
-    await _show_actors(cb.message, state, session, mode="change")
-
-
-@generate_router.callback_query(F.data == "gen:add_actor")
-async def gen_add_actor(cb: CallbackQuery, state: FSMContext, session):
-    st = await _check_result_session(cb, state)
-    if st is None:
-        return
-    if st.get("hero_file_id") or len(st.get("actors", [])) != 1:
+    if not st.get("last_generation_id"):
         await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
         return
     await cb.answer()
-    await _show_actors(cb.message, state, session, exclude=st.get("actors"), mode="add")
+    await _show_add_person(cb.message, state)
+
+
+@generate_router.callback_query(F.data == "add:self")
+async def add_self(cb: CallbackQuery, state: FSMContext):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    if st.get("self_file_id"):
+        await cb.answer(texts.ALREADY_ON_PHOTO, show_alert=True)
+        return
+    await cb.answer()
+    await state.set_state(GenStates.self_role)
+    await cb.message.answer(
+        texts.ASK_SELF_ROLE,
+        reply_markup=keyboards.grid(
+            [(texts.BTN_WATCH, "add:role:watch"), (texts.BTN_JOIN, "add:role:join")],
+            2,
+            [keyboards.back_row("add"), keyboards.cancel_row()],
+        ),
+    )
+
+
+@generate_router.callback_query(GenStates.self_role, F.data.startswith("add:role:"))
+async def add_self_role(cb: CallbackQuery, state: FSMContext):
+    role = cb.data.rsplit(":", 1)[1]
+    if role not in ("watch", "join"):
+        await cb.answer()
+        return
+    st = await state.get_data()
+    st["pending_role"] = role
+    await state.set_data(st)
+    await state.set_state(GenStates.self_photo)
+    await cb.answer()
+    await cb.message.answer(
+        texts.ASK_SELF_PHOTO,
+        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("roles"), keyboards.cancel_row()]),
+    )
+
+
+@generate_router.message(GenStates.self_photo, F.photo | F.document)
+async def got_self_photo(message: Message, state: FSMContext, session, bot: Bot, user, settings, generator):
+    file_id = _photo_file_id(message)
+    if not file_id:
+        await message.answer(texts.NOT_A_PHOTO)
+        return
+    data = (await bot.download(file_id)).read()
+    if not await asyncio.to_thread(faces.has_face, data):
+        await message.answer(texts.NO_FACE)
+        return
+    st = await state.get_data()
+    role = st.pop("pending_role", None)
+    if role not in ("watch", "join") or not st.get("last_generation_id"):
+        await state.set_data(st)
+        await message.answer(texts.SESSION_EXPIRED)
+        return
+    st["pending_insert"] = {"kind": "self", "role": role, "file_id": file_id}
+    await state.set_data(st)
+    await _run_generation(message, state, session, user, settings, generator)
+
+
+@generate_router.message(GenStates.self_photo)
+async def self_photo_not_a_photo(message: Message):
+    await message.answer(texts.NOT_A_PHOTO)
+
+
+@generate_router.callback_query(F.data == "add:other")
+async def add_other(cb: CallbackQuery, state: FSMContext, session):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    await cb.answer()
+    await _show_actors(cb.message, state, session, exclude=st.get("actors"), mode="insert")
 
 
 @generate_router.callback_query(F.data.startswith("gen:hd:"))
@@ -489,13 +638,36 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings
     if target == "scenes":
         await _show_scenes(cb.message, state, session)
         return
+    if target == "add":
+        await _show_add_person(cb.message, state)
+        return
+    if target == "roles":
+        await state.set_state(GenStates.self_role)
+        await cb.message.answer(
+            texts.ASK_SELF_ROLE,
+            reply_markup=keyboards.grid(
+                [(texts.BTN_WATCH, "add:role:watch"), (texts.BTN_JOIN, "add:role:join")],
+                2,
+                [keyboards.back_row("add"), keyboards.cancel_row()],
+            ),
+        )
+        return
+    if target == "name":
+        await _ask_actor_name(cb.message, state)
+        return
     if target == "result":
         st = await _drop_edit(state, await state.get_data())
+        st.pop("pending_insert", None)
+        st.pop("pending_role", None)
+        await state.set_data(st)
         if is_complete(st):
             await state.set_state(GenStates.result)
             await cb.message.answer(texts.BACK_TO_RESULT, reply_markup=keyboards.result_kb(st))
             return
     st = await state.get_data()
-    st.pop("_pick_mode", None)
-    await state.set_data(st)
-    await _show_actors(cb.message, state, session)
+    mode = st.get("_pick_mode")
+    await _show_actors(
+        cb.message, state, session,
+        exclude=st.get("actors") if mode == "insert" else None,
+        mode=mode,
+    )

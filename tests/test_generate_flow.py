@@ -47,17 +47,17 @@ def _callbacks(markup):
 
 
 def _actor_ids(cbs):
-    return [c for c in cbs if c.startswith("act:") and ":page:" not in c and c != "act:hero"]
+    return [c for c in cbs if c.startswith("act:") and c.removeprefix("act:").isdigit()]
 
 
-async def test_show_actors_on_empty_catalog(session_factory):
+async def test_show_actors_on_empty_catalog_still_offers_a_typed_name(session_factory):
     async with session_factory() as s:
         target, state = _FakeTarget(), _FakeState()
         await _show_actors(target, state, s)
     text, markup = target.answers[0]
-    assert text == texts.CATALOG_EMPTY
-    assert state.cleared is True
-    assert markup.keyboard[0][0].text == texts.BTN_CREATE  # главное меню
+    assert text == texts.CHOOSE_ACTOR
+    assert "act:write" in _callbacks(markup)
+    assert state.cleared is False
 
 
 async def test_show_actors_pages_by_ten(session_factory):
@@ -70,7 +70,7 @@ async def test_show_actors_pages_by_ten(session_factory):
         await _show_actors(target, state, s)
         first = _callbacks(target.answers[0][1])
         assert len(_actor_ids(first)) == 10
-        assert "act:hero" in first  # кнопка «Свой герой»
+        assert "act:write" in first  # «Написать своё»
         assert "nav:back:photo" in first  # шаг назад — к загрузке фото
         assert "act:page:1" in first and "act:page:-1" not in first
 
@@ -180,15 +180,10 @@ async def test_actor1_tap_triggers_generation_failed(session_factory):
 
         await generate_mod.actor1_chosen(cb, state, s, user, settings, generator)
 
-        assert len(generator.calls) == 1
-        req = generator.calls[0]
-        assert req.actor_ids == [actor.id]
-        scenes = await catalog.list_scenes(s)
-        assert req.scene_id in [sc.id for sc in scenes]
-        assert cb.answered == [(None, False)]
-        assert state._state == GenStates.result
-        assert not message.photo_sent  # failed: без отправки фото
-        assert message.answers[-1][0] == texts.GENERATING
+        assert generator.calls == []
+        assert state._data["actors"] == [actor.id]
+        assert state._state == GenStates.scene
+        assert message.answers[-1][0] == texts.CHOOSE_SCENE
 
 
 async def test_actor1_tap_triggers_generation_done(session_factory):
@@ -209,11 +204,9 @@ async def test_actor1_tap_triggers_generation_done(session_factory):
 
         await generate_mod.actor1_chosen(cb, state, s, user, settings, generator)
 
-        assert len(generator.calls) == 1
-        assert message.photo_sent is True
-        assert state._state == GenStates.result
-        # id генерации сохранён для кнопки «Скачать в HD»
-        assert state._data["last_generation_id"] == 999
+        assert generator.calls == []
+        assert state._state == GenStates.scene
+        assert state._data["actors"] == [actor.id]
 
 
 class _FakeBot:
@@ -226,47 +219,40 @@ class _FakeBot:
         return io.BytesIO(self._data)
 
 
-async def test_hero_photo_starts_generation_without_catalog_actor(session_factory, monkeypatch):
-    monkeypatch.setattr(generate_mod.faces, "has_face", lambda data: True)
+async def test_typed_name_skip_goes_to_scenes(session_factory):
     async with session_factory() as s:
-        await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
         await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
         user = await repo.get_or_create_user(s, 77, "u")
         user.crystals = 10
         await s.commit()
 
         state = _FakeState(
-            data={"people": ["p1"], "actors": [], "hero_file_id": None, "scene_id": None,
-                  "custom_text": None, "custom_file_id": None, "detail": None},
-            state=GenStates.hero,
+            data={"people": ["p1"], "actors": [], "named": [], "pending_name": "Рокко", "pending_files": [],
+                  "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None},
+            state=GenStates.actor_photos,
         )
         message = _FakeCbMessage()
-        message.photo = [SimpleNamespace(file_id="hero_fid")]
-        message.document = None
+        cb = _FakeCb("act:photos:skip", message)
         settings = Settings(_env_file=None, bot_token="x")
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=5, image_bytes=b"IMG", cost_usd=0.1, error=None)
         )
-        await generate_mod.got_hero_photo(message, state, s, _FakeBot(), user, settings, generator)
+        await generate_mod.actor_photos_skip(cb, state, s, user, settings, generator)
 
-    req = generator.calls[0]
-    assert req.hero_file_id == "hero_fid" and req.actor_ids == []
-    assert req.scene_id is not None
-    assert state._data["hero_file_id"] == "hero_fid"
-    assert message.photo_sent is True
-    # подпись под результатом называет «своего героя»
-    assert texts.HERO_LABEL in message.caption
+    assert generator.calls == []
+    assert state._data["named"] == [{"name": "Рокко", "files": []}]
+    assert state._state == GenStates.scene
+    assert message.answers[-1][0] == texts.CHOOSE_SCENE
 
 
-async def test_act_hero_button_asks_for_photo():
-    state = _FakeState(data={"people": ["p1"], "actors": [], "_pick_mode": "change"}, state=GenStates.actor1)
+async def test_write_own_asks_for_a_name():
+    state = _FakeState(data={"people": ["p1"], "actors": []}, state=GenStates.actor1)
     message = _FakeCbMessage()
-    cb = _FakeCb("act:hero", message)
-    await generate_mod.act_hero(cb, state)
+    cb = _FakeCb("act:write", message)
+    await generate_mod.act_write(cb, state)
     text, markup = message.answers[0]
-    assert text == texts.SEND_HERO
-    assert "_pick_mode" not in state._data
-    assert state._state == GenStates.hero
+    assert text == texts.ASK_ACTOR_NAME
+    assert state._state == GenStates.actor_name
     assert _callbacks(markup) == ["nav:back:actors", "gen:cancel"]
 
 
@@ -341,7 +327,7 @@ async def test_hd_button_rejects_foreign_generation(session_factory):
 
 async def test_detail_button_marks_edit_of_previous_result():
     state = _FakeState(
-        data={"people": ["p1"], "actors": [1], "hero_file_id": None, "scene_id": 3,
+        data={"people": ["p1"], "actors": [1], "named": [], "scene_id": 3,
               "last_generation_id": 77},
         state=GenStates.result,
     )
@@ -363,7 +349,7 @@ async def test_detail_text_sends_additive_edit_request(session_factory):
         await s.commit()
 
         state = _FakeState(
-            data={"people": ["p1"], "actors": [actor.id], "hero_file_id": None,
+            data={"people": ["p1"], "actors": [actor.id], "named": [],
                   "scene_id": scene.id, "custom_text": None, "custom_file_id": None,
                   "detail": None, "last_generation_id": 77,
                   "edit_mode": True, "edit_base_id": 77},
@@ -394,7 +380,7 @@ async def test_new_photoshoot_is_not_an_edit(session_factory):
         await s.commit()
 
         state = _FakeState(
-            data={"people": ["p1"], "actors": [actor.id], "hero_file_id": None,
+            data={"people": ["p1"], "actors": [actor.id], "named": [],
                   "scene_id": scene.id, "custom_text": None, "custom_file_id": None,
                   "detail": "в пальто", "last_generation_id": 77, "last_seed": 42,
                   "edit_mode": True, "edit_base_id": 77},
@@ -414,19 +400,15 @@ async def test_new_photoshoot_is_not_an_edit(session_factory):
     assert state._data["last_seed"] is None
 
 
-async def test_change_scene_and_actor_drop_the_edit_flags(session_factory):
+async def test_change_scene_drops_the_edit_flags(session_factory):
     async with session_factory() as s:
         await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
         await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
         await s.commit()
-        data = {"people": ["p1"], "actors": [1], "hero_file_id": None, "scene_id": 1,
+        data = {"people": ["p1"], "actors": [1], "named": [], "scene_id": 1,
                 "custom_text": None, "custom_file_id": None, "detail": None,
                 "edit_mode": True, "edit_base_id": 77}
 
         state = _FakeState(data=dict(data), state=GenStates.result)
         await generate_mod.gen_change_scene(_FakeCb("gen:change_scene", _FakeCbMessage()), state, s)
-        assert "edit_mode" not in state._data and "edit_base_id" not in state._data
-
-        state = _FakeState(data=dict(data), state=GenStates.result)
-        await generate_mod.gen_change_actor(_FakeCb("gen:change_actor", _FakeCbMessage()), state, s)
         assert "edit_mode" not in state._data and "edit_base_id" not in state._data

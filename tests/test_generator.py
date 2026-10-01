@@ -102,7 +102,7 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
         assert row.result_url == "http://x/img.jpg"
 
 
-async def test_hero_photo_replaces_catalog_actor(session_factory, monkeypatch):
+async def test_named_actor_photo_replaces_catalog_actor(session_factory, monkeypatch):
     await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
     from services.generation import generator as g
@@ -115,17 +115,18 @@ async def test_hero_photo_replaces_catalog_actor(session_factory, monkeypatch):
     req = GenerationRequest(
         user_id=1, people_file_ids=["fp1"], actor_ids=[], scene_id=None,
         custom_scene_text="on mars", custom_scene_file_id=None, detail=None,
-        tier="base", hero_file_id="hero1",
+        tier="base", named_actors=[("Рокко", ["hero1"])],
     )
     out = await gen.run(req)
     assert out.status == "done"
     call = provider.calls[0]
-    # ровно два референса: фото пользователя и фото героя
+    # ровно два референса: фото пользователя и фото названного актёра
     assert len(call["refs"]) == 2
     assert "Exactly 2 people in the frame" in call["prompt"]
+    assert "Рокко" in call["prompt"]
     async with session_factory() as s:
         row = await s.get(Generation, out.generation_id)
-        assert row.actors == [{"id": None, "name": "свой герой"}]
+        assert row.actors == [{"id": None, "name": "Рокко"}]
         assert row.result_url == "http://x/img.jpg"
 
 

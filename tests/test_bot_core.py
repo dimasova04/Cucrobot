@@ -309,7 +309,7 @@ async def test_build_help_lists_actors_and_scenes(session_factory):
     async with session_factory() as s:
         text = await build_help(s)
     assert "Star0, Star1, Star2, Star3, Star4, Star5 и ещё 2" in text
-    assert "Яхта" in text and "и ещё 3" in text
+    assert "Яхта" in text and "и ещё 5" in text
     assert "Позы" in text and "Своя деталь" in text
 
 

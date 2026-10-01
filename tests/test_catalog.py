@@ -7,16 +7,17 @@ from services.generation.content_filter import is_allowed
 
 async def test_seed_scenes_once(session_factory):
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 11
+        assert await catalog.seed_scenes(s) == 13
         await s.commit()
     async with session_factory() as s:
         assert await catalog.seed_scenes(s) == 0
         scenes = await catalog.list_scenes(s)
-        assert len(scenes) == 11
+        assert len(scenes) == 13
         names = [sc.name for sc in scenes]
         assert "Кухня, готовим вместе" not in names and "Париж, Эйфелева башня" not in names
-        assert "На кастинге у Пьера" in names and "За 1000 евро" in names
-        hotel = next(sc for sc in scenes if sc.name == "Отель, коридор")
+        assert "На кастинге у Пьера" not in names and "За 1000 евро" in names
+        assert "Утро после" in names and "Гримёрка" in names and "Лифт отеля" in names and "Его кухня" in names
+        hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
         assert "Она в черном открытом купальнике." in hotel.prompt
         assert "holding key cards" not in hotel.prompt
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
@@ -29,7 +30,7 @@ async def test_seed_scenes_adds_missing_only(session_factory):
         s.add(catalog.Scene(name="Яхта", prompt="placeholder", orientation="landscape"))
         await s.commit()
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 10
+        assert await catalog.seed_scenes(s) == 12
 
 
 async def _photoless_actor(session):
@@ -37,6 +38,18 @@ async def _photoless_actor(session):
     session.add(a)
     await session.flush()
     return a
+
+
+async def test_seed_actors_by_name(session_factory):
+    async with session_factory() as s:
+        assert await catalog.seed_actors(s) == 15
+        await s.commit()
+    async with session_factory() as s:
+        assert await catalog.seed_actors(s) == 0
+        actors = await catalog.list_actors(s)
+        assert [a.name for a in actors][:3] == ["Сиффреди", "Синс", "Видаль"]
+        assert actors[0].is_active and actors[0].refs == []
+        assert "Джорди" in [a.name for a in actors] and "Мик Блю" in [a.name for a in actors]
 
 
 async def test_add_actor_refs_activates_and_caps(session_factory):
