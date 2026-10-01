@@ -2,10 +2,11 @@ from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InputMediaPhoto, Message
+from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
 
 from bot import keyboards, texts
 from services import catalog
+from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.content_filter import is_allowed
 
 actors_router = Router(name="admin_actors")
@@ -147,7 +148,11 @@ async def cb_refs(cb: CallbackQuery, session):
     actor = await catalog.get_actor(session, int(cb.data.rsplit(":", 1)[1]))
     await cb.answer()
     if actor and actor.refs:
-        await cb.message.answer_media_group([InputMediaPhoto(media=r.file_id) for r in actor.refs])
+        media = []
+        for r in actor.refs:
+            photo = FSInputFile(resolve_asset(r.file_id)) if is_asset_ref(r.file_id) else r.file_id
+            media.append(InputMediaPhoto(media=photo))
+        await cb.message.answer_media_group(media)
 
 
 async def _refs_done(target: Message, state: FSMContext, session, actor_id: int):

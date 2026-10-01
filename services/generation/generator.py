@@ -14,6 +14,7 @@ from database.base import utcnow
 from database.models import Generation
 from services import catalog
 from services.billing import wallet
+from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import ActorInput, GenerationInput, build, build_edit, build_insert
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
@@ -72,8 +73,11 @@ class TelegramFileFetcher:
         if file_id in self._cache:
             self._cache.move_to_end(file_id)
             return self._cache[file_id]
-        buf = await self._bot.download(file_id)
-        data = buf.read()
+        if is_asset_ref(file_id):
+            data = resolve_asset(file_id).read_bytes()
+        else:
+            buf = await self._bot.download(file_id)
+            data = buf.read()
         self._cache[file_id] = data
         if len(self._cache) > self._size:
             self._cache.popitem(last=False)

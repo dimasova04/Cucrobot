@@ -12,7 +12,7 @@ from database.models import Generation
 from services import catalog
 from services.generation import faces
 from services.generation.generator import (
-    AlreadyRunning, GenerationRequest, Generator, fail_stale_generations,
+    AlreadyRunning, GenerationRequest, Generator, TelegramFileFetcher, fail_stale_generations,
 )
 from services.generation.runware_client import ImageResult, RunwareGenerationError
 from services.billing import wallet
@@ -61,6 +61,16 @@ def _req(actor_id, scene_id, tier="base", detail=None, **kw):
         user_id=1, people_file_ids=["fp1"], actor_ids=[actor_id], scene_id=scene_id,
         custom_scene_text=None, custom_scene_file_id=None, detail=detail, tier=tier, **kw
     )
+
+
+async def test_fetcher_reads_bundled_body_ref_and_rejects_escape():
+    data = await TelegramFileFetcher(None).fetch("asset:actors/vidal/01.jpg")
+    assert data[:2] == b"\xff\xd8" and len(data) > 1000
+    fetcher = TelegramFileFetcher(None)
+    with pytest.raises(ValueError):
+        await fetcher.fetch("asset:../../.env")
+    with pytest.raises(ValueError):
+        await fetcher.fetch("asset:actors/vidal/../../../.env")
 
 
 async def test_face_detector_returns_false_on_blank():

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
-    "Keep every face exactly as in the reference images. "
-    "Reference images are for identity only: do not copy their clothes, props or background. "
+    "Keep the face and the body build exactly as in the reference images: "
+    "proportions, shoulders, torso, muscles and tattoos. "
+    "Do not copy clothes, props or background from the reference images. "
     "Clothing, pose and setting come from the scene description and the requested detail."
 )
 REALISM_CLAUSE = (
@@ -82,9 +83,13 @@ def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start:
         elif kind == "actor_primary":
             a = inp.actors[idx]
             desc = f" ({a.description})" if a.description else ""
-            lines.append(f"Image {n} shows actor {a.name}{desc}.")
+            lines.append(
+                f"Image {n} shows actor {a.name}{desc}. Match the face and the body build, not the clothes."
+            )
         elif kind == "actor_extra":
-            lines.append(f"Image {n} also shows actor {inp.actors[idx].name}.")
+            lines.append(
+                f"Image {n} also shows actor {inp.actors[idx].name}. Another view of the same face and body."
+            )
         elif kind == "scene":
             lines.append(f"Image {n} shows the setting; place them in this exact setting.")
     return lines
@@ -131,16 +136,16 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
             REALISM_CLAUSE,
         ]
         return " ".join(lines), [previous_image]
-    # Только лица: первичные фото людей и актёров. Сцена и запасные ракурсы уводят кадр.
+    # Первичное фото актёра — лицо и телосложение. Сцена и запасные ракурсы уводят кадр.
     ordered = [item for item in _ordered_refs(inp) if item[0] in ("person", "actor_primary")]
     ordered = ordered[: max_refs - 1]
     lines: list[str] = [
         "Image 1 is the finished photo. Edit that exact photo. "
-        "Keep the same people, faces, framing, background, lighting and sharpness. "
+        "Keep the same people, faces, body build, framing, background, lighting and sharpness. "
         "Do not invent a new scene and do not add objects that were not requested.",
         "Apply only this change, and apply it fully: " + detail.strip().rstrip(".") + ".",
         "If the change is about clothes, hair or pose, change only that and leave the rest of the photo as it is.",
-        "Other images exist only so the faces stay recognizable. Ignore clothes and props in them.",
+        "Other images keep the same face and the same body build. Ignore clothes, props and background in them.",
     ]
     lines.extend(_ref_lines(inp, ordered, start=2))
     lines.append(SAFETY_CLAUSE)
@@ -160,7 +165,7 @@ def build_insert(inp: GenerationInput, previous_image: str, instruction: str, ma
     lines = [
         "Image 1 is the finished photo. Edit that exact photo.",
         instruction.strip().rstrip(".") + ".",
-        "Other images exist only so the faces stay recognizable. Ignore clothes and props in them.",
+        "Other images keep the same face and the same body build. Ignore clothes, props and background in them.",
     ]
     lines.extend(_ref_lines(inp, ordered, start=2))
     lines.append(SAFETY_CLAUSE)

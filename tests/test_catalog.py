@@ -48,8 +48,70 @@ async def test_seed_actors_by_name(session_factory):
         assert await catalog.seed_actors(s) == 0
         actors = await catalog.list_actors(s)
         assert [a.name for a in actors][:3] == ["Сиффреди", "Синс", "Видаль"]
-        assert actors[0].is_active and actors[0].refs == []
-        assert "Джорди" in [a.name for a in actors] and "Мик Блю" in [a.name for a in actors]
+        siffredi = actors[0]
+        assert siffredi.is_active
+        assert [r.file_id for r in siffredi.refs] == [
+            "asset:actors/siffredi/01.jpg",
+            "asset:actors/siffredi/02.jpg",
+            "asset:actors/siffredi/03.jpg",
+            "asset:actors/siffredi/04.jpg",
+        ]
+        assert siffredi.refs[0].is_primary and not siffredi.refs[1].is_primary
+        by_name = {a.name: a for a in actors}
+        assert by_name["Синс"].refs == []
+        assert len(by_name["Видаль"].refs) == 3
+        assert len(by_name["Дюпри"].refs) == 3
+        assert by_name["Видаль"].refs[0].file_id == "asset:actors/vidal/01.jpg"
+        assert "Джорди" in by_name and "Мик Блю" in by_name
+    async with session_factory() as s:
+        assert await catalog.seed_actors(s) == 0
+        actors = await catalog.list_actors(s)
+        assert len(next(a for a in actors if a.name == "Сиффреди").refs) == 4
+
+
+async def test_seed_actors_fills_empty_and_keeps_uploaded_refs(session_factory):
+    from database.models import ActorRef
+
+    async with session_factory() as s:
+        uploaded = Actor(name="Сиффреди", description="keep", is_active=True, order=0)
+        uploaded.refs = [ActorRef(file_id="tg-photo", is_primary=True, order=0)]
+        s.add(uploaded)
+        s.add(Actor(name="Видаль", description="empty", is_active=True, order=1))
+        await s.commit()
+    async with session_factory() as s:
+        assert await catalog.seed_actors(s) == 13
+        await s.commit()
+    async with session_factory() as s:
+        actors = {a.name: a for a in await catalog.list_actors(s, active_only=False)}
+        assert [r.file_id for r in actors["Сиффреди"].refs] == ["tg-photo"]
+        assert [r.file_id for r in actors["Видаль"].refs] == [
+            "asset:actors/vidal/01.jpg",
+            "asset:actors/vidal/02.jpg",
+            "asset:actors/vidal/03.jpg",
+        ]
+        assert actors["Дюпри"].refs[0].file_id == "asset:actors/dupree/01.jpg"
+
+
+async def test_seed_actors_rejects_missing_or_too_many_refs(session_factory, tmp_path):
+    missing = tmp_path / "missing.yaml"
+    missing.write_text(
+        '- name: "Тест"\n  description: "x"\n  refs:\n    - actors/no-such.jpg\n',
+        encoding="utf-8",
+    )
+    async with session_factory() as s:
+        with pytest.raises(ValueError):
+            await catalog.seed_actors(s, path=str(missing))
+    too_many = tmp_path / "many.yaml"
+    too_many.write_text(
+        '- name: "Тест"\n  description: "x"\n  refs:\n'
+        "    - actors/siffredi/01.jpg\n    - actors/siffredi/02.jpg\n"
+        "    - actors/siffredi/03.jpg\n    - actors/siffredi/04.jpg\n"
+        "    - actors/vidal/01.jpg\n",
+        encoding="utf-8",
+    )
+    async with session_factory() as s:
+        with pytest.raises(ValueError):
+            await catalog.seed_actors(s, path=str(too_many))
 
 
 async def test_add_actor_refs_activates_and_caps(session_factory):

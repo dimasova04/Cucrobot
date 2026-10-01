@@ -1,14 +1,29 @@
-# Кнопки без референсов: лицо совпадёт с именем слабо, пока админ не добавит 2–4 фото.
+# Кнопки. refs — файлы в assets/, лицо и фигура целиком, не кроп лица.
+# При старте фото клеятся к актёру, у которого ещё нет референсов.
+# Загруженные через бота фото не затираются. Нового актёра добавляют так же: папка и список refs.
 - name: "Сиффреди"
-  description: "Rocco Siffredi, adult film actor"
+  description: "Rocco Siffredi, adult film actor, athletic build"
+  refs:
+    - actors/siffredi/01.jpg
+    - actors/siffredi/02.jpg
+    - actors/siffredi/03.jpg
+    - actors/siffredi/04.jpg
 - name: "Синс"
   description: "Johnny Sins, adult film actor"
 - name: "Видаль"
-  description: "Nacho Vidal, adult film actor"
+  description: "Nacho Vidal, adult film actor, muscular build, tattoos on arms and torso"
+  refs:
+    - actors/vidal/01.jpg
+    - actors/vidal/02.jpg
+    - actors/vidal/03.jpg
 - name: "Вудман"
   description: "Pierre Woodman, adult film actor"
 - name: "Дюпри"
-  description: "Markus Dupree, adult film actor"
+  description: "Markus Dupree, adult film actor, slim build"
+  refs:
+    - actors/dupree/01.jpg
+    - actors/dupree/02.jpg
+    - actors/dupree/03.jpg
 - name: "Кейран Ли"
   description: "Keiran Lee, adult film actor"
 - name: "Мэдисон"

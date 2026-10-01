@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Actor, ActorRef, Scene
+from services.generation.local_assets import asset_file_id
 
 SIZES = {"portrait": (832, 1248), "landscape": (1248, 832)}
 MIN_REFS, MAX_REFS = 2, 4
@@ -113,21 +114,49 @@ async def delete_scene(session: AsyncSession, scene_id: int) -> None:
         await session.flush()
 
 
+def _bundled_ref_ids(item: dict) -> list[str]:
+    """Пути из yaml относительно assets/. Пустой список — кнопке хватает имени."""
+    raw = item.get("refs") or []
+    if not isinstance(raw, list):
+        raise ValueError(f"refs for {item.get('name')} must be a list")
+    if len(raw) > MAX_REFS:
+        raise ValueError(f"{item.get('name')} has {len(raw)} refs, max is {MAX_REFS}")
+    return [asset_file_id(str(rel)) for rel in raw]
+
+
+def _attach_refs(actor: Actor, file_ids: list[str]) -> None:
+    for i, fid in enumerate(file_ids):
+        actor.refs.append(ActorRef(file_id=fid, is_primary=(i == 0), order=i))
+
+
 async def seed_actors(session: AsyncSession, path: str = "seed/actors.yaml") -> int:
-    """Имена кнопок. Без фото актёр всё равно виден: лицо тогда держится на имени."""
+    """Имена кнопок. Фото из yaml клеятся только если у актёра ещё нет референсов.
+
+    Уже загруженные через бота file_id не затираются: следующий архив не сотрёт
+    то, что админ поправил руками. Без фото актёр всё равно виден.
+    """
     items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    existing_names = set((await session.execute(select(Actor.name))).scalars().all())
+    existing = {
+        a.name: a for a in (await session.execute(select(Actor))).scalars().all()
+    }
     order = await session.scalar(select(func.count()).select_from(Actor)) or 0
     added = 0
     for item in items:
-        if item["name"] in existing_names:
+        refs = _bundled_ref_ids(item)
+        actor = existing.get(item["name"])
+        if actor is None:
+            actor = Actor(
+                name=item["name"], description=(item.get("description") or "").strip(),
+                is_active=True, order=order,
+            )
+            session.add(actor)
+            if refs:
+                _attach_refs(actor, refs)
+            order += 1
+            added += 1
             continue
-        session.add(Actor(
-            name=item["name"], description=(item.get("description") or "").strip(),
-            is_active=True, order=order,
-        ))
-        order += 1
-        added += 1
+        if refs and not actor.refs:
+            _attach_refs(actor, refs)
     await session.flush()
     return added
 

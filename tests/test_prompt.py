@@ -36,6 +36,8 @@ def test_prompt_one_person_one_actor():
     assert "Image 1 is person A." in prompt
     assert "Image 2 shows actor Actor0 (desc0)." in prompt
     assert "Image 3 also shows actor Actor0." in prompt
+    assert "body build" in prompt
+    assert "not the clothes" in prompt
     assert "A together with Actor0 on a yacht" in prompt
     assert SAFETY_CLAUSE in prompt
 
@@ -154,6 +156,7 @@ def test_build_edit_puts_previous_photo_first():
     assert "Image 4 shows actor Actor0 (desc0)." in prompt
     assert "Image 5 shows actor Actor1 (desc1)." in prompt
     assert SAFETY_CLAUSE in prompt and REALISM_CLAUSE in prompt
+    assert "same body build" in prompt
 
 
 def test_build_edit_quality_request_does_not_redraw():
