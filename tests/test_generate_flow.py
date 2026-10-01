@@ -412,3 +412,87 @@ async def test_change_scene_drops_the_edit_flags(session_factory):
         state = _FakeState(data=dict(data), state=GenStates.result)
         await generate_mod.gen_change_scene(_FakeCb("gen:change_scene", _FakeCbMessage()), state, s)
         assert "edit_mode" not in state._data and "edit_base_id" not in state._data
+
+
+def _ready_session(actor_id, scene_id):
+    return {
+        "people": ["p1"], "actors": [actor_id], "named": [],
+        "scene_id": scene_id, "custom_text": None, "custom_file_id": None, "detail": None,
+    }
+
+
+async def test_success_reports_spent_crystal_and_balance(session_factory):
+    from database.base import utcnow
+
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 80, "u")
+        user.crystals = 4
+        user.last_bonus_at = utcnow()
+        await s.commit()
+        actor_id, scene_id = actor.id, scene.id
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 80)
+        state = _FakeState(data=_ready_session(actor_id, scene_id), state=GenStates.result)
+        message = _FakeCbMessage()
+        settings = Settings(_env_file=None, bot_token="x")
+        await generate_mod._run_generation(
+            message, state, s, user, settings,
+            _FakeGenerator(GenerationOutcome(status="done", generation_id=3, image_bytes=b"IMG", cost_usd=0.04, error=None)),
+        )
+    assert message.answers[0][0] == texts.GENERATING
+    assert message.answers[1][0] == "-1 кристалл, баланс: 4"
+    assert message.answers[1][1] is None
+    assert message.photo_sent is True
+
+
+async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
+    from database.base import utcnow
+
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 81, "u")
+        user.crystals = 1
+        await s.commit()
+        actor_id, scene_id = actor.id, scene.id
+
+    class _Spend:
+        async def run(self, req):
+            async with session_factory() as db:
+                u = await repo.get_user(db, 81)
+                u.crystals = 0
+                await db.commit()
+            return GenerationOutcome(status="done", generation_id=4, image_bytes=b"IMG", cost_usd=0.04, error=None)
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 81)
+        message = _FakeCbMessage()
+        await generate_mod._run_generation(
+            message, _FakeState(data=_ready_session(actor_id, scene_id)), s, user,
+            Settings(_env_file=None, bot_token="x"), _Spend(),
+        )
+    text, markup = message.answers[1]
+    assert text == "-1 кристалл, баланс: 0\n\n" + texts.BALANCE_EMPTY_BONUS
+    assert _callbacks(markup) == ["bonus:claim"]
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 81)
+        user.crystals = 0
+        user.last_bonus_at = utcnow()
+        await s.commit()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 81)
+        message = _FakeCbMessage()
+        await generate_mod._run_generation(
+            message, _FakeState(data=_ready_session(actor_id, scene_id)), s, user,
+            Settings(_env_file=None, bot_token="x"), _FakeGenerator(
+                GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+            ),
+        )
+    assert texts.GENERATING not in [a[0] for a in message.answers]
+    text, markup = message.answers[0]
+    assert texts.BALANCE_EMPTY_BUY in text
+    assert _callbacks(markup) == ["shop:packs", "shop:subs"]

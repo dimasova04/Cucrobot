@@ -93,7 +93,22 @@ TEXT_REJECTED = "Такое не делаем 🙅 Напиши иначе."
 MODEL_PREMIUM_LOCKED = "Премиум-качество открывается с подпиской ⭐"
 NOT_ENOUGH = "Не хватает кристалликов: нужно {cost}, у тебя {balance}."
 NOT_ENOUGH_HINT = "Кристаллики — в профиле 👤"
+CHARGED = "-{cost} {word}, баланс: {balance}"
+BALANCE_EMPTY_BONUS = "Кристаллы кончились. Забери ежедневный бонус."
+BALANCE_EMPTY_BUY = "Кристаллы кончились. Можно купить."
 GENERATING = "Колдую… секунд 20 ⏳"
+
+
+def crystals_word(n: int) -> str:
+    n = abs(int(n)) % 100
+    if 11 <= n <= 14:
+        return "кристаллов"
+    last = n % 10
+    if last == 1:
+        return "кристалл"
+    if 2 <= last <= 4:
+        return "кристалла"
+    return "кристаллов"
 ALREADY_RUNNING = "Ещё колдую над прошлым фото, секунду ⏳"
 GEN_FAILED = "Не вышло 😔 Кристаллики вернул, попробуй ещё раз."
 GEN_REJECTED = "Такое не делаем 🙅 Кристаллики вернул, попробуй иначе."

@@ -4,6 +4,14 @@ from bot import texts
 from bot.flow import effective_tier, request_from_state, result_buttons, scene_label, validate_custom_scene, validate_detail
 
 
+def test_crystals_word():
+    assert texts.crystals_word(1) == "кристалл"
+    assert texts.crystals_word(3) == "кристалла"
+    assert texts.crystals_word(5) == "кристаллов"
+    assert texts.crystals_word(11) == "кристаллов"
+    assert texts.crystals_word(21) == "кристалл"
+
+
 def test_validators():
     assert validate_detail("зимой, в пальто") is None
     assert validate_detail("надень на неё белый купальник") is None

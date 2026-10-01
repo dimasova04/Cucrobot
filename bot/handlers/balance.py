@@ -149,4 +149,8 @@ async def claim_bonus_cb(cb: CallbackQuery, session, user, settings):
         return
     amount, balance = res
     await cb.answer()
-    await cb.message.edit_caption(caption=texts.BONUS_CLAIMED.format(n=amount, balance=balance), reply_markup=None)
+    claimed = texts.BONUS_CLAIMED.format(n=amount, balance=balance)
+    if cb.message.photo:
+        await cb.message.edit_caption(caption=claimed, reply_markup=None)
+    else:
+        await cb.message.edit_text(claimed, reply_markup=None)

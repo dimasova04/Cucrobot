@@ -29,7 +29,7 @@ from bot.flow import (
 from bot.intro import send_intro
 from database.models import Generation
 from services import catalog
-from services.billing import wallet
+from services.billing import bonus, wallet
 from services.generation import faces
 from services.generation import generator as gen_service
 from services.generation.content_filter import is_allowed
@@ -399,6 +399,32 @@ async def send_result_photo(target: Message, image: bytes, caption: str, data: d
     return None
 
 
+def _empty_balance_offer(user, settings) -> tuple[str, object]:
+    """Если кристалликов не осталось: бонус, когда он уже доступен, иначе покупка."""
+    if bonus.bonus_status(user, settings).ready:
+        markup = keyboards.grid([(texts.BTN_BONUS_CLAIM, "bonus:claim")], 1)
+        return texts.BALANCE_EMPTY_BONUS, markup
+    markup = keyboards.grid(
+        [(texts.BTN_BUY_PACK, "shop:packs"), (texts.BTN_BUY_SUB, "shop:subs")],
+        1,
+    )
+    return texts.BALANCE_EMPTY_BUY, markup
+
+
+def _with_empty_offer(text: str, user, settings) -> tuple[str, object | None]:
+    if user.crystals > 0:
+        return text, None
+    extra, markup = _empty_balance_offer(user, settings)
+    return f"{text}\n\n{extra}", markup
+
+
+async def _answer_not_enough(target: Message, user, settings, cost: int) -> None:
+    text, markup = _with_empty_offer(
+        texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals), user, settings
+    )
+    await target.answer(text, reply_markup=markup)
+
+
 async def _run_generation(target: Message, state: FSMContext, session, user, settings, generator):
     st = await state.get_data()
     if not is_complete(st):
@@ -410,7 +436,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     if user.crystals < cost:
         st.pop("pending_insert", None)
         await state.set_data(st)
-        await target.answer(f"{texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals)}\n\n{texts.NOT_ENOUGH_HINT}")
+        await _answer_not_enough(target, user, settings, cost)
         return
     req = request_from_state(user.id, st, tier)
     # Правка детали одноразовая: следующая кнопка снова даёт обычную генерацию.
@@ -426,7 +452,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         await wait_msg.edit_text(texts.ALREADY_RUNNING)
         return
     except wallet.InsufficientCrystals as e:
-        await wait_msg.edit_text(f"{texts.NOT_ENOUGH.format(cost=e.needed, balance=e.balance)}\n\n{texts.NOT_ENOUGH_HINT}")
+        await session.refresh(user)
+        await wait_msg.delete()
+        await _answer_not_enough(target, user, settings, e.needed)
         return
     await session.refresh(user)
     await state.set_state(GenStates.result)
@@ -442,6 +470,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         st["last_generation_id"] = outcome.generation_id
         st["last_seed"] = outcome.seed
         await state.set_data(st)
+        notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
+        notice, markup = _with_empty_offer(notice, user, settings)
+        await target.answer(notice, reply_markup=markup)
         sent = await send_result_photo(target, outcome.image_bytes, caption, st)
         if sent is None:
             await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
@@ -450,10 +481,11 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         if gen and sent.photo:
             gen.result_file_id = sent.photo[-1].file_id
         await wait_msg.delete()
-        try:
-            await send_bonus_card(target.bot, user.id, user, settings)
-        except Exception as e:
-            logger.warning("bonus card send failed: {}", e)
+        if user.crystals > 0:
+            try:
+                await send_bonus_card(target.bot, user.id, user, settings)
+            except Exception as e:
+                logger.warning("bonus card send failed: {}", e)
     elif outcome.status == "rejected":
         st.pop("pending_insert", None)
         await state.set_data(st)
