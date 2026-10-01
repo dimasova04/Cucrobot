@@ -365,6 +365,50 @@ async def test_start_create_deep_link_opens_photo_flow(session_factory):
     assert state.state == GenStates.person1
 
 
+async def test_accept_rules_grants_three_and_starts_bonus_clock(session_factory, monkeypatch):
+    from datetime import timedelta
+
+    from bot.handlers import start as start_mod
+    from config.settings import Settings
+    from database import repo
+    from services.billing import bonus
+
+    async def noop(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(start_mod, "send_intro", noop)
+    settings = Settings(_env_file=None, bot_token="x")
+    answers = []
+
+    class _Msg:
+        async def answer(self, text, **_kw):
+            answers.append(text)
+
+        async def edit_reply_markup(self, **_kw):
+            return None
+
+    class _Cb:
+        def __init__(self):
+            self.message = _Msg()
+            self.bot = None
+
+        async def answer(self, *_a, **_k):
+            return None
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 7, "u")
+        await s.commit()
+        cb = _Cb()
+        await start_mod.accept_rules(cb, s, user, settings)
+        await s.commit()
+        fresh = await repo.get_user(s, 7)
+
+    assert fresh.crystals == 3 and fresh.last_bonus_at is not None
+    status = bonus.bonus_status(fresh, settings, fresh.last_bonus_at)
+    assert not status.ready and status.amount == 2 and status.wait == timedelta(hours=48)
+    assert answers[0] == texts.WELCOME.format(n=3)
+
+
 async def test_start_create_deep_link_falls_back_to_rules(session_factory):
     from aiogram.filters import CommandObject
 
