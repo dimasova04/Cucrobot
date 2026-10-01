@@ -13,7 +13,7 @@ def test_invoice_params():
     s = Settings(_env_file=None, bot_token="x")
     p = stars.invoice_params("pack_50", s)
     assert p["currency"] == "XTR" and p["provider_token"] == "" and p["payload"] == "pack_50"
-    assert p["prices"][0].amount == 199
+    assert p["prices"][0].amount == 350
     assert p["description"] == "+50 кристалликов"
     with pytest.raises(ValueError):
         stars.invoice_params("nope", s)
@@ -84,7 +84,7 @@ def test_pay_buttons_show_both_methods_clearly():
     labels = [b.text for row in pay_kb("pack_50", s2).inline_keyboard for b in row]
     assert labels == ["⭐ Звёзды — 250 ⭐", texts.BTN_BACK]  # без ссылки Tribute кнопки карты нет
     sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
-    assert sub_btns[0] == "Неделя · +10 💎 в подарок"
+    assert sub_btns[0] == "Неделя · +5 💎 в подарок"
     pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]
     assert pack_btns[0] == "50 💎"
     assert "СБП, карта или Telegram Stars" in texts.SHOP_SUBS

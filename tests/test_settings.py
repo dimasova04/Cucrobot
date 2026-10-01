@@ -14,7 +14,10 @@ def test_economy_defaults(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)
     assert (s.start_crystals, s.bonus_free_amount, s.bonus_free_hours) == (3, 3, 24)
-    assert (s.bonus_sub_amount, s.bonus_sub_hours) == (10, 24)
+    assert (s.bonus_sub_amount, s.bonus_sub_hours) == (3, 24)
+    assert (s.stars_pack_50, s.stars_pack_100, s.stars_pack_300) == (350, 650, 1800)
+    assert (s.stars_sub_week, s.stars_sub_month, s.stars_sub_3month) == (270, 760, 1900)
+    assert (s.price_rub_sub_week, s.price_rub_sub_month, s.price_rub_sub_3month) == (350, 990, 2490)
     assert (s.cost_base, s.cost_premium) == (1, 3)
     assert s.model_base_air == "bytedance:seedream@5.0-flash"
     assert s.model_premium_air == "google:4@3"

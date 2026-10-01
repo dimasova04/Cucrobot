@@ -44,24 +44,24 @@ class Settings(BaseSettings):
     tribute_sub_3month_id: str = ""
     tribute_buy_stars_url: str = ""
 
-    stars_pack_50: int = 199
-    stars_pack_100: int = 349
-    stars_pack_300: int = 899
-    stars_sub_week: int = 229
-    stars_sub_month: int = 469
-    stars_sub_3month: int = 999
+    stars_pack_50: int = 350
+    stars_pack_100: int = 650
+    stars_pack_300: int = 1800
+    stars_sub_week: int = 270
+    stars_sub_month: int = 760
+    stars_sub_3month: int = 1900
     # Цены в рублях только для показа в боте; реальную цену берёт Tribute. 0 = не показывать.
     price_rub_pack_50: int = 0
     price_rub_pack_100: int = 0
     price_rub_pack_300: int = 0
-    price_rub_sub_week: int = 290
-    price_rub_sub_month: int = 590
-    price_rub_sub_3month: int = 1290
+    price_rub_sub_week: int = 350
+    price_rub_sub_month: int = 990
+    price_rub_sub_3month: int = 2490
 
     start_crystals: int = 3
     bonus_free_amount: int = 3
     bonus_free_hours: int = 24
-    bonus_sub_amount: int = 10
+    bonus_sub_amount: int = 3
     bonus_sub_hours: int = 24
     cost_base: int = 1
     cost_premium: int = 3

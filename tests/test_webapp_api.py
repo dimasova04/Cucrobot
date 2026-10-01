@@ -130,7 +130,7 @@ async def test_me_shows_active_subscription(session_factory):
     assert body["sub"]["plan"] == "sub_month"
     assert body["sub"]["until"] == until.strftime("%d.%m.%Y")
     assert body["quality"]["can_premium"] is True
-    assert body["bonus"]["amount"] == 10
+    assert body["bonus"]["amount"] == 3
 
 
 async def test_bonus_claim_happy_path_then_cooldown(session_factory):
@@ -181,11 +181,11 @@ async def test_shop_lists_six_products(session_factory):
     codes = [p["code"] for p in body["packs"] + body["subs"]]
     assert codes == ["pack_50", "pack_100", "pack_300", "sub_week", "sub_month", "sub_3month"]
     pack = body["packs"][0]
-    assert pack["crystals"] == 50 and pack["gift"] == 0 and pack["stars"] == 199
+    assert pack["crystals"] == 50 and pack["gift"] == 0 and pack["stars"] == 350
     assert pack["tribute_url"] == "https://t.me/tribute/pack50"
     sub = body["subs"][1]
-    assert sub["days"] == 30 and sub["gift"] == 50 and sub["rub"] == 590 and sub["tribute_url"] == ""
-    assert body["daily_bonus"] == 10
+    assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 990 and sub["tribute_url"] == ""
+    assert body["daily_bonus"] == 3
 
 
 async def test_buy_stars_returns_invoice_link(session_factory):
@@ -196,7 +196,7 @@ async def test_buy_stars_returns_invoice_link(session_factory):
     assert status == 200 and body == {"invoice_link": "https://t.me/invoice/abc"}
     assert bot.invoices[0]["currency"] == "XTR"
     assert bot.invoices[0]["payload"] == "pack_100"
-    assert bot.invoices[0]["prices"][0].amount == 349
+    assert bot.invoices[0]["prices"][0].amount == 650
 
 
 async def test_buy_stars_rejects_unknown_product(session_factory):
