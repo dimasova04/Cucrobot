@@ -92,9 +92,9 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done" and out.image_bytes == b"IMG" and out.cost_usd == 0.002
     call = provider.calls[0]
-    assert call["model"] == "bytedance:seedream@4.5"
+    assert call["model"] == "bytedance:seedream@5.0-flash"
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
-    assert (call["width"], call["height"]) == (1664, 2496)  # базовая модель Seedream, вертикальная сцена
+    assert (call["width"], call["height"]) == (1024, 1536)  # базовая модель Seedream, вертикальная сцена
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 4
         row = await s.get(Generation, out.generation_id)

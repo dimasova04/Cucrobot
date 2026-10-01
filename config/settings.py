@@ -14,13 +14,13 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    model_base_air: str = "bytedance:seedream@4.5"
+    model_base_air: str = "bytedance:seedream@5.0-flash"
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
-    # Размеры кадра по модели: Seedream 4.5 требует >= 3.69 Мпикс, Nano Banana 2 работает с 1K.
-    model_base_portrait: str = "1664x2496"
-    model_base_landscape: str = "2496x1664"
+    # Размеры кадра по модели: Seedream 5.0 Flash принимает 0.92–4.62 Мпикс, Nano Banana 2 работает с 1K.
+    model_base_portrait: str = "1024x1536"
+    model_base_landscape: str = "1536x1024"
     model_premium_portrait: str = "832x1248"
     model_premium_landscape: str = "1248x832"
 
