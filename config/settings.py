@@ -14,16 +14,16 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    model_base_air: str = "bytedance:seedream@5.0-flash"
+    model_base_air: str = "bytedance:seedream@4.5"
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
-    # Seedream 5.0 Flash: 0.92–4.62 Мпикс. 1536×2304 = 3.54 Мпикс, один и тот же
-    # резкий кадр на каждую сцену. Премиум — 1K, не меньше базового превью.
-    model_base_portrait: str = "1536x2304"
-    model_base_landscape: str = "2304x1536"
-    model_premium_portrait: str = "1024x1536"
-    model_premium_landscape: str = "1536x1024"
+    # Seedream 4.5: площадь 3.69–16.78 Мпикс. Рекомендованный 2K 2:3 — 1664×2496
+    # (4.15 Мпикс). Премиум — официальный 2K 2:3 Nano Banana 2, не мельче базы.
+    model_base_portrait: str = "1664x2496"
+    model_base_landscape: str = "2496x1664"
+    model_premium_portrait: str = "1696x2528"
+    model_premium_landscape: str = "2528x1696"
 
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"

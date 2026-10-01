@@ -19,7 +19,7 @@ def test_economy_defaults(monkeypatch):
     assert (s.stars_sub_week, s.stars_sub_month, s.stars_sub_3month) == (270, 760, 1900)
     assert (s.price_rub_sub_week, s.price_rub_sub_month, s.price_rub_sub_3month) == (350, 990, 2490)
     assert (s.cost_base, s.cost_premium) == (1, 3)
-    assert s.model_base_air == "bytedance:seedream@5.0-flash"
+    assert s.model_base_air == "bytedance:seedream@4.5"
     assert s.model_premium_air == "google:4@3"
     assert s.model_base_max_refs == 14 and s.model_premium_max_refs == 14
 
@@ -36,8 +36,9 @@ def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
 def test_frame_size_per_model(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)
-    assert s.frame_size("base", "portrait") == (1536, 2304)
-    assert s.frame_size("base", "landscape") == (2304, 1536)
-    assert s.frame_size("premium", "portrait") == (1024, 1536)
+    assert s.frame_size("base", "portrait") == (1664, 2496)
+    assert s.frame_size("base", "landscape") == (2496, 1664)
+    assert s.frame_size("premium", "portrait") == (1696, 2528)
+    assert s.frame_size("premium", "landscape") == (2528, 1696)
     w, h = s.frame_size("base", "portrait")
-    assert 920_000 <= w * h <= 4_620_000  # лимит Seedream 5.0 Flash
+    assert 3_690_000 <= w * h <= 16_780_000  # лимит Seedream 4.5
