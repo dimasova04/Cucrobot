@@ -44,6 +44,13 @@ def _sample_list(names: list[str], limit: int, more_tpl: str, empty: str) -> str
     return more_tpl.format(names=shown, n=rest) if rest > 0 else shown
 
 
+@menu_router.callback_query(F.data == "menu:home")
+async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
+    await state.clear()
+    await cb.answer()
+    await send_intro(cb.bot, user.id, settings.webapp_url)
+
+
 async def build_help(session) -> str:
     actors = [a.name for a in await catalog.list_actors(session)]
     scenes = [s.name for s in await catalog.list_scenes(session)]
@@ -53,12 +60,16 @@ async def build_help(session) -> str:
     )
 
 
+def _help_markup():
+    return keyboards.grid([], extra_rows=[keyboards.back_row("menu")])
+
+
 @menu_router.message(F.text == texts.BTN_HELP)
 async def help_msg(message: Message, session):
-    await message.answer(await build_help(session), parse_mode="HTML")
+    await message.answer(await build_help(session), parse_mode="HTML", reply_markup=_help_markup())
 
 
 @menu_router.callback_query(F.data == "menu:help")
 async def cb_help(cb: CallbackQuery, session):
     await cb.answer()
-    await cb.message.answer(await build_help(session), parse_mode="HTML")
+    await cb.message.answer(await build_help(session), parse_mode="HTML", reply_markup=_help_markup())

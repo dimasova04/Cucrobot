@@ -43,7 +43,7 @@ def test_prompt_one_person_one_actor():
 def test_refs_truncated_by_priority_scene_dropped_on_base():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s"), max_refs=4)
     assert refs == ["p0", "p1", "a0_0", "a1_0"]
-    assert "setting" not in prompt
+    assert "shows the setting" not in prompt
     assert "A, B together with Actor0 and Actor1 on a yacht" in prompt
 
 
@@ -52,7 +52,7 @@ def test_scene_ref_included_on_premium_and_detail_appended():
     assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
     assert "Image 5 shows the setting; place them in this exact setting." in prompt
     # счётчик людей идёт сразу за первой фразой, затем деталь пользователя
-    assert "on a yacht. Exactly 4 people in the frame, no other people in focus. in winter coats." in prompt
+    assert "Requested change, apply it fully even if it replaces the outfit or the pose: in winter coats." in prompt
     assert prompt.index("in winter coats.") < prompt.index("Image 1 is person A.")
 
 
@@ -76,7 +76,9 @@ def test_content_filter_no_false_positives_on_common_words():
     assert content_filter.is_allowed("skill development")
     assert not content_filter.is_allowed("обнажённая грудь")
     assert not content_filter.is_allowed("без одежды")
-    assert not content_filter.is_allowed("sexy lingerie")
+    assert content_filter.is_allowed("sexy lingerie")
+    assert content_filter.is_allowed("надень на неё белый купальник")
+    assert content_filter.is_allowed("чёрное бикини")
     assert not content_filter.is_allowed("труп в комнате")
     assert not content_filter.is_allowed("nude on the bed")
     assert not content_filter.is_allowed("ГОЛЫЕ на пляже")
@@ -94,19 +96,21 @@ def test_content_filter_no_false_positives_on_common_words():
     assert content_filter.is_allowed("a portrait in the park")
     assert not content_filter.is_allowed("секс на пляже")
     assert not content_filter.is_allowed("обнажённая на диване")
-    assert not content_filter.is_allowed("в стрингах")
+    assert content_filter.is_allowed("в стрингах")
+    assert not content_filter.is_allowed("фото ребёнка")
+    assert not content_filter.is_allowed("a child on the beach")
     assert not content_filter.is_allowed("bloody murder")
     assert not content_filter.is_allowed("boobs out")
 
 
 def test_content_filter_hyphenated_keywords_still_blocked():
     assert not content_filter.is_allowed("sex-photo on the beach")
-    assert not content_filter.is_allowed("sexy-pose by the pool")
+    assert content_filter.is_allowed("sexy-pose by the pool")
     assert not content_filter.is_allowed("ass-shot from behind")
     assert not content_filter.is_allowed("boobs-out selfie")
     assert not content_filter.is_allowed("breast-shot close up")
     assert not content_filter.is_allowed("голый-парень на пляже")
-    assert not content_filter.is_allowed("стринги-фото")
+    assert content_filter.is_allowed("стринги-фото")
     assert not content_filter.is_allowed("e-sex")
     assert content_filter.is_allowed("gore-tex jacket")
     assert content_filter.is_allowed("Gore-Tex boots")
@@ -139,28 +143,29 @@ def test_build_validates_cardinality():
 
 def test_build_edit_puts_previous_photo_first():
     prompt, refs = build_edit(_inp(people=2, actors=2, scene_ref="s"), "prev", "в пальто", max_refs=14)
-    # предыдущий кадр — всегда первый референс, дальше прежний порядок
-    assert refs == ["prev", "p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
-    assert prompt.startswith(
-        "Image 1 is the previous photo: keep the same composition, framing, "
-        "background, lighting, poses and outfits. Change only this: в пальто. "
-        "Do not add new objects or people."
-    )
-    # строки «кто есть кто» нумеруются со второй картинки
+    # предыдущий кадр первый; сцена и запасные ракурсы не подмешиваются
+    assert refs == ["prev", "p0", "p1", "a0_0", "a1_0"]
+    assert "shows the setting" not in prompt
+    assert "Apply only this change, and apply it fully: в пальто." in prompt
     assert "Image 2 is person A." in prompt
     assert "Image 3 is person B." in prompt
     assert "Image 4 shows actor Actor0 (desc0)." in prompt
     assert "Image 5 shows actor Actor1 (desc1)." in prompt
-    assert "Image 6 shows the setting; place them in this exact setting." in prompt
-    assert "Image 7 also shows actor Actor0." in prompt
     assert SAFETY_CLAUSE in prompt and REALISM_CLAUSE in prompt
+
+
+def test_build_edit_quality_request_does_not_redraw():
+    prompt, refs = build_edit(_inp(scene_ref="s"), "prev", "Улучши качество изображения", max_refs=14)
+    assert refs == ["prev"]
+    assert "sharper" in prompt and "Do not redraw" in prompt
+    assert "on a yacht" not in prompt
 
 
 def test_build_edit_keeps_scene_text_out_of_the_prompt():
     prompt, _ = build_edit(_inp(), "prev", "даём пять", max_refs=14)
     assert "A candid photorealistic photo" not in prompt
     assert "on a yacht" not in prompt
-    assert "Change only this: даём пять." in prompt
+    assert "Apply only this change, and apply it fully: даём пять." in prompt
 
 
 def test_build_edit_validates_inputs():

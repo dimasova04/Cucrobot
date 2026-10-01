@@ -18,7 +18,10 @@ def pay_kb(code: str, settings) -> InlineKeyboardMarkup | None:
         rows.append([InlineKeyboardButton(text=label, callback_data=f"stars:{code}")])
     if settings.tribute_buy_stars_url:
         rows.append([InlineKeyboardButton(text=texts.BTN_BUY_STARS, url=settings.tribute_buy_stars_url)])
-    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+    if not rows:
+        return None
+    rows.append([InlineKeyboardButton(text=texts.BTN_BACK, callback_data="menu:profile")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @shop_router.callback_query(F.data.startswith("buy:"))

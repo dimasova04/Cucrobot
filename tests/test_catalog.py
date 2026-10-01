@@ -7,12 +7,18 @@ from services.generation.content_filter import is_allowed
 
 async def test_seed_scenes_once(session_factory):
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 18
+        assert await catalog.seed_scenes(s) == 11
         await s.commit()
     async with session_factory() as s:
         assert await catalog.seed_scenes(s) == 0
         scenes = await catalog.list_scenes(s)
-        assert len(scenes) == 18
+        assert len(scenes) == 11
+        names = [sc.name for sc in scenes]
+        assert "Кухня, готовим вместе" not in names and "Париж, Эйфелева башня" not in names
+        assert "На кастинге у Пьера" in names and "За 1000 евро" in names
+        hotel = next(sc for sc in scenes if sc.name == "Отель, коридор")
+        assert "Она в черном открытом купальнике." in hotel.prompt
+        assert "holding key cards" not in hotel.prompt
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)
@@ -23,7 +29,7 @@ async def test_seed_scenes_adds_missing_only(session_factory):
         s.add(catalog.Scene(name="Яхта", prompt="placeholder", orientation="landscape"))
         await s.commit()
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 17
+        assert await catalog.seed_scenes(s) == 10
 
 
 async def _photoless_actor(session):
@@ -89,18 +95,12 @@ async def test_actor_crud_and_ref_validation(session_factory):
         assert await catalog.list_actors(s, active_only=False) == []
 
 
-def test_blocked_actor_names():
+def test_actor_names_are_not_blocked():
     from services import catalog
 
-    assert catalog.is_actor_name_allowed("Том Харди")
-    assert catalog.is_actor_name_allowed("Jason Statham")
-    assert catalog.is_actor_name_allowed("Анджелина Джоли")
-    for bad in [
-        "Рокко Сиффреди", "rocco siffredi", "Джонни Синс", "Johnny SINS",
-        "Ману Видаль", "vidal", "Пьер Вудман", "Pierre Woodman",
-        "Дюпри", "dupree", "Кейран Ли", "Keiran Lee",
-        "Мэдисон", "madison ivy", "Манчини", "mancini",
-        "Анджело", "angelo", "порно-звезда", "Porn Star", "XXX",
+    assert catalog.BLOCKED_ACTOR_NAMES == []
+    for name in [
+        "Том Харди", "Jason Statham", "Анджелина Джоли",
+        "Джонни Синс", "Johnny Sins", "Пьер Вудман", "Pierre Woodman",
     ]:
-        assert not catalog.is_actor_name_allowed(bad), bad
-    assert all(b == b.lower() for b in catalog.BLOCKED_ACTOR_NAMES)
+        assert catalog.is_actor_name_allowed(name), name

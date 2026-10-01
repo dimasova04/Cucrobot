@@ -6,10 +6,23 @@ from bot.flow import effective_tier, request_from_state, result_buttons, scene_l
 
 def test_validators():
     assert validate_detail("зимой, в пальто") is None
-    assert validate_detail("x" * 101) == texts.DETAIL_TOO_LONG
+    assert validate_detail("надень на неё белый купальник") is None
+    assert validate_detail("x" * 300) is None
+    assert validate_detail("x" * 301) == texts.DETAIL_TOO_LONG
     assert validate_detail("голые") == texts.TEXT_REJECTED
     assert validate_custom_scene("y" * 200) is None
     assert validate_custom_scene("y" * 201) == texts.CUSTOM_SCENE_TOO_LONG
+
+
+def test_new_scene_drops_previous_detail():
+    from bot.flow import apply_catalog_scene, apply_custom_scene
+
+    data = {"scene_id": 1, "custom_text": "старое", "custom_file_id": "f", "detail": "белый купальник"}
+    apply_catalog_scene(data, 8)
+    assert data["scene_id"] == 8 and data["detail"] is None
+    assert data["custom_text"] is None and data["custom_file_id"] is None
+    apply_custom_scene(data, text="на крыше")
+    assert data["scene_id"] is None and data["custom_text"] == "на крыше" and data["detail"] is None
 
 
 def test_scene_label():

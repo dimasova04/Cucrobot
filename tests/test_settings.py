@@ -33,8 +33,8 @@ def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
 def test_frame_size_per_model(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)
-    assert s.frame_size("base", "portrait") == (1024, 1536)
-    assert s.frame_size("base", "landscape") == (1536, 1024)
-    assert s.frame_size("premium", "portrait") == (832, 1248)
+    assert s.frame_size("base", "portrait") == (1536, 2304)
+    assert s.frame_size("base", "landscape") == (2304, 1536)
+    assert s.frame_size("premium", "portrait") == (1024, 1536)
     w, h = s.frame_size("base", "portrait")
     assert 920_000 <= w * h <= 4_620_000  # лимит Seedream 5.0 Flash

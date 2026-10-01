@@ -46,8 +46,11 @@ def effective_tier(user) -> str:
     return tier
 
 
+DETAIL_MAX_LEN = 300
+
+
 def validate_detail(text: str) -> str | None:
-    if len(text) > 100:
+    if len(text) > DETAIL_MAX_LEN:
         return texts.DETAIL_TOO_LONG
     if not is_allowed(text):
         return texts.TEXT_REJECTED
@@ -95,6 +98,24 @@ def is_complete(data: dict) -> bool:
         and (data.get("actors") or data.get("hero_file_id"))
         and (data.get("scene_id") or data.get("custom_text") or data.get("custom_file_id"))
     )
+
+
+def apply_catalog_scene(data: dict, scene_id: int) -> dict:
+    """Новая сцена из каталога — свежий кадр: прошлая деталь не переносится."""
+    data["scene_id"] = scene_id
+    data["custom_text"] = None
+    data["custom_file_id"] = None
+    data["detail"] = None
+    return data
+
+
+def apply_custom_scene(data: dict, *, text: str | None = None, file_id: str | None = None) -> dict:
+    """Своя сцена тоже сбрасывает деталь прошлой локации."""
+    data["scene_id"] = None
+    data["custom_text"] = text
+    data["custom_file_id"] = file_id
+    data["detail"] = None
+    return data
 
 
 def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest:

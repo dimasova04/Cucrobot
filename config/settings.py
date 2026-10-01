@@ -18,11 +18,12 @@ class Settings(BaseSettings):
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
-    # Размеры кадра по модели: Seedream 5.0 Flash принимает 0.92–4.62 Мпикс, Nano Banana 2 работает с 1K.
-    model_base_portrait: str = "1024x1536"
-    model_base_landscape: str = "1536x1024"
-    model_premium_portrait: str = "832x1248"
-    model_premium_landscape: str = "1248x832"
+    # Seedream 5.0 Flash: 0.92–4.62 Мпикс. 1536×2304 = 3.54 Мпикс, один и тот же
+    # резкий кадр на каждую сцену. Премиум — 1K, не меньше базового превью.
+    model_base_portrait: str = "1536x2304"
+    model_base_landscape: str = "2304x1536"
+    model_premium_portrait: str = "1024x1536"
+    model_premium_landscape: str = "1536x1024"
 
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"

@@ -170,7 +170,9 @@ class Generator:
                 prompt, refs = build(inp, max_refs=max_refs)
             result = await self._generate_with_retry(model_air, prompt, refs, width, height, seed)
             if result.nsfw:
-                return await self._finish(gen_id, req.user_id, "rejected", None, result.cost, "nsfw")
+                # Купальник и откровенная одежда сцены часто помечаются как nsfw.
+                # Картинку всё равно отдаём: это и есть запрошенный кадр.
+                logger.info("generation {} flagged nsfw by the provider, delivering the image", gen_id)
             image = await download_bytes(result.url)
             return await self._finish(
                 gen_id, req.user_id, "done", image, result.cost, None, result.url,

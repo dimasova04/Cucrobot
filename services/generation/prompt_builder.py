@@ -2,12 +2,26 @@ from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
     "Keep every face exactly as in the reference images. "
-    "Everyone is fully clothed, outfits fit the scene."
+    "Reference images are for identity only: do not copy their clothes, props or background. "
+    "Clothing, pose and setting come from the scene description and the requested detail."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
-    "true-to-life proportions, looks like a real DSLR photograph, not a render."
+    "true-to-life proportions, tack-sharp high-resolution DSLR photograph, not a render and not a soft preview. "
+    "Anatomically correct bodies: each person has exactly two arms, two hands and five fingers on each hand, "
+    "no extra limbs, no fused or duplicated body parts."
 )
+
+# Просьба «просто сделать чётче»: модель иначе перерисовывает кадр целиком.
+_QUALITY_HINTS = (
+    "улучш", "качество", "разрешен", "четче", "резче",
+    "sharpen", "higher quality", "upscale", "more detail",
+)
+
+
+def is_quality_request(detail: str) -> bool:
+    low = (detail or "").lower().replace("ё", "е")
+    return any(hint in low for hint in _QUALITY_HINTS)
 PERSON_LABELS = ["A", "B"]
 
 
@@ -84,7 +98,10 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
     lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
     if inp.detail:
-        lines.append(inp.detail.strip().rstrip(".") + ".")
+        lines.append(
+            "Requested change, apply it fully even if it replaces the outfit or the pose: "
+            + inp.detail.strip().rstrip(".") + "."
+        )
     lines.extend(_ref_lines(inp, ordered, start=1))
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
@@ -92,20 +109,35 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
 
 
 def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs: int) -> tuple[str, list[str]]:
-    """Дорисовка детали на уже готовом кадре: предыдущее фото идёт первым
-    референсом, остальное — те же люди/актёры/сцена из каталога.
-    Возвращает (промпт, референсы) — предыдущее фото всегда refs[0]."""
+    """Дорисовка на уже готовом кадре. Предыдущее фото всегда refs[0].
+
+    Сцену и лишние референсы актёра сюда не кладём: из-за них модель
+    собирает новый кадр (карточки, другая одежда) вместо правки.
+    Просьба улучшить качество не меняет содержимое — только резкость.
+    """
     if not previous_image:
         raise ValueError("previous_image is required for an edit")
     if not (detail or "").strip():
         raise ValueError("detail is required for an edit")
     _validate(inp, max_refs - 1)
-    ordered = _ordered_refs(inp)[: max_refs - 1]
+    if is_quality_request(detail):
+        lines = [
+            "Image 1 is the finished photo. Make this same photo sharper and more detailed. "
+            "Do not change faces, clothes, pose, background, framing, objects or the number of people. "
+            "Do not redraw the scene. Only increase sharpness and fine detail.",
+            REALISM_CLAUSE,
+        ]
+        return " ".join(lines), [previous_image]
+    # Только лица: первичные фото людей и актёров. Сцена и запасные ракурсы уводят кадр.
+    ordered = [item for item in _ordered_refs(inp) if item[0] in ("person", "actor_primary")]
+    ordered = ordered[: max_refs - 1]
     lines: list[str] = [
-        "Image 1 is the previous photo: keep the same composition, framing, "
-        "background, lighting, poses and outfits.",
-        "Change only this: " + detail.strip().rstrip(".") + ".",
-        "Do not add new objects or people.",
+        "Image 1 is the finished photo. Edit that exact photo. "
+        "Keep the same people, faces, framing, background, lighting and sharpness. "
+        "Do not invent a new scene and do not add objects that were not requested.",
+        "Apply only this change, and apply it fully: " + detail.strip().rstrip(".") + ".",
+        "If the change is about clothes, hair or pose, change only that and leave the rest of the photo as it is.",
+        "Other images exist only so the faces stay recognizable. Ignore clothes and props in them.",
     ]
     lines.extend(_ref_lines(inp, ordered, start=2))
     lines.append(SAFETY_CLAUSE)

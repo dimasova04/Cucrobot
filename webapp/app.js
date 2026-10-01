@@ -127,7 +127,7 @@
         (me.quality.can_premium ? "" : '<div class="muted" style="margin-top:10px">Премиум открывается с подпиской — она в «Магазине».</div>') +
       "</div>" +
 
-      '<button class="btn btn-primary" id="create-btn">📸 Сделать фото</button>';
+      '<button class="btn btn-primary" id="create-btn">📸 Начни создание фото</button>';
 
     $("tab-profile").innerHTML = html;
 

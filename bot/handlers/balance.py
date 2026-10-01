@@ -35,7 +35,13 @@ def _quality_row(user) -> list[tuple[str, str]]:
 
 def profile_kb(user) -> InlineKeyboardMarkup:
     return keyboards.grid(
-        [], extra_rows=[_quality_row(user), [(texts.BTN_BUY_PACK, "shop:packs")], [(texts.BTN_BUY_SUB, "shop:subs")]]
+        [],
+        extra_rows=[
+            _quality_row(user),
+            [(texts.BTN_BUY_PACK, "shop:packs")],
+            [(texts.BTN_BUY_SUB, "shop:subs")],
+            [(texts.BTN_BACK, "menu:home")],
+        ],
     )
 
 
@@ -63,12 +69,12 @@ def price_label(code: str, settings) -> str:
 
 def packs_kb(settings) -> InlineKeyboardMarkup:
     items = [(texts.PACK_BTN.format(n=p.crystals), f"buy:{p.code}") for p in PACKS]
-    return keyboards.grid(items, cols=3)
+    return keyboards.grid(items, cols=3, extra_rows=[[(texts.BTN_BACK, "menu:profile")]])
 
 
 def subs_kb(settings) -> InlineKeyboardMarkup:
     items = [(texts.SUB_BTN.format(name=texts.PLAN_NAMES[p.code].capitalize(), gift=p.crystals), f"buy:{p.code}") for p in SUBS]
-    return keyboards.grid(items, cols=1)
+    return keyboards.grid(items, cols=1, extra_rows=[[(texts.BTN_BACK, "menu:profile")]])
 
 
 async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:

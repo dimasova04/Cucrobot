@@ -94,7 +94,7 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     call = provider.calls[0]
     assert call["model"] == "bytedance:seedream@5.0-flash"
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
-    assert (call["width"], call["height"]) == (1024, 1536)  # базовая модель Seedream, вертикальная сцена
+    assert (call["width"], call["height"]) == (1536, 2304)  # базовая модель Seedream, вертикальная сцена
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 4
         row = await s.get(Generation, out.generation_id)
@@ -156,14 +156,20 @@ async def test_failure_after_retry_refunds(session_factory):
         assert await wallet.get_balance(s, 1) == 5
 
 
-async def test_nsfw_result_rejected_and_refunded(session_factory):
+async def test_nsfw_flag_still_delivers_the_image(session_factory, monkeypatch):
     actor_id, scene_id = await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x", cost=0.01, nsfw=True)])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        return b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
     gen = Generator(session_factory, provider, FakeFetcher(), _settings())
     out = await gen.run(_req(actor_id, scene_id))
-    assert out.status == "rejected"
+    assert out.status == "done" and out.image_bytes == b"IMG"
     async with session_factory() as s:
-        assert await wallet.get_balance(s, 1) == 5
+        assert await wallet.get_balance(s, 1) == 4
 
 
 async def test_insufficient_balance_raises_before_generation(session_factory):
@@ -277,9 +283,9 @@ async def test_detail_edit_reuses_previous_image_and_seed(session_factory, monke
     call = provider.calls[1]
     assert call["seed"] == 4242
     assert call["refs"][0] == "data:image/jpeg;base64," + base64.b64encode(b"PREV").decode()
-    assert call["prompt"].startswith("Image 1 is the previous photo:")
-    assert "Change only this: в пальто." in call["prompt"]
-    assert "Do not add new objects or people." in call["prompt"]
+    assert call["prompt"].startswith("Image 1 is the finished photo.")
+    assert "Apply only this change, and apply it fully: в пальто." in call["prompt"]
+    assert "do not add objects that were not requested" in call["prompt"]
     # ссылки на людей и актёра нумеруются со второй картинки
     assert "Image 2 is person A." in call["prompt"]
     async with session_factory() as s:

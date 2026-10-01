@@ -12,6 +12,8 @@ from bot.flow import (
     ACTORS_PER_PAGE,
     SCENES_PER_PAGE,
     GenStates,
+    apply_catalog_scene,
+    apply_custom_scene,
     effective_tier,
     empty_data,
     is_complete,
@@ -21,6 +23,7 @@ from bot.flow import (
     validate_custom_scene,
     validate_detail,
 )
+from bot.intro import send_intro
 from database.models import Generation
 from services import catalog
 from services.billing import wallet
@@ -43,7 +46,10 @@ async def start_create_flow(message: Message, state: FSMContext):
     await state.clear()
     await state.set_data(empty_data())
     await state.set_state(GenStates.person1)
-    await message.answer(texts.SEND_PERSON_1, reply_markup=keyboards.grid([], extra_rows=[keyboards.cancel_row()]))
+    await message.answer(
+        texts.SEND_PERSON_1,
+        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("menu"), keyboards.cancel_row()]),
+    )
 
 
 @generate_router.message(F.text == texts.BTN_CREATE)
@@ -269,8 +275,7 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("scene:"))
 async def scene_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
-    st = await state.get_data()
-    st.update(scene_id=int(cb.data.split(":")[1]), custom_text=None, custom_file_id=None)
+    st = apply_catalog_scene(await state.get_data(), int(cb.data.split(":")[1]))
     await state.set_data(st)
     await cb.answer()
     await _run_generation(cb.message, state, session, user, settings, generator)
@@ -282,8 +287,7 @@ async def custom_scene_photo(message: Message, state: FSMContext, session, user,
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
         return
-    st = await state.get_data()
-    st.update(scene_id=None, custom_text=None, custom_file_id=file_id)
+    st = apply_custom_scene(await state.get_data(), file_id=file_id)
     await state.set_data(st)
     await _run_generation(message, state, session, user, settings, generator)
 
@@ -294,8 +298,7 @@ async def custom_scene_text(message: Message, state: FSMContext, session, user, 
     if err:
         await message.answer(err)
         return
-    st = await state.get_data()
-    st.update(scene_id=None, custom_text=message.text.strip(), custom_file_id=None)
+    st = apply_custom_scene(await state.get_data(), text=message.text.strip())
     await state.set_data(st)
     await _run_generation(message, state, session, user, settings, generator)
 
@@ -472,10 +475,14 @@ async def gen_new(cb: CallbackQuery, state: FSMContext):
 
 
 @generate_router.callback_query(F.data.startswith("nav:back:"))
-async def nav_back(cb: CallbackQuery, state: FSMContext, session):
+async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings):
     """Шаг назад с явной целью: истории переходов не держим."""
     target = cb.data.rsplit(":", 1)[1]
     await cb.answer()
+    if target == "menu":
+        await state.clear()
+        await send_intro(cb.bot, user.id, settings.webapp_url)
+        return
     if target == "photo":
         await start_create_flow(cb.message, state)
         return

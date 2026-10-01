@@ -13,42 +13,21 @@
 - name: "Съёмочная площадка"
   orientation: landscape
   prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
-- name: "Селфи на улице"
-  orientation: portrait
-  prompt: "a close selfie hugging on a city street, big smiles, phone camera look"
 - name: "Отель, коридор"
   orientation: portrait
-  prompt: "standing at a hotel room door in a hotel corridor, holding key cards, smiling at the camera, dressed"
+  prompt: "standing at a hotel room door in a hotel corridor. Она в черном открытом купальнике. Он смотрит на нее и держит ее за талию и локоть. Она держит руками ручку двери"
 - name: "Номер отеля, вечер"
   orientation: landscape
-  prompt: "in a hotel suite in the evening, city view window, champagne glasses on the table, dressed in evening clothes"
-- name: "Диван, вечер кино"
-  orientation: landscape
-  prompt: "on a sofa at home watching a movie, popcorn bowl, warm lamp light, casual home clothes"
-- name: "Ужин при свечах"
-  orientation: landscape
-  prompt: "at a candlelit dinner on a terrace at night, wine glasses, elegant outfits"
-- name: "Париж, Эйфелева башня"
+  prompt: "in a hotel suite in the evening, city view window, champagne glasses on the table, evening clothes"
+- name: "На кастинге у Пьера"
   orientation: portrait
-  prompt: "in Paris in front of the Eiffel Tower, tourist photo, daytime, casual clothes"
-- name: "Пляж на закате"
-  orientation: landscape
-  prompt: "walking along a beach at sunset, summer clothes, golden light"
-- name: "Горнолыжный курорт"
-  orientation: landscape
-  prompt: "at a ski resort with snowy mountains behind, ski jackets and goggles on the forehead"
-- name: "Стадион"
-  orientation: landscape
-  prompt: "at a football stadium during a match, fans behind, team scarves"
-- name: "За кулисами концерта"
+  prompt: "at a private film casting in a bright studio with cameras and lights, she wears a black swimsuit, he stands close and looks at her"
+- name: "Селфи после"
   orientation: portrait
-  prompt: "backstage at a concert, stage lights and instruments behind, casual outfits"
-- name: "Частный самолёт"
+  prompt: "a close phone selfie right after the shoot, dressing room behind, she is in a swimsuit, he is beside her, both looking at the phone"
+- name: "На кастинге у Пьера 2"
   orientation: landscape
-  prompt: "boarding a private jet on the tarmac, sunglasses, smart casual outfits"
-- name: "Кухня, готовим вместе"
-  orientation: landscape
-  prompt: "cooking together in a bright kitchen, aprons, laughing"
-- name: "Спорткар"
-  orientation: landscape
-  prompt: "standing next to a red sports car on a city street, evening, stylish outfits"
+  prompt: "another angle of a private film casting, studio couch and soft lights, she poses in a white swimsuit, he sits close and watches her"
+- name: "За 1000 евро"
+  orientation: portrait
+  prompt: "in a small casting room under a soft key light, she poses in a black swimsuit, he looks at her and holds her elbow"
