@@ -32,6 +32,11 @@ async def test_seed_scenes_once(session_factory):
         film = next(sc for sc in scenes if sc.name == "Съёмочная площадка")
         assert catalog.scene_ref_ids(film) == [f"asset:scenes/set/{i:02d}.jpg" for i in range(1, 9)]
         assert film.orientation == "landscape"
+        assert "У неё размазана тушь под глазами" in by_name["Селфи с размазанной тушью"]
+        assert "looking at the phone" not in by_name["Селфи с размазанной тушью"]
+        mascara = next(sc for sc in scenes if sc.name == "Селфи с размазанной тушью")
+        assert mascara.orientation == "portrait"
+        assert catalog.scene_ref_ids(mascara) == [f"asset:scenes/mascara/{i:02d}.jpg" for i in range(1, 4)]
         assert "вытянув ноги вдоль сиденья ему на колени" in by_name["Лимузин"]
         assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]

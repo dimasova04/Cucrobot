@@ -34,7 +34,11 @@
   prompt: "in a hotel bedroom, both wearing white bathrobes, sitting on a white bed, warm evening light"
 - name: "Селфи с размазанной тушью"
   orientation: portrait
-  prompt: "a close phone selfie, her mascara is smudged under the eyes, he is beside her, both looking at the phone"
+  refs:
+    - scenes/mascara/01.jpg
+    - scenes/mascara/02.jpg
+    - scenes/mascara/03.jpg
+  prompt: "a close phone selfie. У неё размазана тушь под глазами. Он вплотную рядом с ней. Смотрят в камеру."
 - name: "За 1000 евро"
   orientation: landscape
   refs:
