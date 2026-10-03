@@ -20,6 +20,13 @@ async def test_seed_scenes_once(session_factory):
         hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
         assert "Она в черном открытом купальнике." in hotel.prompt
         assert "holding key cards" not in hotel.prompt
+        by_name = {sc.name: sc.prompt for sc in scenes}
+        assert by_name["Яхта"].endswith("Она в темном бикини")
+        assert "summer clothes" not in by_name["Яхта"]
+        assert "Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост." in by_name["Ночной клуб"]
+        assert "party outfits" not in by_name["Ночной клуб"]
+        assert "Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
+        assert "business attire" not in by_name["Офис"]
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)

@@ -1,15 +1,15 @@
 - name: "Яхта"
   orientation: landscape
-  prompt: "on the deck of a luxury yacht at sea, sunny day, summer clothes, relaxed poses"
+  prompt: "on the deck of a luxury yacht at sea, sunny day. Она в темном бикини"
 - name: "Ночной клуб"
   orientation: portrait
-  prompt: "in a night club with neon lights and a crowd behind, party outfits, laughing"
+  prompt: "in a night club with neon lights and a crowd behind. Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост."
 - name: "Лимузин"
   orientation: landscape
   prompt: "inside a limousine with city lights through the window, evening wear, holding glasses of champagne"
 - name: "Офис"
   orientation: landscape
-  prompt: "in a modern office, standing by a glass wall, business attire, friendly conversation"
+  prompt: "in a modern office. Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга"
 - name: "Съёмочная площадка"
   orientation: landscape
   prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
