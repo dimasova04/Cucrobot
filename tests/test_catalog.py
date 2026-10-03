@@ -27,6 +27,11 @@ async def test_seed_scenes_once(session_factory):
         assert "party outfits" not in by_name["Ночной клуб"]
         assert "Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
         assert "business attire" not in by_name["Офис"]
+        assert "Идёт съёмка, свет и камера в кадре." in by_name["Съёмочная площадка"]
+        assert "clapperboard" not in by_name["Съёмочная площадка"]
+        film = next(sc for sc in scenes if sc.name == "Съёмочная площадка")
+        assert catalog.scene_ref_ids(film) == [f"asset:scenes/set/{i:02d}.jpg" for i in range(1, 9)]
+        assert film.orientation == "landscape"
         assert "вытянув ноги вдоль сиденья ему на колени" in by_name["Лимузин"]
         assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]

@@ -16,7 +16,16 @@
   prompt: "in a modern office. Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга"
 - name: "Съёмочная площадка"
   orientation: landscape
-  prompt: "on a film set with cameras, lights and a clapperboard, behind-the-scenes photo, casual clothes"
+  refs:
+    - scenes/set/01.jpg
+    - scenes/set/02.jpg
+    - scenes/set/03.jpg
+    - scenes/set/04.jpg
+    - scenes/set/05.jpg
+    - scenes/set/06.jpg
+    - scenes/set/07.jpg
+    - scenes/set/08.jpg
+  prompt: "on a film set in a dressed room, studio lights on stands, a camera on a tripod, cables on the floor. Идёт съёмка, свет и камера в кадре."
 - name: "Дверь номера"
   orientation: portrait
   prompt: "standing at a hotel room door in a hotel corridor. Она в черном открытом купальнике. Он смотрит на нее и держит ее за талию и локоть. Она держит руками ручку двери"
