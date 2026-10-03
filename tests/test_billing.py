@@ -37,12 +37,15 @@ def test_subscription_extend_stacks_when_active():
 def test_bonus_status_free_and_sub():
     s = _settings()
     now = datetime(2026, 1, 10, 12)
-    free = User(id=1, last_bonus_at=now - timedelta(hours=23))
+    free = User(id=1, last_bonus_at=now - timedelta(hours=47))
     st = bonus.bonus_status(free, s, now)
-    assert not st.ready and st.amount == 3 and st.wait == timedelta(hours=1)
+    assert not st.ready and st.amount == 2 and st.wait == timedelta(hours=1)
+    day = User(id=4, last_bonus_at=now - timedelta(hours=24))
+    st = bonus.bonus_status(day, s, now)
+    assert not st.ready and st.amount == 2 and st.wait == timedelta(hours=24)
     sub = User(id=2, sub_plan="sub_week", sub_until=now + timedelta(days=1), last_bonus_at=now - timedelta(hours=25))
     st = bonus.bonus_status(sub, s, now)
-    assert st.ready and st.amount == 3
+    assert st.ready and st.amount == 10
     never = User(id=3)
     assert bonus.bonus_status(never, s, now).ready
 
@@ -54,11 +57,11 @@ async def test_claim_bonus_grants_once(session_factory):
         await repo.get_or_create_user(db, 1, "u")
         await db.commit()
     async with session_factory() as db:
-        assert await bonus.claim_bonus(db, 1, s, now) == (3, 3)
+        assert await bonus.claim_bonus(db, 1, s, now) == (2, 2)
         await db.commit()
     async with session_factory() as db:
         res = await bonus.claim_bonus(db, 1, s, now + timedelta(hours=1))
-        assert isinstance(res, bonus.BonusStatus) and res.wait == timedelta(hours=23)
+        assert isinstance(res, bonus.BonusStatus) and res.wait == timedelta(hours=47)
 
 
 async def test_grant_product_pack_and_sub_idempotent(session_factory):
