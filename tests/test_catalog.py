@@ -30,6 +30,29 @@ async def test_seed_scenes_once(session_factory):
         assert "вытянув ноги вдоль сиденья ему на колени" in by_name["Лимузин"]
         assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]
+        assert "Из переднего плана протянута рука с купюрами евро" in by_name["За 1000 евро"]
+        assert "casting room" not in by_name["За 1000 евро"]
+        limo = next(sc for sc in scenes if sc.name == "Лимузин")
+        euro = next(sc for sc in scenes if sc.name == "За 1000 евро")
+        assert catalog.scene_ref_ids(limo) == [
+            "asset:scenes/limousine/01.jpg",
+            "asset:scenes/limousine/02.jpg",
+            "asset:scenes/limousine/03.jpg",
+        ]
+        assert catalog.scene_ref_ids(euro)[0] == "asset:scenes/euro/01.jpg"
+        assert len(catalog.scene_ref_ids(euro)) == 4
+        assert euro.orientation == "landscape"
+        morning = next(sc for sc in scenes if sc.name == "Утро после")
+        assert "У неё размазана тушь, телефон в руке" in morning.prompt
+        assert "oversized shirt" not in morning.prompt
+        assert morning.orientation == "portrait"
+        assert catalog.scene_ref_ids(morning) == [
+            "asset:scenes/morning/01.jpg",
+            "asset:scenes/morning/02.jpg",
+            "asset:scenes/morning/03.jpg",
+            "asset:scenes/morning/04.jpg",
+            "asset:scenes/morning/05.jpg",
+        ]
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)
@@ -41,6 +64,31 @@ async def test_seed_scenes_adds_missing_only(session_factory):
         await s.commit()
     async with session_factory() as s:
         assert await catalog.seed_scenes(s) == 12
+
+
+async def test_seed_scenes_fills_empty_refs_and_keeps_uploaded(session_factory):
+    async with session_factory() as s:
+        s.add(catalog.Scene(
+            name="Лимузин", prompt="keep", orientation="landscape", ref_file_id="tg-limo",
+        ))
+        s.add(catalog.Scene(name="Утро после", prompt="old", orientation="landscape"))
+        await s.commit()
+    async with session_factory() as s:
+        await catalog.seed_scenes(s)
+        await s.commit()
+    async with session_factory() as s:
+        scenes = {sc.name: sc for sc in await catalog.list_scenes(s, active_only=False)}
+        assert scenes["Лимузин"].ref_file_id == "tg-limo"
+        assert scenes["Лимузин"].ref_file_ids is None
+        assert scenes["Лимузин"].prompt == "keep"
+        assert scenes["Утро после"].prompt == "old"
+        assert catalog.scene_ref_ids(scenes["Утро после"]) == [
+            "asset:scenes/morning/01.jpg",
+            "asset:scenes/morning/02.jpg",
+            "asset:scenes/morning/03.jpg",
+            "asset:scenes/morning/04.jpg",
+            "asset:scenes/morning/05.jpg",
+        ]
 
 
 async def _photoless_actor(session):

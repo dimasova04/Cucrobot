@@ -114,6 +114,8 @@ class Scene(Base):
     prompt: Mapped[str] = mapped_column(Text)
     orientation: Mapped[str] = mapped_column(String(16), default="portrait")  # portrait / landscape
     ref_file_id: Mapped[str | None] = mapped_column(String(255))
+    # JSON-список file_id, если у локации несколько кадров. Первый дублируется в ref_file_id.
+    ref_file_ids: Mapped[str | None] = mapped_column(Text)
     order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[int | None] = mapped_column(BigInteger)

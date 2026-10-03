@@ -2,11 +2,12 @@ from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
 
 from bot import keyboards, texts
 from services import catalog
 from services.generation.content_filter import is_allowed
+from services.generation.local_assets import is_asset_ref, resolve_asset
 
 scenes_router = Router(name="admin_scenes")
 
@@ -140,13 +141,21 @@ async def cb_card(cb: CallbackQuery, session):
     await cb.answer()
     if not scene:
         return
+    ids = catalog.scene_ref_ids(scene)
     text = texts.ADM_SCENE_CARD.format(
         name=scene.name, prompt=scene.prompt, orientation=scene.orientation,
-        photo=texts.ADM_PHOTO_PRESENT if scene.ref_file_id else texts.ADM_PHOTO_ABSENT,
+        photo=texts.ADM_PHOTO_PRESENT if ids else texts.ADM_PHOTO_ABSENT,
         active=texts.ADM_YES if scene.is_active else texts.ADM_NO,
     )
     kb = keyboards.grid([(texts.ADM_TOGGLE, f"adm:scene:toggle:{sid}"), (texts.ADM_DELETE, f"adm:scene:del:{sid}")], 2, [[(texts.ADM_BACK, "adm:scene:list")]])
-    if scene.ref_file_id:
-        await cb.message.answer_photo(scene.ref_file_id, caption=text, reply_markup=kb)
+
+    def _photo(fid: str):
+        return FSInputFile(resolve_asset(fid)) if is_asset_ref(fid) else fid
+
+    if len(ids) > 1:
+        await cb.message.answer_media_group([InputMediaPhoto(media=_photo(fid)) for fid in ids])
+        await cb.message.answer(text, reply_markup=kb)
+    elif ids:
+        await cb.message.answer_photo(_photo(ids[0]), caption=text, reply_markup=kb)
     else:
         await cb.message.answer(text, reply_markup=kb)

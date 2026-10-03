@@ -6,6 +6,10 @@
   prompt: "in a night club with neon lights and a crowd behind. Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост."
 - name: "Лимузин"
   orientation: landscape
+  refs:
+    - scenes/limousine/01.jpg
+    - scenes/limousine/02.jpg
+    - scenes/limousine/03.jpg
   prompt: "inside a black limousine at night, city lights through the side windows, black leather seat, champagne glasses on the side console. Она в коротком черном платье и черных босоножках, сидит, вытянув ноги вдоль сиденья ему на колени. Он в темном костюме и белой рубашке без галстука, его рука лежит на ее лодыжке. Смотрят друг на друга."
 - name: "Офис"
   orientation: landscape
@@ -23,11 +27,22 @@
   orientation: portrait
   prompt: "a close phone selfie, her mascara is smudged under the eyes, he is beside her, both looking at the phone"
 - name: "За 1000 евро"
-  orientation: portrait
-  prompt: "in a small casting room under a soft key light, she poses in a black swimsuit, he looks at her and holds her elbow"
-- name: "Утро после"
   orientation: landscape
-  prompt: "in a sunlit bedroom in the morning, messy white sheets, she wears an oversized shirt, he sits on the edge of the bed"
+  refs:
+    - scenes/euro/01.jpg
+    - scenes/euro/02.jpg
+    - scenes/euro/03.jpg
+    - scenes/euro/04.jpg
+  prompt: "outdoors in daylight, greenery behind. Из переднего плана протянута рука с купюрами евро. Она смотрит на деньги."
+- name: "Утро после"
+  orientation: portrait
+  refs:
+    - scenes/morning/01.jpg
+    - scenes/morning/02.jpg
+    - scenes/morning/03.jpg
+    - scenes/morning/04.jpg
+    - scenes/morning/05.jpg
+  prompt: "a close phone selfie in the morning. У неё размазана тушь, телефон в руке. Он рядом и прижимается к ней. Смотрят в камеру."
 - name: "Гримёрка"
   orientation: portrait
   prompt: "in a backstage dressing room with a lit mirror, she wears a black swimsuit, he stands close and looks at her"

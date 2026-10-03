@@ -132,11 +132,14 @@ class Generator:
                 raise ValueError("unknown or inactive actor id")
             scene = await catalog.get_scene(s, req.scene_id) if req.scene_id else None
             if scene:
-                scene_prompt, orientation, scene_ref_id, location = scene.prompt, scene.orientation, scene.ref_file_id, scene.name
+                scene_prompt, orientation, location = scene.prompt, scene.orientation, scene.name
+                scene_ref_ids = catalog.scene_ref_ids(scene)
             elif req.custom_scene_file_id:
-                scene_prompt, orientation, scene_ref_id, location = "in the setting shown", "portrait", req.custom_scene_file_id, "custom:photo"
+                scene_prompt, orientation, location = "in the setting shown", "portrait", "custom:photo"
+                scene_ref_ids = [req.custom_scene_file_id]
             else:
-                scene_prompt, orientation, scene_ref_id, location = (req.custom_scene_text or ""), "portrait", None, "custom:text"
+                scene_prompt, orientation, location = (req.custom_scene_text or ""), "portrait", "custom:text"
+                scene_ref_ids = []
 
             base = await self._edit_base(s, req)
 
@@ -164,11 +167,12 @@ class Generator:
             people = [_data_uri(await self._fetcher.fetch(f)) for f in req.people_file_ids]
             for ai in actor_inputs:
                 ai.refs = [_data_uri(await self._fetcher.fetch(f)) for f in ai.refs]
-            scene_ref = _data_uri(await self._fetcher.fetch(scene_ref_id)) if scene_ref_id else None
+            scene_refs = [_data_uri(await self._fetcher.fetch(fid)) for fid in scene_ref_ids]
             width, height = self._settings.frame_size(req.tier, orientation)
             inp = GenerationInput(
-                people, actor_inputs, scene_prompt, scene_ref, req.detail, width, height,
+                people, actor_inputs, scene_prompt, scene_refs[0] if scene_refs else None, req.detail, width, height,
                 cast_note=CAST_NOTES.get(req.self_role or ""),
+                scene_refs=scene_refs,
             )
             previous_image, seed = await self._load_base_image(base)
             if previous_image and req.insert_prompt:

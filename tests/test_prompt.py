@@ -16,13 +16,14 @@ def test_content_filter():
     assert content_filter.is_allowed("страх и класс")
 
 
-def _inp(people=1, actors=1, scene_ref=None, detail=None):
+def _inp(people=1, actors=1, scene_ref=None, scene_refs=None, detail=None):
     return GenerationInput(
         people=[f"p{i}" for i in range(people)],
         actors=[ActorInput(f"Actor{i}", f"desc{i}", [f"a{i}_0", f"a{i}_1"]) for i in range(actors)],
         scene_prompt="on a yacht",
         scene_ref=scene_ref,
         detail=detail,
+        scene_refs=scene_refs,
         width=832,
         height=1248,
     )
@@ -45,17 +46,24 @@ def test_prompt_one_person_one_actor():
 def test_refs_truncated_by_priority_scene_dropped_on_base():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s"), max_refs=4)
     assert refs == ["p0", "p1", "a0_0", "a1_0"]
-    assert "shows the setting" not in prompt
+    assert "is a location reference" not in prompt
     assert "A, B together with Actor0 and Actor1 on a yacht" in prompt
 
 
 def test_scene_ref_included_on_premium_and_detail_appended():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s", detail="in winter coats"), max_refs=14)
     assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
-    assert "Image 5 shows the setting; place them in this exact setting." in prompt
-    # счётчик людей идёт сразу за первой фразой, затем деталь пользователя
+    assert "Image 5 is a location reference. Match its framing, pose, place and props." in prompt
     assert "Requested change, apply it fully even if it replaces the outfit or the pose: in winter coats." in prompt
     assert prompt.index("in winter coats.") < prompt.index("Image 1 is person A.")
+
+
+def test_several_location_refs_do_not_replace_faces():
+    prompt, refs = build(_inp(scene_refs=["s1", "s2"]), max_refs=14)
+    assert refs[:4] == ["p0", "a0_0", "s1", "s2"]
+    assert "another reference for this scene" in prompt
+    assert "Do not copy the faces" in prompt
+    assert "Do not copy faces." in prompt
 
 
 def test_content_filter_no_false_positives_on_common_words():

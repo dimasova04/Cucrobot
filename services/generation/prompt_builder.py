@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
-    "Keep the face and the body build exactly as in the reference images: "
+    "Keep the face and the body build exactly as in the person and actor reference images: "
     "proportions, shoulders, torso, muscles and tattoos. "
-    "Do not copy clothes, props or background from the reference images. "
-    "Clothing, pose and setting come from the scene description and the requested detail."
+    "Do not copy clothes, props or background from the person and actor photos. "
+    "Clothing, pose and setting come from the scene description and the requested detail. "
+    "A location reference is the exception: follow its framing, pose and place, but not the faces in it."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
@@ -44,6 +45,8 @@ class GenerationInput:
     height: int
     # Как человек с фото пользователя ведёт себя в новом кадре. Правка детали его не трогает.
     cast_note: str | None = None
+    # Несколько кадров локации. Пусто — берётся один scene_ref.
+    scene_refs: list[str] | None = None
 
 
 def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
@@ -54,8 +57,11 @@ def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
     for i, a in enumerate(inp.actors):
         if a.refs:
             out.append(("actor_primary", a.refs[0], i))
-    if inp.scene_ref:
-        out.append(("scene", inp.scene_ref, -1))
+    locs = list(inp.scene_refs or [])
+    if not locs and inp.scene_ref:
+        locs = [inp.scene_ref]
+    for i, ref in enumerate(locs):
+        out.append(("scene", ref, i))
     for i, a in enumerate(inp.actors):
         for r in a.refs[1:]:
             out.append(("actor_extra", r, i))
@@ -91,7 +97,16 @@ def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start:
                 f"Image {n} also shows actor {inp.actors[idx].name}. Another view of the same face and body."
             )
         elif kind == "scene":
-            lines.append(f"Image {n} shows the setting; place them in this exact setting.")
+            if idx == 0:
+                lines.append(
+                    f"Image {n} is a location reference. Match its framing, pose, place and props. "
+                    "Do not copy the faces or any extra person who appears only in it."
+                )
+            else:
+                lines.append(
+                    f"Image {n} is another reference for this scene. Follow its framing, pose and place. "
+                    "Do not copy faces."
+                )
     return lines
 
 

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import yaml
@@ -9,6 +10,8 @@ from services.generation.local_assets import asset_file_id
 
 SIZES = {"portrait": (832, 1248), "landscape": (1248, 832)}
 MIN_REFS, MAX_REFS = 2, 4
+# У локации может быть больше кадров, чем у актёра: бюджет генерации всё равно 14.
+SCENE_MAX_REFS = 8
 
 # Раньше здесь был стоп-лист имён из порноиндустрии. Бот как раз ставит
 # на фото актёра взрослого кино, поэтому имена больше не режем.
@@ -114,13 +117,13 @@ async def delete_scene(session: AsyncSession, scene_id: int) -> None:
         await session.flush()
 
 
-def _bundled_ref_ids(item: dict) -> list[str]:
+def _bundled_ref_ids(item: dict, limit: int = MAX_REFS) -> list[str]:
     """Пути из yaml относительно assets/. Пустой список — кнопке хватает имени."""
     raw = item.get("refs") or []
     if not isinstance(raw, list):
         raise ValueError(f"refs for {item.get('name')} must be a list")
-    if len(raw) > MAX_REFS:
-        raise ValueError(f"{item.get('name')} has {len(raw)} refs, max is {MAX_REFS}")
+    if len(raw) > limit:
+        raise ValueError(f"{item.get('name')} has {len(raw)} refs, max is {limit}")
     return [asset_file_id(str(rel)) for rel in raw]
 
 
@@ -161,17 +164,47 @@ async def seed_actors(session: AsyncSession, path: str = "seed/actors.yaml") -> 
     return added
 
 
+def scene_ref_ids(scene) -> list[str]:
+    """Кадры локации: список из ref_file_ids, иначе одно фото ref_file_id."""
+    raw = getattr(scene, "ref_file_ids", None)
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = []
+        if isinstance(parsed, list) and parsed:
+            return [str(item) for item in parsed if item]
+    if getattr(scene, "ref_file_id", None):
+        return [scene.ref_file_id]
+    return []
+
+
+def _apply_scene_refs(scene: Scene, refs: list[str]) -> None:
+    scene.ref_file_id = refs[0]
+    scene.ref_file_ids = json.dumps(refs)
+
+
 async def seed_scenes(session: AsyncSession, path: str = "seed/scenes.yaml") -> int:
+    """Новые сцены из yaml. Кадры локации клеятся только если своих фото ещё нет."""
     items = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    existing_names = set((await session.execute(select(Scene.name))).scalars().all())
-    order = await session.scalar(select(func.count()).select_from(Scene))
+    existing = {s.name: s for s in (await session.execute(select(Scene))).scalars().all()}
+    order = await session.scalar(select(func.count()).select_from(Scene)) or 0
     added = 0
     for item in items:
-        if item["name"] in existing_names:
+        refs = _bundled_ref_ids(item, SCENE_MAX_REFS)
+        scene = existing.get(item["name"])
+        if scene is None:
+            scene = Scene(
+                name=item["name"], prompt=item["prompt"], orientation=item["orientation"], order=order,
+            )
+            if refs:
+                _apply_scene_refs(scene, refs)
+            session.add(scene)
+            order += 1
+            added += 1
             continue
-        session.add(Scene(name=item["name"], prompt=item["prompt"], orientation=item["orientation"], order=order))
-        order += 1
-        added += 1
+        if refs and not scene.ref_file_id and not scene.ref_file_ids:
+            _apply_scene_refs(scene, refs)
     await session.flush()
     return added
 
