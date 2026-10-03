@@ -27,6 +27,9 @@ async def test_seed_scenes_once(session_factory):
         assert "party outfits" not in by_name["Ночной клуб"]
         assert "Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
         assert "business attire" not in by_name["Офис"]
+        assert "вытянув ноги вдоль сиденья ему на колени" in by_name["Лимузин"]
+        assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
+        assert "holding glasses" not in by_name["Лимузин"]
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)

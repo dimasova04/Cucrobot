@@ -6,7 +6,7 @@
   prompt: "in a night club with neon lights and a crowd behind. Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост."
 - name: "Лимузин"
   orientation: landscape
-  prompt: "inside a limousine with city lights through the window, evening wear, holding glasses of champagne"
+  prompt: "inside a black limousine at night, city lights through the side windows, black leather seat, champagne glasses on the side console. Она в коротком черном платье и черных босоножках, сидит, вытянув ноги вдоль сиденья ему на колени. Он в темном костюме и белой рубашке без галстука, его рука лежит на ее лодыжке. Смотрят друг на друга."
 - name: "Офис"
   orientation: landscape
   prompt: "in a modern office. Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга"
