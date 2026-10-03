@@ -159,6 +159,7 @@ def test_build_edit_puts_previous_photo_first():
     assert refs == ["prev", "p0", "p1", "a0_0", "a1_0"]
     assert "shows the setting" not in prompt
     assert "Apply only this change, and apply it fully: в пальто." in prompt
+    assert "Keep faces, hands, fingers and body proportions exactly as they are in image 1." in prompt
     assert "Image 2 is person A." in prompt
     assert "Image 3 is person B." in prompt
     assert "Image 4 shows actor Actor0 (desc0)." in prompt

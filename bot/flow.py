@@ -39,6 +39,9 @@ def empty_data() -> dict:
         "people": [], "actors": [], "named": [],
         "self_file_id": None, "self_role": None,
         "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None,
+        # Чистый кадр и все «свои детали» одним текстом: каждая новая деталь
+        # правит его, а не предыдущую правку, иначе лица и руки плывут.
+        "details": [], "plate_generation_id": None,
     }
 
 
@@ -72,6 +75,16 @@ def effective_tier(user) -> str:
     if tier == "premium" and not subscriptions.is_active(user):
         return "base"
     return tier
+
+
+def compose_details(details: list[str] | None) -> str | None:
+    """Одна деталь остаётся как есть, несколько склеиваются в одну правку кадра."""
+    parts = [part.strip() for part in (details or []) if part and part.strip()]
+    if not parts:
+        return None
+    if len(parts) == 1:
+        return parts[0]
+    return ". ".join(part.rstrip(".") for part in parts)
 
 
 DETAIL_MAX_LEN = 300
@@ -162,6 +175,7 @@ def apply_catalog_scene(data: dict, scene_id: int) -> dict:
     data["custom_text"] = None
     data["custom_file_id"] = None
     data["detail"] = None
+    data["details"] = []
     return data
 
 
@@ -171,6 +185,7 @@ def apply_custom_scene(data: dict, *, text: str | None = None, file_id: str | No
     data["custom_text"] = text
     data["custom_file_id"] = file_id
     data["detail"] = None
+    data["details"] = []
     return data
 
 
@@ -182,7 +197,8 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
     insert_prompt = None
     edit = bool(data.get("edit_mode"))
     base_id = data.get("edit_base_id")
-    detail = data.get("detail")
+    # «Улучши качество» — отдельная просьба по текущему кадру, не стопка деталей.
+    detail = data.get("_quality_detail") or data.get("detail")
     pending = data.get("pending_insert")
     if pending:
         # Вписываем в последний кадр. Прошлая текстовая деталь уже внутри этого кадра.
