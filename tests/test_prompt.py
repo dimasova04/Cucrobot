@@ -2,7 +2,7 @@ import pytest
 
 from services.generation import content_filter
 from services.generation.prompt_builder import (
-    REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit,
+    REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit, build_insert,
 )
 
 
@@ -180,6 +180,83 @@ def test_build_edit_keeps_scene_text_out_of_the_prompt():
     assert "A candid photorealistic photo" not in prompt
     assert "on a yacht" not in prompt
     assert "Apply only this change, and apply it fully: даём пять." in prompt
+
+
+def test_insert_sends_only_the_new_actor():
+    """Видаль в кадр с Сиффреди: модели уходят только фото Видаля, не Сиффреди."""
+    inp = GenerationInput(
+        people=["wife"],
+        actors=[
+            ActorInput("Siffredi", "bald", ["siff-1", "siff-2", "siff-3", "siff-4"]),
+            ActorInput("Sins", "", []),
+            ActorInput("Vidal", "", ["vid-1", "vid-2", "vid-3"]),
+        ],
+        scene_prompt="in a modern office",
+        scene_ref="office",
+        detail=None,
+        scene_refs=["office", "office-2"],
+        width=832,
+        height=1248,
+        insert_target="actor",
+        insert_actor_index=2,
+    )
+    prompt, refs = build_insert(inp, "prev", "Add Vidal into this exact photo.", max_refs=14)
+    assert refs == ["prev", "vid-1", "vid-2", "vid-3"]
+    assert "Siffredi" not in prompt and "Sins" not in prompt
+    assert "Image 2 shows actor Vidal." in prompt
+    assert "Image 3 also shows actor Vidal." in prompt
+    assert "Add exactly one new person." in prompt
+    assert "Do not duplicate anyone already in image 1" in prompt
+    assert "is a location reference" not in prompt
+    assert "in a modern office" not in prompt
+
+
+def test_insert_named_actor_is_the_last_one_not_the_catalog():
+    inp = _inp(actors=2)
+    inp.actors.append(ActorInput("Vidal", "", ["vid-1"]))
+    inp.insert_target = "named"
+    inp.insert_actor_index = 2
+    _prompt, refs = build_insert(inp, "prev", "Add Vidal.", max_refs=14)
+    assert refs == ["prev", "vid-1"]
+
+
+def test_insert_actor_without_photos_does_not_copy_faces_already_there():
+    inp = _inp(actors=1)
+    inp.actors.append(ActorInput("Sins", "", []))
+    inp.insert_target = "actor"
+    inp.insert_actor_index = 1
+    prompt, refs = build_insert(inp, "prev", "Add Sins into this exact photo.", max_refs=14)
+    assert refs == ["prev"]
+    assert "The new person is Sins." in prompt
+    assert "Do not copy a face already in image 1." in prompt
+    assert "shows actor Actor0" not in prompt
+    assert "p0" not in refs
+
+
+def test_insert_self_sends_only_his_photo():
+    inp = _inp(people=2, actors=2, scene_ref="s")
+    inp.insert_target = "person"
+    prompt, refs = build_insert(inp, "prev", "Add person B into this exact photo.", max_refs=14)
+    assert refs == ["prev", "p1"]
+    assert "Image 2 is person B." in prompt
+    assert "shows actor" not in prompt
+    assert "person A" not in prompt
+
+
+def test_insert_keeps_the_new_face_when_refs_are_tight():
+    inp = _inp()
+    inp.actors[0].refs = ["a0_0", "a0_1", "a0_2", "a0_3"]
+    inp.insert_target = "actor"
+    inp.insert_actor_index = 0
+    _prompt, refs = build_insert(inp, "prev", "Add Actor0.", max_refs=3)
+    assert refs == ["prev", "a0_0", "a0_1"]
+
+
+def test_insert_requires_a_target():
+    with pytest.raises(ValueError):
+        build_insert(_inp(), "prev", "Add someone.", max_refs=14)
+    with pytest.raises(ValueError):
+        build_insert(_inp(), "", "Add someone.", max_refs=14)
 
 
 def test_build_edit_validates_inputs():

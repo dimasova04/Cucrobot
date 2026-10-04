@@ -94,7 +94,31 @@ def test_request_from_state_inserts_self_into_the_latest_frame():
     r = request_from_state(9, d, "base")
     assert r.people_file_ids == ["wife", "me"]
     assert r.self_role == "watch" and r.insert_prompt
+    assert r.insert_target == "person"
     assert r.edit_mode is True and r.base_generation_id == 8 and r.detail is None
+
+
+def test_request_from_state_marks_which_actor_is_being_added():
+    d = {
+        "people": ["wife"], "actors": [1, 2],
+        "named": [{"name": "Рокко", "files": ["h1"]}],
+        "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": "купальник",
+        "last_generation_id": 8,
+        "pending_insert": {"kind": "actor", "actor_id": 3, "name": "Видаль"},
+    }
+    r = request_from_state(9, d, "base")
+    assert r.actor_ids == [1, 2, 3]
+    assert r.named_actors == [("Рокко", ["h1"])]
+    assert r.people_file_ids == ["wife"]
+    assert r.insert_target == "actor"
+    assert "Видаль is the only new person" in r.insert_prompt
+    assert r.edit_mode is True and r.base_generation_id == 8 and r.detail is None
+
+    d["pending_insert"] = {"kind": "named", "name": "Видаль", "files": ["v1"]}
+    named = request_from_state(9, d, "base")
+    assert named.insert_target == "named"
+    assert named.named_actors[-1] == ("Видаль", ["v1"])
+    assert named.actor_ids == [1, 2]
 
 
 def test_request_from_state_with_named_actor():

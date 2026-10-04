@@ -46,6 +46,9 @@ class GenerationRequest:
     self_role: str | None = None
     # Вписать человека в готовый кадр. Вместе с edit_mode и base_generation_id.
     insert_prompt: str | None = None
+    # person — последнее фото пользователя; actor — последний id каталога;
+    # named — последний названный. От этого зависит, чьё лицо уйдёт в модель.
+    insert_target: str | None = None
     base_generation_id: int | None = None
     edit_mode: bool = False
 
@@ -175,10 +178,19 @@ class Generator:
                 for fid in scene_ref_ids
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
+            # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
+            # не последний в общем списке, если в кадре уже есть названный.
+            insert_index = None
+            if req.insert_prompt and req.insert_target == "actor":
+                insert_index = len(req.actor_ids) - 1
+            elif req.insert_prompt and req.insert_target == "named":
+                insert_index = len(actor_inputs) - 1
             inp = GenerationInput(
                 people, actor_inputs, scene_prompt, scene_refs[0] if scene_refs else None, req.detail, width, height,
                 cast_note=CAST_NOTES.get(req.self_role or ""),
                 scene_refs=scene_refs,
+                insert_target=req.insert_target if req.insert_prompt else None,
+                insert_actor_index=insert_index,
             )
             previous_image, seed = await self._load_base_image(base)
             if previous_image and req.insert_prompt:

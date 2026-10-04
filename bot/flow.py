@@ -62,6 +62,7 @@ INSERT_SELF = {
 def insert_actor_prompt(name: str) -> str:
     return (
         f"Add {name} into this exact photo beside the people already there. "
+        f"{name} is the only new person. Do not add another copy of anyone already in the photo. "
         "Keep the same place, clothes and pose of everyone already in the photo. Do not redraw the scene."
     )
 
@@ -180,6 +181,7 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
     named = [{"name": item["name"], "files": list(item.get("files") or [])} for item in data.get("named") or []]
     role = data.get("self_role")
     insert_prompt = None
+    insert_target = None
     edit = bool(data.get("edit_mode"))
     base_id = data.get("edit_base_id")
     detail = data.get("detail")
@@ -193,12 +195,15 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
             people.append(pending["file_id"])
             role = pending["role"]
             insert_prompt = INSERT_SELF[pending["role"]]
+            insert_target = "person"
         elif pending["kind"] == "actor":
             actors.append(pending["actor_id"])
             insert_prompt = insert_actor_prompt(pending["name"])
+            insert_target = "actor"
         else:
             named.append({"name": pending["name"], "files": list(pending.get("files") or [])})
             insert_prompt = insert_actor_prompt(pending["name"])
+            insert_target = "named"
     return GenerationRequest(
         user_id=user_id,
         people_file_ids=people,
@@ -211,6 +216,7 @@ def request_from_state(user_id: int, data: dict, tier: str) -> GenerationRequest
         detail=detail,
         tier=tier,
         insert_prompt=insert_prompt,
+        insert_target=insert_target,
         edit_mode=edit,
         base_generation_id=base_id,
     )

@@ -47,6 +47,9 @@ class GenerationInput:
     cast_note: str | None = None
     # Несколько кадров локации. Пусто — берётся один scene_ref.
     scene_refs: list[str] | None = None
+    # Кого вписываем в готовый кадр: person / actor / named. Чужие фото не прикладываем.
+    insert_target: str | None = None
+    insert_actor_index: int | None = None
 
 
 def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
@@ -169,6 +172,37 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
     return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]
 
 
+def _insert_face_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
+    """Только лицо того, кого добавляем.
+
+    Фото жены и актёров, которые уже стоят в кадре, модель копирует ещё раз:
+    так вместо Видаля появлялся второй Сиффреди.
+    """
+    if inp.insert_target == "person":
+        if not inp.people:
+            raise ValueError("insert needs the new person's photo")
+        idx = len(inp.people) - 1
+        return [("person", inp.people[idx], idx)]
+    if inp.insert_target in ("actor", "named"):
+        idx = inp.insert_actor_index
+        if idx is None or not 0 <= idx < len(inp.actors):
+            raise ValueError("insert_actor_index is required")
+        actor = inp.actors[idx]
+        if not actor.refs:
+            return []
+        ordered = [("actor_primary", actor.refs[0], idx)]
+        ordered += [("actor_extra", ref, idx) for ref in actor.refs[1:]]
+        return ordered
+    raise ValueError("insert_target is required")
+
+
+def _inserted_name(inp: GenerationInput) -> str:
+    idx = inp.insert_actor_index
+    if idx is None or not 0 <= idx < len(inp.actors):
+        return ""
+    return inp.actors[idx].name
+
+
 def build_insert(inp: GenerationInput, previous_image: str, instruction: str, max_refs: int) -> tuple[str, list[str]]:
     """Вписать ещё одного человека в готовый кадр, не собирая сцену заново."""
     if not previous_image:
@@ -176,14 +210,27 @@ def build_insert(inp: GenerationInput, previous_image: str, instruction: str, ma
     if not (instruction or "").strip():
         raise ValueError("instruction is required for an insert")
     _validate(inp, max_refs - 1)
-    ordered = [item for item in _ordered_refs(inp) if item[0] in ("person", "actor_primary")]
-    ordered = ordered[: max_refs - 1]
+    ordered = _insert_face_refs(inp)[: max_refs - 1]
     lines = [
         "Image 1 is the finished photo. Edit that exact photo.",
         instruction.strip().rstrip(".") + ".",
-        "Other images keep the same face and the same body build. Ignore clothes, props and background in them.",
+        "Add exactly one new person. Do not duplicate anyone already in image 1 "
+        "and do not replace them with a different face. "
+        "Keep the faces, clothes, pose and place of everyone already in the photo.",
     ]
-    lines.extend(_ref_lines(inp, ordered, start=2))
+    if ordered:
+        lines.append(
+            "The new face and the new body come only from the later images. "
+            "Ignore clothes, props and background in them."
+        )
+        lines.extend(_ref_lines(inp, ordered, start=2))
+    else:
+        name = _inserted_name(inp)
+        who = f"The new person is {name}. " if name else ""
+        lines.append(
+            who + "There is no reference photo of the new person. "
+            "Do not copy a face already in image 1."
+        )
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
     return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]

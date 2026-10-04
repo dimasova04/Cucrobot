@@ -321,6 +321,60 @@ async def test_detail_edit_reuses_previous_image_and_seed(session_factory, monke
         assert row.status == "done" and row.crystals_charged == 1 and row.user_detail == "в пальто"
 
 
+def _ref_payloads(refs: list[str]) -> list[bytes]:
+    return [base64.b64decode(ref.split(",", 1)[1]) for ref in refs]
+
+
+async def test_insert_actor_attaches_only_the_new_face(session_factory, monkeypatch):
+    """В кадре уже Сиффреди и названный Рокко. Добавляем Видаля — его фото последние
+    среди каталожных, но не последние вообще. Модели уходят только они."""
+    actor_id, scene_id = await _seed(session_factory)
+    async with session_factory() as s:
+        vidal = await catalog.create_actor(s, "Видаль", "", ["vb1", "vb2", "vb3"], 1)
+        await s.commit()
+        vidal_id = vidal.id
+    provider = FakeProvider([
+        ImageResult(url="http://x/first.jpg", cost=0.002, nsfw=False, seed=7),
+        ImageResult(url="http://x/second.jpg", cost=0.002, nsfw=False, seed=7),
+    ])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        return b"PREV" if url == "http://x/first.jpg" else b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    first = await gen.run(_req(actor_id, scene_id))
+    assert first.status == "done"
+
+    second = await gen.run(GenerationRequest(
+        user_id=1,
+        people_file_ids=["wife"],
+        actor_ids=[actor_id, vidal_id],
+        named_actors=[("Рокко", ["rk1", "rk2"])],
+        scene_id=scene_id,
+        custom_scene_text=None,
+        custom_scene_file_id=None,
+        detail=None,
+        tier="base",
+        insert_prompt="Add Видаль into this exact photo.",
+        insert_target="actor",
+        edit_mode=True,
+        base_generation_id=first.generation_id,
+    ))
+    assert second.status == "done"
+    call = provider.calls[1]
+    payloads = _ref_payloads(call["refs"])
+    assert payloads[0] == b"PREV"
+    assert payloads[1:] == [b"\xff\xd8" + name.encode() for name in ("vb1", "vb2", "vb3")]
+    assert "Image 2 shows actor Видаль." in call["prompt"]
+    assert "Stat" not in call["prompt"] and "Рокко" not in call["prompt"]
+    assert "Add exactly one new person." in call["prompt"]
+    async with session_factory() as s:
+        row = await s.get(Generation, second.generation_id)
+        assert [a["name"] for a in row.actors] == ["Stat", "Видаль", "Рокко"]
+
+
 async def test_detail_edit_falls_back_when_base_download_fails(session_factory, monkeypatch):
     actor_id, scene_id = await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x/fresh.jpg", cost=0.002, nsfw=False, seed=7)])
