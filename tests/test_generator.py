@@ -90,6 +90,25 @@ def test_location_faces_are_blanked_and_the_room_stays():
     assert faces.anonymize_faces(b"not an image") == b"not an image"
 
 
+def test_film_set_crew_is_blanked_and_the_empty_room_stays():
+    """Оператор на площадке смотрит вниз: детектор лиц его не видит, фигура остаётся."""
+    import cv2
+    import numpy as np
+    from pathlib import Path
+
+    raw = Path("assets/scenes/set/04.jpg").read_bytes()
+    blanked = faces.anonymize_faces(raw)
+    original = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+    result = cv2.imdecode(np.frombuffer(blanked, dtype=np.uint8), cv2.IMREAD_COLOR)
+    delta = np.abs(original.astype(np.int16) - result.astype(np.int16))
+    # Оператор стоит слева. Правый край тумбы не трогаем.
+    assert delta[180:530, 20:190].mean() > 8
+    assert delta[:, -40:].mean() < 1
+
+    empty = Path("assets/scenes/set/01.jpg").read_bytes()
+    assert faces.anonymize_faces(empty) == empty
+
+
 async def test_face_detector_returns_false_on_blank():
     import cv2, numpy as np
     blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()

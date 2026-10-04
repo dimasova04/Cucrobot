@@ -72,26 +72,38 @@ def _detect_faces(img):
         return _YUNET.detect(img)
 
 
-def anonymize_faces(image_bytes: bytes) -> bytes:
-    """Закрывает лица на кадре локации. Композиция остаётся, чужой человек — нет.
-
-    Если детектора нет или на фото нет лиц, байты возвращаются как есть.
-    """
-    img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        return image_bytes
+def _blur_region(img, x0: int, y0: int, x1: int, y1: int) -> None:
+    """Мягкое пятно вместо прямоугольника: модель не копирует серый блок как человека."""
     height, width = img.shape[:2]
-    try:
-        detected = _detect_faces(img)
-        if detected is None:
-            logger.warning("location face anonymizer unavailable")
-            return image_bytes
-        _count, found = detected
-    except Exception:
-        logger.exception("location face anonymizer failed")
-        return image_bytes
-    if found is None or len(found) == 0:
-        return image_bytes
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(width, x1), min(height, y1)
+    roi = img[y0:y1, x0:x1]
+    if roi.size == 0 or min(roi.shape[:2]) < 3:
+        return
+    kernel = max(31, (min(roi.shape[:2]) // 2) | 1)
+    kernel = min(kernel, min(roi.shape[:2]) | 1)
+    if kernel % 2 == 0:
+        kernel -= 1
+    if kernel < 3:
+        return
+    blurred = cv2.GaussianBlur(roi, (kernel, kernel), 0)
+    mask = np.zeros(roi.shape[:2], dtype=np.uint8)
+    cv2.ellipse(
+        mask, (roi.shape[1] // 2, roi.shape[0] // 2),
+        (max(1, roi.shape[1] // 2), max(1, roi.shape[0] // 2)), 0, 0, 360, 255, -1,
+    )
+    feather = min(31, (min(roi.shape[:2]) // 3) | 1)
+    if feather % 2 == 0:
+        feather -= 1
+    if feather >= 3:
+        mask = cv2.GaussianBlur(mask, (feather, feather), 0)
+    alpha = (mask.astype(np.float32) / 255.0)[..., None]
+    img[y0:y1, x0:x1] = (blurred * alpha + roi * (1.0 - alpha)).astype(np.uint8)
+
+
+def _cover_bodies_under_faces(img, found) -> None:
+    """Под небольшим лицом в комнате закрываем и фигуру: иначе остаётся оператор."""
+    height, width = img.shape[:2]
     for face in found:
         x, y, fw, fh = (int(v) for v in face[:4])
         if min(fw, fh) < 28:
@@ -99,30 +111,73 @@ def anonymize_faces(image_bytes: bytes) -> bytes:
         pad_x = int(fw * 0.25)
         pad_up = int(fh * 0.45)
         pad_down = int(fh * 0.2)
-        x0, y0 = max(0, x - pad_x), max(0, y - pad_up)
-        x1, y1 = min(width, x + fw + pad_x), min(height, y + fh + pad_down)
-        roi = img[y0:y1, x0:x1]
-        if roi.size == 0:
-            continue
-        kernel = max(31, (min(roi.shape[:2]) // 2) | 1)
-        kernel = min(kernel, min(roi.shape[:2]) | 1)
-        if kernel % 2 == 0:
-            kernel -= 1
-        if kernel < 3:
-            continue
-        blurred = cv2.GaussianBlur(roi, (kernel, kernel), 0)
-        mask = np.zeros(roi.shape[:2], dtype=np.uint8)
-        cv2.ellipse(
-            mask, (roi.shape[1] // 2, roi.shape[0] // 2),
-            (roi.shape[1] // 2, roi.shape[0] // 2), 0, 0, 360, 255, -1,
+        _blur_region(
+            img,
+            x - pad_x, y - pad_up,
+            x + fw + pad_x, y + fh + pad_down,
         )
-        feather = min(31, (min(roi.shape[:2]) // 3) | 1)
-        if feather % 2 == 0:
-            feather -= 1
-        if feather >= 3:
-            mask = cv2.GaussianBlur(mask, (feather, feather), 0)
-        alpha = (mask.astype(np.float32) / 255.0)[..., None]
-        img[y0:y1, x0:x1] = (blurred * alpha + roi * (1.0 - alpha)).astype(np.uint8)
+        # Крупный план — это пара в кадре локации, тело и так почти всё фото.
+        # Фигуру дорисовываем только людям, которые стоят в комнате.
+        if fh >= height * 0.22:
+            continue
+        cx = x + fw / 2
+        bw = int(fw * 3.4)
+        top = y + int(fh * 0.55)
+        _blur_region(img, int(cx - bw / 2), top, int(cx + bw / 2), top + int(fh * 6.5))
+
+
+def _cover_standing_people(img) -> None:
+    """Лицо в пол смотрит вниз, детектор лиц его пропускает. Фигуру ловит HOG.
+
+    Порог высокий: на пустой комнате детектор цепляется за свет и скульптуру.
+    """
+    height, width = img.shape[:2]
+    hog = cv2.HOGDescriptor()
+    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+    scale = 800 / max(height, width)
+    view = cv2.resize(img, (int(width * scale), int(height * scale))) if scale < 1 else img
+    rects, weights = hog.detectMultiScale(view, winStride=(8, 8), padding=(8, 8), scale=1.05)
+    inv = 1 / scale if scale < 1 else 1.0
+    for (x, y, rw, rh), weight in zip(rects, weights):
+        if float(weight) < 1.5:
+            continue
+        _blur_region(
+            img,
+            int(x * inv), int(y * inv),
+            int((x + rw) * inv), int((y + rh) * inv),
+        )
+
+
+def anonymize_faces(image_bytes: bytes) -> bytes:
+    """Закрывает чужих людей на кадре локации. Комната, свет и реквизит остаются.
+
+    Если детектора нет или на фото никого нет, байты возвращаются как есть.
+    """
+    img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return image_bytes
+    changed = False
+    try:
+        detected = _detect_faces(img)
+        if detected is None:
+            logger.warning("location face anonymizer unavailable")
+        else:
+            _count, found = detected
+            if found is not None and len(found):
+                before = img.copy()
+                _cover_bodies_under_faces(img, found)
+                changed = changed or not np.array_equal(before, img)
+    except Exception:
+        logger.exception("location face anonymizer failed")
+        return image_bytes
+    try:
+        before = img.copy()
+        _cover_standing_people(img)
+        changed = changed or not np.array_equal(before, img)
+    except Exception:
+        logger.exception("location person anonymizer failed")
+    if not changed:
+        return image_bytes
     ok, encoded = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
     if not ok:
         return image_bytes

@@ -52,19 +52,44 @@ def test_refs_truncated_by_priority_scene_dropped_on_base():
 
 def test_scene_ref_included_on_premium_and_detail_appended():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s", detail="in winter coats"), max_refs=14)
-    assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
-    assert "Image 5 is a location reference. Match its framing, place and props." in prompt
-    assert "Do not replace the actor with a different man." in prompt
+    # Лица актёров раньше локации: иначе лишние кадры площадки вытесняют второго актёра.
+    assert refs == ["p0", "p1", "a0_0", "a1_0", "a0_1", "a1_1", "s"]
+    assert "Image 7 is a location reference. Match its framing, place and props." in prompt
+    assert "Do not replace an actor with a different man." in prompt
+    assert "camera operator or crew" in prompt
+    assert "Each actor appears exactly once: Actor0, Actor1." in prompt
     assert "Requested change, apply it fully even if it replaces the outfit or the pose: in winter coats." in prompt
     assert prompt.index("in winter coats.") < prompt.index("Image 1 is person A.")
 
 
 def test_several_location_refs_do_not_replace_faces():
     prompt, refs = build(_inp(scene_refs=["s1", "s2"]), max_refs=14)
-    assert refs[:4] == ["p0", "a0_0", "s1", "s2"]
+    assert refs[:5] == ["p0", "a0_0", "a0_1", "s1", "s2"]
     assert "another reference for this scene" in prompt
-    assert "Do not copy the faces" in prompt
-    assert "Do not copy faces." in prompt
+    assert "Do not copy the faces, bodies or clothes" in prompt
+    assert "Do not copy faces, bodies or clothes from it." in prompt
+
+
+def test_actor_photos_are_kept_when_the_location_has_many_frames():
+    """Сиффреди, Синс без фото и Видаль на площадке из восьми кадров.
+
+    Раньше локация занимала слоты, у Видаля оставалось одно фото, и модель
+    рисовала второго Сиффреди плюс человека со съёмочной площадки.
+    """
+    inp = _inp(scene_refs=[f"s{i}" for i in range(8)])
+    inp.actors = [
+        ActorInput("Siffredi", "Rocco Siffredi", ["sf0", "sf1", "sf2", "sf3"]),
+        ActorInput("Sins", "Johnny Sins, adult film actor", []),
+        ActorInput("Vidal", "Nacho Vidal", ["vd0", "vd1", "vd2"]),
+    ]
+    prompt, refs = build(inp, max_refs=14)
+    assert refs[:8] == ["p0", "sf0", "vd0", "sf1", "vd1", "sf2", "vd2", "sf3"]
+    assert refs[8:] == ["s0", "s1", "s2", "s3", "s4", "s5"]
+    assert "Each actor appears exactly once: Siffredi, Sins, Vidal." in prompt
+    assert "Sins (Johnny Sins, adult film actor) has no reference photo." in prompt
+    assert "Do not copy their face." in prompt
+    assert "do not give two people the same face" in prompt
+    assert "shows actor Sins" not in prompt
 
 
 def test_content_filter_no_false_positives_on_common_words():

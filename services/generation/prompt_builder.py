@@ -53,21 +53,33 @@ class GenerationInput:
 
 
 def _ordered_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
-    """Returns (kind, data, actor_index) in priority order."""
+    """Люди, затем лица актёров, локация в конце.
+
+    Иначе восемь кадров площадки вытесняют фото Видаля, и модель рисует
+    второго Сиффреди и человека из референса локации.
+    """
     out: list[tuple[str, str, int]] = []
     for i, p in enumerate(inp.people):
         out.append(("person", p, i))
+    extras: list[list[tuple[str, str, int]]] = []
     for i, a in enumerate(inp.actors):
-        if a.refs:
-            out.append(("actor_primary", a.refs[0], i))
+        if not a.refs:
+            continue
+        out.append(("actor_primary", a.refs[0], i))
+        extras.append([("actor_extra", r, i) for r in a.refs[1:]])
+    # По одному дополнительному ракурсу каждому, чтобы первый актёр не забрал все слоты.
+    while any(extras):
+        nxt: list[list[tuple[str, str, int]]] = []
+        for bucket in extras:
+            out.append(bucket[0])
+            if bucket[1:]:
+                nxt.append(bucket[1:])
+        extras = nxt
     locs = list(inp.scene_refs or [])
     if not locs and inp.scene_ref:
         locs = [inp.scene_ref]
     for i, ref in enumerate(locs):
         out.append(("scene", ref, i))
-    for i, a in enumerate(inp.actors):
-        for r in a.refs[1:]:
-            out.append(("actor_extra", r, i))
     return out
 
 
@@ -103,14 +115,38 @@ def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start:
             if idx == 0:
                 lines.append(
                     f"Image {n} is a location reference. Match its framing, place and props. "
-                    "Faces in it are blanked out. Do not copy the faces or any extra person who appears only in it. "
-                    "Do not replace the actor with a different man."
+                    "Faces and bodies in it are blanked out. Do not copy the faces, bodies or clothes "
+                    "of any person who appears only in it, including a camera operator or crew. "
+                    "Do not replace an actor with a different man."
                 )
             else:
                 lines.append(
                     f"Image {n} is another reference for this scene. Follow its framing and place. "
-                    "Do not copy faces. Do not replace the actor with a different man."
+                    "Do not copy faces, bodies or clothes from it. Do not replace an actor with a different man."
                 )
+    return lines
+
+
+def _cast_lines(inp: GenerationInput) -> list[str]:
+    """Несколько актёров — каждый со своим лицом. Имя без фото не получает чужое."""
+    if len(inp.actors) < 2:
+        return []
+    names = ", ".join(a.name for a in inp.actors)
+    lines = [
+        f"Each actor appears exactly once: {names}. "
+        "They are different people. Do not duplicate anyone and do not give two people the same face. "
+        "Do not reuse one actor's face or body for another actor. "
+        "The scene text describes the place and the clothes. It does not mean the actors share one face.",
+    ]
+    missing = [a for a in inp.actors if not a.refs]
+    if missing:
+        who = " and ".join(
+            f"{a.name} ({a.description})" if a.description else a.name for a in missing
+        )
+        lines.append(
+            f"{who} has no reference photo. "
+            "Keep that person different from every actor who has a photo. Do not copy their face."
+        )
     return lines
 
 
@@ -124,6 +160,7 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     if inp.cast_note:
         lines.append(inp.cast_note.strip().rstrip(".") + ".")
     lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
+    lines.extend(_cast_lines(inp))
     if inp.detail:
         lines.append(
             "Requested change, apply it fully even if it replaces the outfit or the pose: "
