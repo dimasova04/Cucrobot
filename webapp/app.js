@@ -92,7 +92,7 @@
     var me = state.me;
     var sub = me.sub.active
       ? "активна до " + esc(me.sub.until)
-      : "нет — премиум-качество и ежедневные бонусы закрыты";
+      : "нет — премиум-качество закрыто";
     var bonusLine = me.bonus.ready
       ? "Бонус готов: +" + me.bonus.amount + " 💎"
       : "Следующий бонус " + waitText(me.bonus.wait_seconds);
@@ -110,7 +110,7 @@
       "</div>" +
 
       '<div class="card">' +
-        '<div class="card-title">🎁 Ежедневный бонус</div>' +
+        '<div class="card-title">🎁 Бонус</div>' +
         '<div id="bonus-line" style="margin-bottom:12px">' + esc(bonusLine) + "</div>" +
         '<button class="btn btn-primary" id="bonus-btn"' + (me.bonus.ready ? "" : " disabled") + ">" +
           (me.bonus.ready ? "Забрать +" + me.bonus.amount + " 💎" : "Бонус ещё зреет 🌱") +

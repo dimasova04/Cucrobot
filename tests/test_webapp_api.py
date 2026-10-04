@@ -115,7 +115,7 @@ async def test_me_returns_profile_fields(session_factory):
     assert status == 200
     assert body["id"] == 5 and body["crystals"] == 7 and body["username"] == "vasya"
     assert body["sub"] == {"active": False, "plan": None, "until": None}
-    assert body["bonus"]["ready"] is True and body["bonus"]["amount"] == 3
+    assert body["bonus"]["ready"] is True and body["bonus"]["amount"] == 2
     assert body["quality"] == {"tier": "base", "can_premium": False}
     assert body["costs"] == {"base": 1, "premium": 3}
     assert body["is_admin"] is False and body["bot_username"] == "CucroBot"
@@ -130,21 +130,21 @@ async def test_me_shows_active_subscription(session_factory):
     assert body["sub"]["plan"] == "sub_month"
     assert body["sub"]["until"] == until.strftime("%d.%m.%Y")
     assert body["quality"]["can_premium"] is True
-    assert body["bonus"]["amount"] == 3
+    assert body["bonus"]["amount"] == 10
 
 
 async def test_bonus_claim_happy_path_then_cooldown(session_factory):
     await _accepted_user(session_factory)
     routes = _routes(session_factory)
     status, body = await _call(routes, "POST", "/api/bonus/claim")
-    assert status == 200 and body == {"ready": True, "claimed": 3, "balance": 3}
+    assert status == 200 and body == {"ready": True, "claimed": 2, "balance": 2}
     async with session_factory() as s:
-        assert (await repo.get_user(s, 5)).crystals == 3
+        assert (await repo.get_user(s, 5)).crystals == 2
 
     status, body = await _call(routes, "POST", "/api/bonus/claim")
     assert status == 200 and body["ready"] is False and body["wait_seconds"] > 0
     async with session_factory() as s:
-        assert (await repo.get_user(s, 5)).crystals == 3
+        assert (await repo.get_user(s, 5)).crystals == 2
 
 
 async def test_quality_premium_forbidden_without_subscription(session_factory):
@@ -185,7 +185,7 @@ async def test_shop_lists_six_products(session_factory):
     assert pack["tribute_url"] == "https://t.me/tribute/pack50"
     sub = body["subs"][1]
     assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 990 and sub["tribute_url"] == ""
-    assert body["daily_bonus"] == 3
+    assert body["daily_bonus"] == 10
 
 
 async def test_buy_stars_returns_invoice_link(session_factory):

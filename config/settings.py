@@ -59,9 +59,9 @@ class Settings(BaseSettings):
     price_rub_sub_3month: int = 2490
 
     start_crystals: int = 3
-    bonus_free_amount: int = 3
-    bonus_free_hours: int = 24
-    bonus_sub_amount: int = 3
+    bonus_free_amount: int = 2
+    bonus_free_hours: int = 48
+    bonus_sub_amount: int = 10
     bonus_sub_hours: int = 24
     cost_base: int = 1
     cost_premium: int = 3

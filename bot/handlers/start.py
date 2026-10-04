@@ -71,6 +71,8 @@ async def accept_rules(cb: CallbackQuery, session, user, settings):
     granted = settings.start_crystals if has_start is None else 0
     if granted:
         await wallet.apply(session, locked.id, granted, "start")
+        # Стартовые 3 не складываются с бонусом: следующие 2 у бесплатных — через 48 часов.
+        locked.last_bonus_at = utcnow()
     await cb.answer()
     await cb.message.edit_reply_markup(reply_markup=None)
     if granted:
