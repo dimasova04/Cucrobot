@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     # Публичный адрес мини-приложения; пусто — кнопки «Кабинет» просто не будет.
     webapp_url: str = ""
     # Закрытый канал с кадрами. Пустые значения — кнопок канала в боте нет.
-    channel_id: str = ""
-    channel_url: str = ""
+    # Id из клиента без -100: для Bot API канал — это -100 и этот номер.
+    channel_id: str = "-1004308497920"
+    channel_url: str = "https://t.me/+Lqa_RWfiqC9kOWQy"
     tribute_pack_50_url: str = "https://web.tribute.tg/p/FpD"
     tribute_pack_50_id: str = "FpD"
     tribute_pack_100_url: str = "https://web.tribute.tg/p/G6d"

@@ -20,7 +20,10 @@ def test_channel_about_fits_telegram_limit():
 
 
 def test_channel_chat_parses_id_and_stays_empty():
-    assert _settings().channel_chat() is None
+    live = _settings()
+    assert live.channel_chat() == -1004308497920
+    assert live.channel_url == "https://t.me/+Lqa_RWfiqC9kOWQy"
+    assert _settings(channel_id="").channel_chat() is None
     assert _settings(channel_id="-100123").channel_chat() == -100123
     assert _settings(channel_id="@cucro").channel_chat() == "@cucro"
 
