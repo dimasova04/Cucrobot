@@ -1,8 +1,9 @@
 import asyncio
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from loguru import logger
 
 from bot import keyboards, texts
@@ -27,6 +28,9 @@ from bot.flow import (
     validate_detail,
 )
 from bot.intro import send_intro
+from bot.refs_view import bot_username
+from services import aliases
+from services.referrals import CHANNEL_CODE, link_for
 from database.models import Generation
 from services import catalog
 from services.billing import bonus, wallet
@@ -383,13 +387,17 @@ async def detail_text(message: Message, state: FSMContext, session, user, settin
     await _run_generation(message, state, session, user, settings, generator)
 
 
-async def send_result_photo(target: Message, image: bytes, caption: str, data: dict, attempts: int = 2):
+async def send_result_photo(
+    target: Message, image: bytes, caption: str, data: dict, attempts: int = 2, *, publish: bool = False,
+):
     """Отправка результата с одним повтором. Кристаллики не возвращаются (спек §7):
     генерация удалась, результат лежит в базе."""
     for attempt in range(1, attempts + 1):
         try:
             return await target.answer_photo(
-                BufferedInputFile(image, "photo.jpg"), caption=caption, reply_markup=keyboards.result_kb(data)
+                BufferedInputFile(image, "photo.jpg"),
+                caption=caption,
+                reply_markup=keyboards.result_kb(data, publish=publish),
             )
         except Exception as e:
             logger.warning("send result photo failed (attempt {}/{}): {}", attempt, attempts, e)
@@ -473,7 +481,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
         notice, markup = _with_empty_offer(notice, user, settings)
         await target.answer(notice, reply_markup=markup)
-        sent = await send_result_photo(target, outcome.image_bytes, caption, st)
+        sent = await send_result_photo(
+            target, outcome.image_bytes, caption, st, publish=settings.channel_chat() is not None,
+        )
         if sent is None:
             await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
             return
@@ -617,6 +627,44 @@ async def add_other(cb: CallbackQuery, state: FSMContext, session):
     await _show_actors(cb.message, state, session, exclude=st.get("actors"), mode="insert")
 
 
+@generate_router.callback_query(F.data == "gen:publish")
+async def gen_publish(cb: CallbackQuery, state: FSMContext, session, user, settings):
+    st = await _check_result_session(cb, state)
+    if st is None:
+        return
+    chat = settings.channel_chat()
+    if chat is None:
+        await cb.answer(texts.CHANNEL_NOT_READY, show_alert=True)
+        return
+    gen_id = st.get("last_generation_id")
+    gen = await session.get(Generation, gen_id) if gen_id else None
+    if gen is None or gen.user_id != user.id or gen.status != "done" or not gen.result_file_id:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    if gen.channel_message_id:
+        await cb.answer(texts.CHANNEL_ALREADY, show_alert=True)
+        return
+    name = await aliases.assign_public_name(session, user)
+    username = await bot_username(cb.bot)
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=texts.BTN_CHANNEL_CREATE, url=link_for(username, CHANNEL_CODE)),
+    ]])
+    try:
+        sent = await cb.bot.send_photo(
+            chat,
+            gen.result_file_id,
+            caption=texts.CHANNEL_POST.format(name=name),
+            reply_markup=markup,
+        )
+    except TelegramAPIError as e:
+        logger.warning("channel publish failed for {}: {}", user.id, e)
+        await cb.answer(texts.CHANNEL_FAILED, show_alert=True)
+        return
+    gen.channel_message_id = sent.message_id
+    await cb.answer()
+    await cb.message.answer(texts.CHANNEL_PUBLISHED.format(name=name))
+
+
 @generate_router.callback_query(F.data.startswith("gen:hd:"))
 async def gen_hd(cb: CallbackQuery, session, user):
     """Оригинал с Runware файлом-документом: без сжатия Telegram."""
@@ -662,7 +710,7 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings
     await cb.answer()
     if target == "menu":
         await state.clear()
-        await send_intro(cb.bot, user.id, settings.webapp_url)
+        await send_intro(cb.bot, user.id, settings.webapp_url, settings.channel_url)
         return
     if target == "photo":
         await start_create_flow(cb.message, state)
@@ -694,7 +742,10 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings
         await state.set_data(st)
         if is_complete(st):
             await state.set_state(GenStates.result)
-            await cb.message.answer(texts.BACK_TO_RESULT, reply_markup=keyboards.result_kb(st))
+            await cb.message.answer(
+                texts.BACK_TO_RESULT,
+                reply_markup=keyboards.result_kb(st, publish=settings.channel_chat() is not None),
+            )
             return
     st = await state.get_data()
     mode = st.get("_pick_mode")

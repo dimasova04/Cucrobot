@@ -15,7 +15,7 @@ menu_router = Router(name="menu")
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext, user, settings):
     await state.clear()
-    await send_intro(message.bot, user.id, settings.webapp_url)
+    await send_intro(message.bot, user.id, settings.webapp_url, settings.channel_url)
     try:
         await send_bonus_card(message.bot, user.id, user, settings)
     except Exception as e:
@@ -48,7 +48,7 @@ def _sample_list(names: list[str], limit: int, more_tpl: str, empty: str) -> str
 async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
     await state.clear()
     await cb.answer()
-    await send_intro(cb.bot, user.id, settings.webapp_url)
+    await send_intro(cb.bot, user.id, settings.webapp_url, settings.channel_url)
 
 
 async def build_help(session) -> str:

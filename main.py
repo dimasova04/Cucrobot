@@ -24,6 +24,7 @@ from bot.webhook_server import start_web_server
 from config.settings import get_settings
 from database.base import get_session_factory
 from database.migrate import upgrade_to_head
+from services import referrals
 from services.catalog import seed_actors, seed_scenes
 from services.generation.generator import Generator, TelegramFileFetcher, fail_stale_generations
 from services.generation.runware_client import RunwareClient
@@ -127,6 +128,7 @@ async def main():
     async with sf() as s:
         added_scenes = await seed_scenes(s)
         added_actors = await seed_actors(s)
+        await referrals.ensure_code(s, referrals.CHANNEL_CODE, "Канал")
         await s.commit()
     logger.info("seeded scenes: {} actors: {}", added_scenes, added_actors)
     logger.info("stale generations failed: {}", await fail_stale_generations(sf))

@@ -21,6 +21,8 @@ class User(Base):
     # Реферальная привязка: ставится один раз при первом /start с ref-пейлоадом.
     ref_code: Mapped[str | None] = mapped_column(String(32), index=True)
     ref_attributed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Имя в закрытом канале. Выдаётся один раз при первой публикации кадра.
+    public_name: Mapped[str | None] = mapped_column(String(32), unique=True)
 
 
 class ReferralCode(Base):
@@ -63,6 +65,8 @@ class Generation(Base):
     result_url: Mapped[str | None] = mapped_column(String(1024))
     # Сид кадра: правка детали переиспользует его, чтобы картинка не уехала.
     seed: Mapped[int | None] = mapped_column(Integer)
+    # Сообщение в канале, если кадр уже опубликован. Повторно не постим.
+    channel_message_id: Mapped[int | None] = mapped_column(Integer)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     error: Mapped[str | None] = mapped_column(Text)

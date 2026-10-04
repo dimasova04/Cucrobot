@@ -14,6 +14,8 @@ from database.models import Generation, Payment, ReferralCode, User
 
 CODE_RE = re.compile(r"^[a-z0-9_]{3,32}$")
 DEEP_LINK_PREFIX = "ref_"
+# Кнопка «Создать своё» под постом канала. В /refs этот код виден отдельно.
+CHANNEL_CODE = "channel"
 
 
 def normalize_code(raw: str) -> str | None:
@@ -22,14 +24,28 @@ def normalize_code(raw: str) -> str | None:
 
 
 def link_for(bot_username: str, code: str) -> str:
-    return f"https://t.me/{bot_username}?start={DEEP_LINK_PREFIX}{code}"
+    payload = code if code == CHANNEL_CODE else f"{DEEP_LINK_PREFIX}{code}"
+    return f"https://t.me/{bot_username}?start={payload}"
 
 
 def code_from_payload(payload: str | None) -> str | None:
-    """Код из пейлоада `/start ref_xxx`; None, если пейлоад не реферальный."""
+    """Код из пейлоада `/start ref_xxx` или `/start channel`."""
+    if payload == CHANNEL_CODE:
+        return CHANNEL_CODE
     if not payload or not payload.startswith(DEEP_LINK_PREFIX):
         return None
     return normalize_code(payload[len(DEEP_LINK_PREFIX):])
+
+
+async def ensure_code(session: AsyncSession, code: str, title: str) -> ReferralCode:
+    """Код для учёта. Повторный запуск при старте бота его не затирает."""
+    normalized = normalize_code(code)
+    if normalized is None:
+        raise ValueError(f"invalid referral code {code!r}")
+    existing = await get_code(session, normalized)
+    if existing is not None:
+        return existing
+    return await create_code(session, normalized, title, None, None)
 
 
 async def get_code(session: AsyncSession, code: str) -> ReferralCode | None:

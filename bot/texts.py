@@ -47,7 +47,10 @@ BTN_ADD_OTHER = "Другой актёр"
 BTN_WATCH = "Смотрю"
 BTN_JOIN = "Участвую"
 BTN_HD = "📥 Скачать в HD"
+BTN_PUBLISH = "📣 Опубликовать в канале"
 BTN_NEW_PHOTO = "🆕 Новая фотосессия"
+BTN_OPEN_CHANNEL = "📺 Канал с кадрами"
+BTN_CHANNEL_CREATE = "Создать своё"
 
 HELP = (
     "<b>Как это работает</b>\n"
@@ -121,6 +124,17 @@ BACK_TO_RESULT = "Что дальше? 👇"
 HD_EXPIRED = "Оригинал уже недоступен, нажми «Переснять фото»."
 
 PROFILE = "👤 Профиль\n\n💎 Кристаллики: {crystals}\n⭐ Подписка: {sub}\n🎁 Бонус: {bonus}\n🖼 Качество: {quality}\n\n{quality_costs}"
+PROFILE_ALIAS = "\n🎭 В канале: {name}"
+# Описание закрытого канала. Лимит Telegram — 255 символов.
+CHANNEL_ABOUT = (
+    "Закрытый канал Кукробота. Свои кадры с женой и звездой. "
+    "Оценивай реакцией и жми «Создать своё», чтобы снять свой. 18+."
+)
+CHANNEL_POST = "{name}\n\nОцени реакцией 🔥"
+CHANNEL_PUBLISHED = "Кадр в канале. Там ты {name}."
+CHANNEL_ALREADY = "Этот кадр уже в канале."
+CHANNEL_FAILED = "В канал не ушло. Попробуй ещё раз."
+CHANNEL_NOT_READY = "Канал ещё не подключён."
 BTN_QUALITY_TOGGLE = "🖼 Качество: {quality} → {other}"
 BTN_QUALITY_LOCKED = "🖼 Премиум-качество — по подписке"
 QUALITY_COSTS = "Обычное — {base} 💎, премиум — {premium} 💎 за фото."

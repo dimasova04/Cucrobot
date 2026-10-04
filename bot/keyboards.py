@@ -20,7 +20,7 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
-def intro_kb(webapp_url: str = "") -> InlineKeyboardMarkup:
+def intro_kb(webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
     kb = grid(
         [(texts.BTN_INTRO_CREATE, "menu:create")],
         1,
@@ -29,6 +29,10 @@ def intro_kb(webapp_url: str = "") -> InlineKeyboardMarkup:
             [(texts.BTN_INTRO_HELP, "menu:help")],
         ],
     )
+    if channel_url:
+        kb.inline_keyboard.append(
+            [InlineKeyboardButton(text=texts.BTN_OPEN_CHANNEL, url=channel_url)]
+        )
     if webapp_url:
         kb.inline_keyboard.append(
             [InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))]
@@ -60,10 +64,14 @@ def yes_no_kb(yes_cb: str, no_cb: str, yes_text: str, no_text: str) -> InlineKey
     return grid([(yes_text, yes_cb), (no_text, no_cb)], cols=2)
 
 
-def result_kb(data: dict) -> InlineKeyboardMarkup:
+def result_kb(data: dict, *, publish: bool = False) -> InlineKeyboardMarkup:
     buttons = result_buttons(data)
-    # «🆕 Новое фото» — всегда отдельной строкой во всю ширину.
-    return grid(buttons[:-1], cols=2, extra_rows=[[buttons[-1]]])
+    # «Опубликовать» и «Новая фотосессия» — каждая своей строкой.
+    extra = []
+    if publish and data.get("last_generation_id"):
+        extra.append([(texts.BTN_PUBLISH, "gen:publish")])
+    extra.append([buttons[-1]])
+    return grid(buttons[:-1], cols=2, extra_rows=extra)
 
 
 def cancel_row() -> list[tuple[str, str]]:

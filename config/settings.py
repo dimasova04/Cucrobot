@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     webhook_port: int = 8080
     # Публичный адрес мини-приложения; пусто — кнопки «Кабинет» просто не будет.
     webapp_url: str = ""
+    # Закрытый канал с кадрами. Пустые значения — кнопок канала в боте нет.
+    channel_id: str = ""
+    channel_url: str = ""
     tribute_pack_50_url: str = "https://web.tribute.tg/p/FpD"
     tribute_pack_50_id: str = "FpD"
     tribute_pack_100_url: str = "https://web.tribute.tg/p/G6d"
@@ -82,6 +85,15 @@ class Settings(BaseSettings):
 
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids
+
+    def channel_chat(self) -> int | str | None:
+        """Куда постить кадры. Числовой id канала или @username. Пусто — канал не подключён."""
+        raw = (self.channel_id or "").strip()
+        if not raw:
+            return None
+        if raw.lstrip("-").isdigit():
+            return int(raw)
+        return raw
 
     def tribute_url(self, product_code: str) -> str:
         return getattr(self, f"tribute_{product_code}_url", "")

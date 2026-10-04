@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from loguru import logger
 
 from bot import keyboards, texts
@@ -33,8 +33,8 @@ def _quality_row(user) -> list[tuple[str, str]]:
     return [(texts.BTN_QUALITY_LOCKED, "profile:quality_locked")]
 
 
-def profile_kb(user) -> InlineKeyboardMarkup:
-    return keyboards.grid(
+def profile_kb(user, channel_url: str = "") -> InlineKeyboardMarkup:
+    kb = keyboards.grid(
         [],
         extra_rows=[
             _quality_row(user),
@@ -43,19 +43,27 @@ def profile_kb(user) -> InlineKeyboardMarkup:
             [(texts.BTN_BACK, "menu:home")],
         ],
     )
+    if channel_url:
+        kb.inline_keyboard.insert(
+            -1, [InlineKeyboardButton(text=texts.BTN_OPEN_CHANNEL, url=channel_url)]
+        )
+    return kb
 
 
 def _profile_text(user, settings) -> str:
     st = bonus.bonus_status(user, settings)
     bonus_txt = texts.BONUS_READY if st.ready else _fmt_wait(st.wait)
     quality_costs = texts.QUALITY_COSTS.format(base=settings.cost_base, premium=settings.cost_premium)
-    return texts.PROFILE.format(
+    text = texts.PROFILE.format(
         crystals=user.crystals,
         sub=_sub_text(user),
         bonus=bonus_txt,
         quality=texts.MODEL_NAMES[user.preferred_tier],
         quality_costs=quality_costs,
     )
+    if user.public_name:
+        text += texts.PROFILE_ALIAS.format(name=user.public_name)
+    return text
 
 
 def price_label(code: str, settings) -> str:
@@ -86,7 +94,7 @@ async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
 
 @profile_router.message(F.text == texts.BTN_PROFILE)
 async def show_profile(message: Message, user, settings):
-    await message.answer(_profile_text(user, settings), reply_markup=profile_kb(user))
+    await message.answer(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
@@ -103,7 +111,7 @@ async def cb_bonus(cb: CallbackQuery, user, settings):
 @profile_router.callback_query(F.data == "menu:profile")
 async def cb_profile(cb: CallbackQuery, user, settings):
     await cb.answer()
-    await cb.message.answer(_profile_text(user, settings), reply_markup=profile_kb(user))
+    await cb.message.answer(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
     await _try_send_bonus_card(cb.bot, user.id, user, settings)
 
 
@@ -115,7 +123,7 @@ async def toggle_quality(cb: CallbackQuery, session, user, settings):
     user.preferred_tier = "premium" if user.preferred_tier == "base" else "base"
     await session.commit()
     await cb.answer()
-    await cb.message.edit_text(_profile_text(user, settings), reply_markup=profile_kb(user))
+    await cb.message.edit_text(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
 
 
 @profile_router.callback_query(F.data == "profile:quality_locked")
