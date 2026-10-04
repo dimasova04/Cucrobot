@@ -19,6 +19,22 @@ def test_channel_about_fits_telegram_limit():
     assert "18+" in texts.CHANNEL_ABOUT
 
 
+def test_pin_explains_the_three_scores_and_paid_reactions():
+    from bot.channel_reactions import reactions_body
+
+    pin = texts.CHANNEL_PIN
+    assert "👍 — хорошо" in pin
+    assert "👎 — не очень" in pin
+    assert "🔥 — высшая оценка крутости" in pin
+    assert "Платные реакции — по желанию" in pin
+    assert "https://t.me/cucro_bot?start=channel" in pin
+    assert len(pin) <= 1024
+    body = reactions_body(-1004308497920)
+    emojis = [item.get("emoji") for item in body["available_reactions"]]
+    assert emojis == ["👍", "👎", "🔥", None]
+    assert body["available_reactions"][-1] == {"type": "paid"}
+
+
 def test_channel_chat_parses_id_and_stays_empty():
     live = _settings()
     assert live.channel_chat() == -1004308497920

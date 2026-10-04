@@ -9,6 +9,7 @@ from aiogram.types import BotCommand, BotCommandScopeChat, ErrorEvent, MenuButto
 from loguru import logger
 
 from bot import texts
+from bot.channel_reactions import allow_channel_reactions
 from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import profile_router
 from bot.handlers.generate import generate_router
@@ -134,6 +135,9 @@ async def main():
     logger.info("stale generations failed: {}", await fail_stale_generations(sf))
 
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=None))
+    chat = settings.channel_chat()
+    if chat is not None:
+        await allow_channel_reactions(settings.bot_token, chat)
     generator = Generator(sf, RunwareClient(settings.runware_api_key, settings.gen_timeout_sec), TelegramFileFetcher(bot), settings)
     dp = build_dispatcher(settings, sf, generator)
     user_commands = [
