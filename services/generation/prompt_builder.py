@@ -100,7 +100,7 @@ def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start:
             if idx == 0:
                 lines.append(
                     f"Image {n} is a location reference. Match its framing, place and props. "
-                    "Do not copy the faces or any extra person who appears only in it. "
+                    "Faces in it are blanked out. Do not copy the faces or any extra person who appears only in it. "
                     "Do not replace the actor with a different man."
                 )
             else:

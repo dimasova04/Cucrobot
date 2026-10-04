@@ -73,6 +73,23 @@ async def test_fetcher_reads_bundled_body_ref_and_rejects_escape():
         await fetcher.fetch("asset:actors/vidal/../../../.env")
 
 
+def test_location_faces_are_blanked_and_the_room_stays():
+    import cv2
+    import numpy as np
+    from pathlib import Path
+
+    raw = Path("assets/scenes/morning/05.jpg").read_bytes()
+    blanked = faces.anonymize_faces(raw)
+    assert blanked[:2] == b"\xff\xd8" and blanked != raw
+    original = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+    result = cv2.imdecode(np.frombuffer(blanked, dtype=np.uint8), cv2.IMREAD_COLOR)
+    delta = np.abs(original.astype(np.int16) - result.astype(np.int16))
+    # Лица пары в верхней половине. Угол подушки справа внизу не трогаем.
+    assert delta[: original.shape[0] // 2].mean() > 4
+    assert delta[-80:, -80:].mean() < 1
+    assert faces.anonymize_faces(b"not an image") == b"not an image"
+
+
 async def test_face_detector_returns_false_on_blank():
     import cv2, numpy as np
     blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()

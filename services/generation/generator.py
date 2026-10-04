@@ -14,6 +14,7 @@ from database.base import utcnow
 from database.models import Generation
 from services import catalog
 from services.billing import wallet
+from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import ActorInput, GenerationInput, build, build_edit, build_insert
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
@@ -167,7 +168,12 @@ class Generator:
             people = [_data_uri(await self._fetcher.fetch(f)) for f in req.people_file_ids]
             for ai in actor_inputs:
                 ai.refs = [_data_uri(await self._fetcher.fetch(f)) for f in ai.refs]
-            scene_refs = [_data_uri(await self._fetcher.fetch(fid)) for fid in scene_ref_ids]
+            # Лица с кадра локации не отдаём модели: иначе она оставляет того мужчину
+            # вместо выбранного актёра. Ракурс и место на фото остаются.
+            scene_refs = [
+                _data_uri(faces.anonymize_faces(await self._fetcher.fetch(fid)))
+                for fid in scene_ref_ids
+            ]
             width, height = self._settings.frame_size(req.tier, orientation)
             inp = GenerationInput(
                 people, actor_inputs, scene_prompt, scene_refs[0] if scene_refs else None, req.detail, width, height,
