@@ -7,6 +7,7 @@ from loguru import logger
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
 from services import aliases
+from services.channel_rank import level_title, published_count
 from services.billing import bonus, subscriptions
 from services.billing.products import PACKS, SUBS
 
@@ -54,10 +55,11 @@ def profile_kb(user, channel_url: str = "") -> InlineKeyboardMarkup:
 async def _with_alias(session, user, settings) -> tuple[str, InlineKeyboardMarkup]:
     """Имя для канала выдаётся при первом открытии профиля, не только после публикации."""
     await aliases.assign_public_name(session, user)
-    return _profile_text(user, settings), profile_kb(user, settings.channel_url)
+    published = await published_count(session, user.id)
+    return _profile_text(user, settings, published), profile_kb(user, settings.channel_url)
 
 
-def _profile_text(user, settings) -> str:
+def _profile_text(user, settings, published: int = 0) -> str:
     st = bonus.bonus_status(user, settings)
     bonus_txt = texts.BONUS_READY if st.ready else _fmt_wait(st.wait)
     quality_costs = texts.QUALITY_COSTS.format(base=settings.cost_base, premium=settings.cost_premium)
@@ -69,7 +71,7 @@ def _profile_text(user, settings) -> str:
         quality_costs=quality_costs,
     )
     if user.public_name:
-        text += texts.PROFILE_ALIAS.format(name=user.public_name)
+        text += texts.PROFILE_ALIAS.format(name=user.public_name, level=level_title(published))
     return text
 
 

@@ -115,6 +115,7 @@ async def test_me_returns_profile_fields(session_factory):
     assert status == 200
     assert body["id"] == 5 and body["crystals"] == 7 and body["username"] == "vasya"
     assert body["public_name"]
+    assert body["level"] == "Новичок"
     assert body["sub"] == {"active": False, "plan": None, "until": None}
     assert body["bonus"]["ready"] is True and body["bonus"]["amount"] == 3
     assert body["quality"] == {"tier": "base", "can_premium": False}

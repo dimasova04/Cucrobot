@@ -52,6 +52,7 @@ async def test_opening_profile_assigns_the_channel_name(session_factory):
         name = user.public_name
     assert name
     assert f"В канале: {name}" in msg.texts[0]
+    assert "Уровень: Новичок" in msg.texts[0]
 
 
 def test_profile_kb_toggle_for_subscriber():

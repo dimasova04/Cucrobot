@@ -10,6 +10,7 @@ from loguru import logger
 
 from bot import texts
 from bot.channel_reactions import allow_channel_reactions
+from bot.channel_watch import start_channel_watch
 from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import profile_router
 from bot.handlers.generate import generate_router
@@ -138,6 +139,7 @@ async def main():
     chat = settings.channel_chat()
     if chat is not None:
         await allow_channel_reactions(settings.bot_token, chat)
+        start_channel_watch(bot, sf, chat)
     generator = Generator(sf, RunwareClient(settings.runware_api_key, settings.gen_timeout_sec), TelegramFileFetcher(bot), settings)
     dp = build_dispatcher(settings, sf, generator)
     user_commands = [

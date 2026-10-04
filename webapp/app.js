@@ -105,7 +105,8 @@
       "</div>" +
 
       (me.public_name
-        ? '<div class="card"><div class="card-title">🎭 В канале</div><div>' + esc(me.public_name) + "</div></div>"
+        ? '<div class="card"><div class="card-title">🎭 В канале</div><div>' + esc(me.public_name) +
+          (me.level ? " · " + esc(me.level) : "") + "</div></div>"
         : "") +
 
       '<div class="card">' +

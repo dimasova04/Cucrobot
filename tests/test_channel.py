@@ -1,12 +1,19 @@
 from types import SimpleNamespace
 
+import pytest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramServerError
+from sqlalchemy import select
+
 from bot import keyboards, texts
+from bot.channel_watch import GONE, THERE, UNKNOWN, classify_probe, scan_removed_posts
 from bot.handlers.balance import _profile_text, profile_kb
 from bot.handlers.generate import gen_publish
 from config.settings import Settings
 from database import repo
+from database.base import utcnow
 from database.models import Generation, User
 from services import aliases, referrals
+from services.channel_rank import level_title, published_count
 
 
 def _settings(**kw) -> Settings:
@@ -67,6 +74,8 @@ def test_channel_button_on_start_and_profile_only_when_linked():
 
     shown = _profile_text(user, _settings())
     assert "Lord M" in shown
+    assert "Уровень: Новичок" in shown
+    assert "Уровень: Завсегдатай" in _profile_text(user, _settings(), published=10)
     unnamed = _profile_text(User(id=2, preferred_tier="base"), _settings())
     assert "В канале" not in unnamed
 
@@ -169,14 +178,210 @@ async def test_publish_sends_the_frame_once(session_factory, monkeypatch):
 
     assert bot.photos[0][0] == -100777
     assert bot.photos[0][1] == "photo-1"
-    assert bot.photos[0][2] == texts.CHANNEL_POST.format(name=name)
+    assert bot.photos[0][2] == texts.CHANNEL_POST.format(name=name, level="Новичок")
     button = bot.photos[0][3].inline_keyboard[0][0]
     assert button.text == "Создать своё"
     assert button.url == "https://t.me/Cucrobot?start=channel"
-    assert cb.message.sent == [texts.CHANNEL_PUBLISHED.format(name=name)]
+    assert cb.message.sent == [texts.CHANNEL_PUBLISHED.format(name=name, level="Новичок")]
 
     async with session_factory() as s:
         user = await repo.get_user(s, 1)
         await gen_publish(cb, state, s, user, settings)
     assert len(bot.photos) == 1
     assert cb.alerts[-1] == (texts.CHANNEL_ALREADY, True)
+
+
+@pytest.mark.parametrize(
+    ("count", "title"),
+    [
+        (0, "Новичок"),
+        (1, "Новичок"),
+        (9, "Новичок"),
+        (10, "Завсегдатай"),
+        (49, "Завсегдатай"),
+        (50, "Мастер кадра"),
+        (99, "Мастер кадра"),
+        (100, "Легенда"),
+        (299, "Легенда"),
+        (300, "Гуру"),
+        (1000, "Гуру"),
+    ],
+)
+def test_level_rises_with_publications(count, title):
+    assert level_title(count) == title
+
+
+def test_channel_rules_fit_a_caption_and_link_the_bot():
+    rules = texts.CHANNEL_RULES
+    assert len(rules) <= 1024
+    assert "обнажённые фото" in rules
+    assert "жесть" in rules
+    assert "Сделать свой кадр" in rules
+    assert "https://t.me/cucro_bot?start=channel" in rules
+    assert "18+" in rules
+
+
+def test_probe_tells_a_live_post_from_a_deleted_one():
+    assert classify_probe("Bad Request: message is not modified") == THERE
+    assert classify_probe("Bad Request: message to edit not found") == GONE
+    assert classify_probe("Bad Request: MESSAGE_ID_INVALID") == GONE
+    assert classify_probe("Bad Request: chat not found") == UNKNOWN
+    assert classify_probe("Bad Request: not enough rights to manage chat") == UNKNOWN
+
+
+def _bad(message: str):
+    return TelegramBadRequest(None, message)
+
+
+class _ProbeBot:
+    def __init__(self, errors=None, send_error=None):
+        self.errors = errors or {}
+        self.send_error = send_error
+        self.edits = []
+        self.sent = []
+
+    async def edit_message_reply_markup(self, *, chat_id, message_id, reply_markup):
+        self.edits.append((chat_id, message_id, reply_markup))
+        error = self.errors.get(message_id)
+        if error:
+            raise error
+
+    async def send_message(self, chat_id, text):
+        if self.send_error:
+            raise self.send_error
+        self.sent.append((chat_id, text))
+
+
+async def _published(session, user_id, message_id, *, removed=False):
+    session.add(Generation(
+        user_id=user_id, model_air="m", model_tier="base", actors=[], location="Офис",
+        crystals_charged=1, status="done", result_file_id="photo",
+        channel_message_id=message_id,
+        channel_removed_at=utcnow() if removed else None,
+    ))
+
+
+async def test_tenth_post_is_a_regular(session_factory, monkeypatch):
+    from bot import refs_view
+
+    monkeypatch.setattr(refs_view, "_cached_username", "Cucrobot")
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 1, "u")
+        for i in range(9):
+            await _published(s, 1, 100 + i)
+        fresh = Generation(
+            user_id=1, model_air="m", model_tier="base", actors=[], location="Офис",
+            crystals_charged=1, status="done", result_file_id="photo-10",
+        )
+        s.add(fresh)
+        await s.commit()
+        fresh_id = fresh.id
+
+    bot = _Bot()
+    cb = _Cb(bot)
+    state = _State({"people": ["a"], "actors": [1], "scene_id": 3, "last_generation_id": fresh_id})
+    async with session_factory() as s:
+        user = await repo.get_user(s, 1)
+        await gen_publish(cb, state, s, user, _settings(channel_id="-100777"))
+        await s.commit()
+        name = user.public_name
+    assert bot.photos[0][2] == texts.CHANNEL_POST.format(name=name, level="Завсегдатай")
+
+
+async def test_removed_posts_still_count_toward_the_level(session_factory):
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 1, "u")
+        for i in range(10):
+            await _published(s, 1, 200 + i, removed=True)
+        await s.commit()
+        assert await published_count(s, 1) == 10
+        assert level_title(await published_count(s, 1)) == "Завсегдатай"
+
+
+async def test_deleted_channel_post_notifies_the_author_once(session_factory, monkeypatch):
+    from bot import refs_view
+
+    monkeypatch.setattr(refs_view, "_cached_username", "Cucrobot")
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 7, "u")
+        await _published(s, 7, 55)
+        await s.commit()
+
+    bot = _ProbeBot({55: _bad("Bad Request: message to edit not found")})
+    cursor = await scan_removed_posts(bot, session_factory, -100777, pause=0)
+    assert cursor > 0
+    assert bot.sent == [(7, texts.CHANNEL_REMOVED)]
+    button = bot.edits[0][2].inline_keyboard[0][0]
+    assert button.text == texts.BTN_CHANNEL_CREATE
+    assert button.url == "https://t.me/Cucrobot?start=channel"
+    async with session_factory() as s:
+        gen = (await s.execute(select(Generation).where(Generation.channel_message_id == 55))).scalar_one()
+        assert gen.channel_removed_at is not None
+        assert gen.channel_message_id == 55
+
+    again = _ProbeBot({55: _bad("Bad Request: message to edit not found")})
+    await scan_removed_posts(again, session_factory, -100777, pause=0)
+    assert again.edits == []
+    assert again.sent == []
+
+
+async def test_live_post_and_unknown_probe_do_not_notify(session_factory, monkeypatch):
+    from bot import refs_view
+
+    monkeypatch.setattr(refs_view, "_cached_username", "Cucrobot")
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 7, "u")
+        await _published(s, 7, 11)
+        await _published(s, 7, 12)
+        await s.commit()
+
+    live = _ProbeBot({11: _bad("Bad Request: message is not modified")})
+    await scan_removed_posts(live, session_factory, -100777, batch=1, pause=0)
+    assert live.sent == []
+
+    unknown = _ProbeBot({12: _bad("Bad Request: chat not found")})
+    await scan_removed_posts(unknown, session_factory, -100777, after_id=0, pause=0)
+    assert unknown.sent == []
+    async with session_factory() as s:
+        assert await published_count(s, 7) == 2
+        rows = (await s.execute(select(Generation).where(Generation.user_id == 7))).scalars().all()
+        assert all(row.channel_removed_at is None for row in rows)
+
+
+async def test_blocked_author_is_marked_removed_without_a_retry(session_factory, monkeypatch):
+    from bot import refs_view
+
+    monkeypatch.setattr(refs_view, "_cached_username", "Cucrobot")
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 7, "u")
+        await _published(s, 7, 80)
+        await s.commit()
+
+    bot = _ProbeBot(
+        {80: _bad("Bad Request: message to edit not found")},
+        send_error=TelegramForbiddenError(None, "Forbidden: bot was blocked by the user"),
+    )
+    await scan_removed_posts(bot, session_factory, -100777, pause=0)
+    assert bot.sent == []
+    async with session_factory() as s:
+        gen = (await s.execute(select(Generation).where(Generation.channel_message_id == 80))).scalar_one()
+        assert gen.channel_removed_at is not None
+
+
+async def test_failed_notice_is_retried(session_factory, monkeypatch):
+    from bot import refs_view
+
+    monkeypatch.setattr(refs_view, "_cached_username", "Cucrobot")
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 7, "u")
+        await _published(s, 7, 81)
+        await s.commit()
+
+    bot = _ProbeBot(
+        {81: _bad("Bad Request: message to edit not found")},
+        send_error=TelegramServerError(None, "Bad Gateway"),
+    )
+    await scan_removed_posts(bot, session_factory, -100777, pause=0)
+    async with session_factory() as s:
+        gen = (await s.execute(select(Generation).where(Generation.channel_message_id == 81))).scalar_one()
+        assert gen.channel_removed_at is None

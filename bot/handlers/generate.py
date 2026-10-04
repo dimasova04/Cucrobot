@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from loguru import logger
 
 from bot import keyboards, texts
@@ -30,6 +30,7 @@ from bot.flow import (
 from bot.intro import send_intro
 from bot.refs_view import bot_username
 from services import aliases
+from services.channel_rank import level_title, published_count
 from services.referrals import CHANNEL_CODE, link_for
 from database.models import Generation
 from services import catalog
@@ -645,15 +646,14 @@ async def gen_publish(cb: CallbackQuery, state: FSMContext, session, user, setti
         await cb.answer(texts.CHANNEL_ALREADY, show_alert=True)
         return
     name = await aliases.assign_public_name(session, user)
+    level = level_title(await published_count(session, user.id) + 1)
     username = await bot_username(cb.bot)
-    markup = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=texts.BTN_CHANNEL_CREATE, url=link_for(username, CHANNEL_CODE)),
-    ]])
+    markup = keyboards.channel_post_kb(link_for(username, CHANNEL_CODE))
     try:
         sent = await cb.bot.send_photo(
             chat,
             gen.result_file_id,
-            caption=texts.CHANNEL_POST.format(name=name),
+            caption=texts.CHANNEL_POST.format(name=name, level=level),
             reply_markup=markup,
         )
     except TelegramAPIError as e:
@@ -662,7 +662,7 @@ async def gen_publish(cb: CallbackQuery, state: FSMContext, session, user, setti
         return
     gen.channel_message_id = sent.message_id
     await cb.answer()
-    await cb.message.answer(texts.CHANNEL_PUBLISHED.format(name=name))
+    await cb.message.answer(texts.CHANNEL_PUBLISHED.format(name=name, level=level))
 
 
 @generate_router.callback_query(F.data.startswith("gen:hd:"))

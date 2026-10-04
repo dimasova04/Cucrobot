@@ -14,6 +14,7 @@ from loguru import logger
 from bot.refs_view import bot_username
 from database import repo
 from services import aliases, referrals, stats
+from services.channel_rank import level_title, published_count
 from services.billing import bonus, subscriptions
 from services.billing.products import PACKS, SUBS
 from services.payments import stars as stars_service
@@ -56,7 +57,7 @@ def _product_row(product, settings) -> dict:
     }
 
 
-def _me_payload(user, settings, username: str) -> dict:
+def _me_payload(user, settings, username: str, published: int) -> dict:
     now = _now()
     st = bonus.bonus_status(user, settings, now)
     active = subscriptions.is_active(user, now)
@@ -64,6 +65,7 @@ def _me_payload(user, settings, username: str) -> dict:
         "id": user.id,
         "username": user.username or "",
         "public_name": user.public_name or "",
+        "level": level_title(published) if user.public_name else "",
         "crystals": user.crystals,
         "sub": {
             "active": active,
@@ -121,7 +123,8 @@ def make_routes(session_factory, settings, bot) -> list[tuple[str, str, object]]
 
     async def me(request, session, user):
         await aliases.assign_public_name(session, user)
-        return _me_payload(user, settings, await _username())
+        published = await published_count(session, user.id)
+        return _me_payload(user, settings, await _username(), published)
 
     async def claim_bonus(request, session, user):
         res = await bonus.claim_bonus(session, user.id, settings)

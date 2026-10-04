@@ -81,3 +81,10 @@ def cancel_row() -> list[tuple[str, str]]:
 def back_row(target: str) -> list[tuple[str, str]]:
     """Строка «Назад» с явной целью: photo / actors / scenes / result."""
     return [(texts.BTN_BACK, f"nav:back:{target}")]
+
+
+def channel_post_kb(bot_link: str) -> InlineKeyboardMarkup:
+    """Кнопка под кадром в канале. Та же клавиатура нужна, чтобы проверить, что пост ещё на месте."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=texts.BTN_CHANNEL_CREATE, url=bot_link),
+    ]])
