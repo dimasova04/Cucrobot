@@ -159,6 +159,7 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
         "Image 1 is the finished photo. Edit that exact photo. "
         "Keep the same people, faces, body build, framing, background, lighting and sharpness. "
         "Do not invent a new scene and do not add objects that were not requested.",
+        "Keep faces, hands, fingers and body proportions exactly as they are in image 1.",
         "Apply only this change, and apply it fully: " + detail.strip().rstrip(".") + ".",
         "If the change is about clothes, hair or pose, change only that and leave the rest of the photo as it is.",
         "Other images keep the same face and the same body build. Ignore clothes, props and background in them.",

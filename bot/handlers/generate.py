@@ -15,6 +15,7 @@ from bot.flow import (
     apply_catalog_scene,
     apply_custom_scene,
     commit_pending,
+    compose_details,
     effective_tier,
     empty_data,
     is_complete,
@@ -34,6 +35,7 @@ from services.generation import faces
 from services.generation import generator as gen_service
 from services.generation.content_filter import is_allowed
 from services.generation.generator import AlreadyRunning
+from services.generation.prompt_builder import is_quality_request
 
 generate_router = Router(name="generate")
 
@@ -131,6 +133,15 @@ async def _drop_edit(state: FSMContext, st: dict) -> dict:
     if had:
         await state.set_data(st)
     return st
+
+
+def _pop_last_detail(st: dict) -> None:
+    """Убирает деталь, которую не успели нарисовать: стопка снова как до запроса."""
+    details = list(st.get("details") or [])
+    if details:
+        details.pop()
+    st["details"] = details
+    st["detail"] = compose_details(details)
 
 
 async def _check_result_session(cb: CallbackQuery, state: FSMContext) -> dict | None:
@@ -378,7 +389,22 @@ async def detail_text(message: Message, state: FSMContext, session, user, settin
         await message.answer(err)
         return
     st = await state.get_data()
-    st["detail"] = message.text.strip()
+    new = message.text.strip()
+    st["edit_mode"] = True
+    if is_quality_request(new):
+        # Резкость — по кадру на экране. В стопку не кладём и чистый кадр не трогаем.
+        st["_quality_detail"] = new
+        st["edit_base_id"] = st.get("last_generation_id")
+        st.pop("_detail_pending", None)
+    else:
+        if not st.get("plate_generation_id"):
+            st["plate_generation_id"] = st.get("last_generation_id")
+        details = list(st.get("details") or [])
+        details.append(new)
+        st["details"] = details
+        st["detail"] = compose_details(details)
+        st["edit_base_id"] = st.get("plate_generation_id")
+        st["_detail_pending"] = True
     await state.set_data(st)
     await _run_generation(message, state, session, user, settings, generator)
 
@@ -435,23 +461,34 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     cost = settings.cost_premium if tier == "premium" else settings.cost_base
     if user.crystals < cost:
         st.pop("pending_insert", None)
+        st.pop("_quality_detail", None)
+        if st.pop("_detail_pending", None):
+            _pop_last_detail(st)
         await state.set_data(st)
         await _answer_not_enough(target, user, settings, cost)
         return
     req = request_from_state(user.id, st, tier)
     # Правка детали одноразовая: следующая кнопка снова даёт обычную генерацию.
+    st.pop("_quality_detail", None)
     had_edit = st.pop("edit_mode", None)
     st.pop("edit_base_id", None)
-    if had_edit:
+    stacking_detail = bool(st.pop("_detail_pending", None))
+    if had_edit or stacking_detail:
         await state.set_data(st)
     await session.commit()  # release our row before generator opens its own sessions
     wait_msg = await target.answer(texts.GENERATING)
     try:
         outcome = await generator.run(req)
     except AlreadyRunning:
+        if stacking_detail:
+            _pop_last_detail(st)
+            await state.set_data(st)
         await wait_msg.edit_text(texts.ALREADY_RUNNING)
         return
     except wallet.InsufficientCrystals as e:
+        if stacking_detail:
+            _pop_last_detail(st)
+            await state.set_data(st)
         await session.refresh(user)
         await wait_msg.delete()
         await _answer_not_enough(target, user, settings, e.needed)
@@ -459,6 +496,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
     await session.refresh(user)
     await state.set_state(GenStates.result)
     if outcome.status == "done":
+        was_insert = bool(st.get("pending_insert"))
         commit_pending(st)
         actors = [a.name for a in [await catalog.get_actor(session, i) for i in st.get("actors") or []] if a]
         actors += [item["name"] for item in st.get("named") or []]
@@ -469,6 +507,16 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         # Кнопке «Скачать в HD» нужен id генерации, «Своей детали» — сид кадра.
         st["last_generation_id"] = outcome.generation_id
         st["last_seed"] = outcome.seed
+        if stacking_detail:
+            # Деталь уже в стопке и нарисована с чистого кадра. Следующая — туда же.
+            pass
+        elif had_edit and not was_insert:
+            # Просьба сделать чётче не меняет ни чистый кадр, ни список деталей.
+            pass
+        else:
+            st["plate_generation_id"] = outcome.generation_id
+            st["details"] = []
+            st["detail"] = None
         await state.set_data(st)
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
         notice, markup = _with_empty_offer(notice, user, settings)
@@ -488,10 +536,14 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
                 logger.warning("bonus card send failed: {}", e)
     elif outcome.status == "rejected":
         st.pop("pending_insert", None)
+        if stacking_detail:
+            _pop_last_detail(st)
         await state.set_data(st)
         await wait_msg.edit_text(texts.GEN_REJECTED)
     else:
         st.pop("pending_insert", None)
+        if stacking_detail:
+            _pop_last_detail(st)
         await state.set_data(st)
         await wait_msg.edit_text(texts.GEN_FAILED)
 
@@ -640,10 +692,10 @@ async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
     st = await _check_result_session(cb, state)
     if st is None:
         return
-    # Деталь дорисовываем на том же кадре: генератор возьмёт его как первый
-    # референс и тот же сид. Без id предыдущей генерации — обычная генерация.
+    # Деталь рисуем на чистом кадре (первая сцена, пересъёмка, новая сцена
+    # или вписка), а не на предыдущей правке. Текст детали подставится следом.
     st["edit_mode"] = True
-    st["edit_base_id"] = st.get("last_generation_id")
+    st["edit_base_id"] = st.get("plate_generation_id") or st.get("last_generation_id")
     await state.set_data(st)
     await cb.answer()
     await _ask_detail(cb.message, state)

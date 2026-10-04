@@ -496,3 +496,178 @@ async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
     text, markup = message.answers[0]
     assert texts.BALANCE_EMPTY_BUY in text
     assert _callbacks(markup) == ["shop:packs", "shop:subs"]
+
+
+def _plate_session(actor_id, scene_id, **extra):
+    data = {
+        "people": ["p1"], "actors": [actor_id], "named": [],
+        "scene_id": scene_id, "custom_text": None, "custom_file_id": None,
+        "detail": "в пальто", "details": ["в пальто"],
+        "last_generation_id": 78, "plate_generation_id": 77, "last_seed": 99,
+    }
+    data.update(extra)
+    return data
+
+
+async def test_stacked_details_keep_editing_the_clean_plate(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 90, "u")
+        user.crystals = 10
+        await s.commit()
+
+        state = _FakeState(
+            data={"people": ["p1"], "actors": [actor.id], "named": [],
+                  "scene_id": scene.id, "custom_text": None, "custom_file_id": None,
+                  "detail": None, "last_generation_id": 77,
+                  "edit_mode": True, "edit_base_id": 77},
+            state=GenStates.detail,
+        )
+        message = _FakeCbMessage()
+        settings = Settings(_env_file=None, bot_token="x")
+        prompts = ["в пальто", "очки", "шляпа"]
+        expected = ["в пальто", "в пальто. очки", "в пальто. очки. шляпа"]
+        for i, text in enumerate(prompts):
+            message.text = text
+            generator = _FakeGenerator(
+                GenerationOutcome(status="done", generation_id=78 + i, image_bytes=b"IMG",
+                                  cost_usd=0.04, error=None, seed=100 + i)
+            )
+            await generate_mod.detail_text(message, state, s, user, settings, generator)
+            req = generator.calls[0]
+            assert req.edit_mode is True and req.base_generation_id == 77
+            assert req.detail == expected[i]
+            assert state._data["plate_generation_id"] == 77
+        assert state._data["details"] == prompts
+        assert state._data["detail"] == expected[-1]
+        assert state._data["last_generation_id"] == 80
+        assert "_detail_pending" not in state._data
+
+
+async def test_failed_detail_drops_the_uncommitted_change(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 91, "u")
+        user.crystals = 10
+        await s.commit()
+        state = _FakeState(data=_plate_session(actor.id, scene.id), state=GenStates.detail)
+        message = _FakeCbMessage()
+        message.text = "очки"
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="failed", generation_id=79, image_bytes=None, cost_usd=None, error="boom")
+        )
+        await generate_mod.detail_text(message, state, s, user, settings, generator)
+
+    assert generator.calls[0].base_generation_id == 77
+    assert generator.calls[0].detail == "в пальто. очки"
+    assert state._data["details"] == ["в пальто"]
+    assert state._data["detail"] == "в пальто"
+    assert state._data["plate_generation_id"] == 77
+    assert state._data["last_generation_id"] == 78
+    assert "_detail_pending" not in state._data
+
+
+async def test_quality_request_sharpens_the_shown_frame(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 92, "u")
+        user.crystals = 10
+        await s.commit()
+        state = _FakeState(data=_plate_session(actor.id, scene.id), state=GenStates.detail)
+        message = _FakeCbMessage()
+        message.text = "улучши качество"
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=90, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=7)
+        )
+        await generate_mod.detail_text(message, state, s, user, settings, generator)
+
+    req = generator.calls[0]
+    assert req.base_generation_id == 78 and req.detail == "улучши качество"
+    assert state._data["plate_generation_id"] == 77
+    assert state._data["details"] == ["в пальто"] and state._data["detail"] == "в пальто"
+    assert state._data["last_generation_id"] == 90
+    assert "_quality_detail" not in state._data
+
+
+async def test_unpaid_detail_is_not_kept_in_the_stack(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 93, "u")
+        user.crystals = 0
+        await s.commit()
+        state = _FakeState(data=_plate_session(actor.id, scene.id), state=GenStates.detail)
+        message = _FakeCbMessage()
+        message.text = "очки"
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+        )
+        await generate_mod.detail_text(message, state, s, user, settings, generator)
+
+    assert generator.calls == []
+    assert state._data["details"] == ["в пальто"] and state._data["detail"] == "в пальто"
+    assert state._data["plate_generation_id"] == 77
+
+
+async def test_fresh_frame_replaces_the_plate_and_clears_details(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 94, "u")
+        user.crystals = 10
+        await s.commit()
+        state = _FakeState(data=_plate_session(actor.id, scene.id), state=GenStates.result)
+        message = _FakeCbMessage()
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=81, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=3)
+        )
+        await generate_mod._run_generation(message, state, s, user, settings, generator)
+
+    assert generator.calls[0].edit_mode is False
+    assert generator.calls[0].detail == "в пальто"
+    assert state._data["plate_generation_id"] == 81
+    assert state._data["details"] == [] and state._data["detail"] is None
+    assert state._data["last_generation_id"] == 81
+
+
+async def test_insert_result_becomes_the_new_plate(session_factory):
+    async with session_factory() as s:
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        user = await repo.get_or_create_user(s, 95, "u")
+        user.crystals = 10
+        await s.commit()
+        data = _plate_session(
+            actor.id, scene.id,
+            pending_insert={"kind": "self", "role": "watch", "file_id": "me"},
+        )
+        state = _FakeState(data=data, state=GenStates.result)
+        message = _FakeCbMessage()
+        settings = Settings(_env_file=None, bot_token="x")
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=91, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=4)
+        )
+        await generate_mod._run_generation(message, state, s, user, settings, generator)
+
+    req = generator.calls[0]
+    assert req.edit_mode is True and req.base_generation_id == 78 and req.detail is None
+    assert state._data["plate_generation_id"] == 91
+    assert state._data["details"] == [] and state._data["detail"] is None
+    assert state._data["last_generation_id"] == 91
+
+
+async def test_detail_button_targets_the_clean_plate():
+    state = _FakeState(
+        data={"people": ["p1"], "actors": [1], "named": [], "scene_id": 3,
+              "last_generation_id": 80, "plate_generation_id": 77},
+        state=GenStates.result,
+    )
+    await generate_mod.gen_ask_detail(_FakeCb("gen:detail", _FakeCbMessage()), state)
+    assert state._data["edit_base_id"] == 77
