@@ -29,6 +29,31 @@ def _callbacks(markup):
     return [b.callback_data for row in markup.inline_keyboard for b in row]
 
 
+async def test_opening_profile_assigns_the_channel_name(session_factory):
+    from bot.handlers.balance import show_profile
+
+    async with session_factory() as s:
+        await repo.get_or_create_user(s, 1, "u")
+        await s.commit()
+
+    class Msg:
+        def __init__(self):
+            self.texts = []
+            self.bot = None
+
+        async def answer(self, text, reply_markup=None):
+            self.texts.append(text)
+
+    msg = Msg()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 1)
+        await show_profile(msg, s, user, _settings())
+        await s.commit()
+        name = user.public_name
+    assert name
+    assert f"В канале: {name}" in msg.texts[0]
+
+
 def test_profile_kb_toggle_for_subscriber():
     subscriber = User(id=1, preferred_tier="base", sub_until=utcnow() + timedelta(days=1))
     cbs = _callbacks(profile_kb(subscriber))

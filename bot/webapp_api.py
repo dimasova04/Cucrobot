@@ -13,7 +13,7 @@ from loguru import logger
 
 from bot.refs_view import bot_username
 from database import repo
-from services import referrals, stats
+from services import aliases, referrals, stats
 from services.billing import bonus, subscriptions
 from services.billing.products import PACKS, SUBS
 from services.payments import stars as stars_service
@@ -63,6 +63,7 @@ def _me_payload(user, settings, username: str) -> dict:
     return {
         "id": user.id,
         "username": user.username or "",
+        "public_name": user.public_name or "",
         "crystals": user.crystals,
         "sub": {
             "active": active,
@@ -119,6 +120,7 @@ def make_routes(session_factory, settings, bot) -> list[tuple[str, str, object]]
         return handler
 
     async def me(request, session, user):
+        await aliases.assign_public_name(session, user)
         return _me_payload(user, settings, await _username())
 
     async def claim_bonus(request, session, user):

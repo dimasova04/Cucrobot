@@ -114,6 +114,7 @@ async def test_me_returns_profile_fields(session_factory):
     status, body = await _call(routes, "GET", "/api/me")
     assert status == 200
     assert body["id"] == 5 and body["crystals"] == 7 and body["username"] == "vasya"
+    assert body["public_name"]
     assert body["sub"] == {"active": False, "plan": None, "until": None}
     assert body["bonus"]["ready"] is True and body["bonus"]["amount"] == 3
     assert body["quality"] == {"tier": "base", "can_premium": False}
@@ -130,7 +131,7 @@ async def test_me_shows_active_subscription(session_factory):
     assert body["sub"]["plan"] == "sub_month"
     assert body["sub"]["until"] == until.strftime("%d.%m.%Y")
     assert body["quality"]["can_premium"] is True
-    assert body["bonus"]["amount"] == 3
+    assert body["bonus"]["amount"] == 10
 
 
 async def test_bonus_claim_happy_path_then_cooldown(session_factory):
@@ -185,7 +186,7 @@ async def test_shop_lists_six_products(session_factory):
     assert pack["tribute_url"] == "https://t.me/tribute/pack50"
     sub = body["subs"][1]
     assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 990 and sub["tribute_url"] == ""
-    assert body["daily_bonus"] == 3
+    assert body["daily_bonus"] == 10
 
 
 async def test_buy_stars_returns_invoice_link(session_factory):

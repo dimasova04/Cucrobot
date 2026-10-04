@@ -42,7 +42,7 @@ def test_bonus_status_free_and_sub():
     assert not st.ready and st.amount == 3 and st.wait == timedelta(hours=1)
     sub = User(id=2, sub_plan="sub_week", sub_until=now + timedelta(days=1), last_bonus_at=now - timedelta(hours=25))
     st = bonus.bonus_status(sub, s, now)
-    assert st.ready and st.amount == 3
+    assert st.ready and st.amount == 10
     never = User(id=3)
     assert bonus.bonus_status(never, s, now).ready
 

@@ -6,6 +6,7 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
+from services import aliases
 from services.billing import bonus, subscriptions
 from services.billing.products import PACKS, SUBS
 
@@ -48,6 +49,12 @@ def profile_kb(user, channel_url: str = "") -> InlineKeyboardMarkup:
             -1, [InlineKeyboardButton(text=texts.BTN_OPEN_CHANNEL, url=channel_url)]
         )
     return kb
+
+
+async def _with_alias(session, user, settings) -> tuple[str, InlineKeyboardMarkup]:
+    """Имя для канала выдаётся при первом открытии профиля, не только после публикации."""
+    await aliases.assign_public_name(session, user)
+    return _profile_text(user, settings), profile_kb(user, settings.channel_url)
 
 
 def _profile_text(user, settings) -> str:
@@ -93,8 +100,9 @@ async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
 
 
 @profile_router.message(F.text == texts.BTN_PROFILE)
-async def show_profile(message: Message, user, settings):
-    await message.answer(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
+async def show_profile(message: Message, session, user, settings):
+    text, markup = await _with_alias(session, user, settings)
+    await message.answer(text, reply_markup=markup)
     await _try_send_bonus_card(message.bot, user.id, user, settings)
 
 
@@ -109,9 +117,10 @@ async def cb_bonus(cb: CallbackQuery, user, settings):
 
 
 @profile_router.callback_query(F.data == "menu:profile")
-async def cb_profile(cb: CallbackQuery, user, settings):
+async def cb_profile(cb: CallbackQuery, session, user, settings):
     await cb.answer()
-    await cb.message.answer(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
+    text, markup = await _with_alias(session, user, settings)
+    await cb.message.answer(text, reply_markup=markup)
     await _try_send_bonus_card(cb.bot, user.id, user, settings)
 
 
@@ -123,7 +132,8 @@ async def toggle_quality(cb: CallbackQuery, session, user, settings):
     user.preferred_tier = "premium" if user.preferred_tier == "base" else "base"
     await session.commit()
     await cb.answer()
-    await cb.message.edit_text(_profile_text(user, settings), reply_markup=profile_kb(user, settings.channel_url))
+    text, markup = await _with_alias(session, user, settings)
+    await cb.message.edit_text(text, reply_markup=markup)
 
 
 @profile_router.callback_query(F.data == "profile:quality_locked")

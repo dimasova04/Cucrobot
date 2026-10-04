@@ -104,6 +104,10 @@
         " · 1 фото = " + me.costs.base + " 💎</div>" +
       "</div>" +
 
+      (me.public_name
+        ? '<div class="card"><div class="card-title">🎭 В канале</div><div>' + esc(me.public_name) + "</div></div>"
+        : "") +
+
       '<div class="card">' +
         '<div class="card-title">⭐ Подписка</div>' +
         "<div>" + sub + "</div>" +
