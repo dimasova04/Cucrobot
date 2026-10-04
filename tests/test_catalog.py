@@ -18,16 +18,17 @@ async def test_seed_scenes_once(session_factory):
         assert "На кастинге у Пьера" not in names and "За 1000 евро" in names
         assert "Утро после" in names and "Гримёрка" in names and "Лифт отеля" in names and "Его кухня" in names
         hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
-        assert "Она в черном открытом купальнике." in hotel.prompt
+        assert "Она держит руками ручку двери и улыбается" in hotel.prompt
+        assert "на нее и держит ее за талию" in hotel.prompt
         assert "holding key cards" not in hotel.prompt
         by_name = {sc.name: sc.prompt for sc in scenes}
-        assert by_name["Яхта"].endswith("Она в темном бикини")
+        assert by_name["Яхта"].endswith("Она в темном бикини. Она улыбается")
         assert "summer clothes" not in by_name["Яхта"]
-        assert "Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост." in by_name["Ночной клуб"]
+        assert "Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост. Она улыбается." in by_name["Ночной клуб"]
         assert "party outfits" not in by_name["Ночной клуб"]
-        assert "Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
+        assert "Он в деловом костюме, сидит у стола. Она секретарша, улыбается. Она  одета только в черное мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
         assert "business attire" not in by_name["Офис"]
-        assert "Идёт съёмка, свет и камера в кадре." in by_name["Съёмочная площадка"]
+        assert "Он одет только в гавайские шорты. Она в черном нижнем белье. Он смотрит на неё, она улыбается. Стоят у кровати" in by_name["Съёмочная площадка"]
         assert "clapperboard" not in by_name["Съёмочная площадка"]
         film = next(sc for sc in scenes if sc.name == "Съёмочная площадка")
         assert catalog.scene_ref_ids(film) == [f"asset:scenes/set/{i:02d}.jpg" for i in range(1, 9)]
@@ -41,6 +42,9 @@ async def test_seed_scenes_once(session_factory):
         assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]
         assert "Из переднего плана протянута рука с купюрами евро" in by_name["За 1000 евро"]
+        assert "Она в черной кожаной куртке и черном бюстгалтере. Она  улыбается." in by_name["За 1000 евро"]
+        assert "not a different man" in by_name["За 1000 евро"]
+        assert "not a third person" in by_name["За 1000 евро"]
         assert "casting room" not in by_name["За 1000 евро"]
         limo = next(sc for sc in scenes if sc.name == "Лимузин")
         euro = next(sc for sc in scenes if sc.name == "За 1000 евро")

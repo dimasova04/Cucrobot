@@ -1,9 +1,9 @@
 - name: "Яхта"
   orientation: landscape
-  prompt: "on the deck of a luxury yacht at sea, sunny day. Она в темном бикини"
+  prompt: "on the deck of a luxury yacht at sea, sunny day. Она в темном бикини. Она улыбается"
 - name: "Ночной клуб"
   orientation: portrait
-  prompt: "in a night club with neon lights and a crowd behind. Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост."
+  prompt: "in a night club with neon lights and a crowd behind. Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост. Она улыбается."
 - name: "Лимузин"
   orientation: landscape
   refs:
@@ -13,7 +13,7 @@
   prompt: "inside a black limousine at night, city lights through the side windows, black leather seat, champagne glasses on the side console. Она в коротком черном платье и черных босоножках, сидит, вытянув ноги вдоль сиденья ему на колени. Он в темном костюме и белой рубашке без галстука, его рука лежит на ее лодыжке. Смотрят друг на друга."
 - name: "Офис"
   orientation: landscape
-  prompt: "in a modern office. Он в деловом костюме, сидит у стола. Она секретарша одета только в мини и белую блузку, опирается руками на стол. Смотрят друг на друга"
+  prompt: "in a modern office. Он в деловом костюме, сидит у стола. Она секретарша, улыбается. Она  одета только в черное мини и белую блузку, опирается руками на стол. Смотрят друг на друга"
 - name: "Съёмочная площадка"
   orientation: landscape
   refs:
@@ -25,10 +25,10 @@
     - scenes/set/06.jpg
     - scenes/set/07.jpg
     - scenes/set/08.jpg
-  prompt: "on a film set in a dressed room, studio lights on stands, a camera on a tripod, cables on the floor. Идёт съёмка, свет и камера в кадре."
+  prompt: "on a film set in a dressed room, studio lights on stands, a camera on a tripod, cables on the floor. Он одет только в гавайские шорты. Она в черном нижнем белье. Он смотрит на неё, она улыбается. Стоят у кровати"
 - name: "Дверь номера"
   orientation: portrait
-  prompt: "standing at a hotel room door in a hotel corridor. Она в черном открытом купальнике. Он смотрит на нее и держит ее за талию и локоть. Она держит руками ручку двери"
+  prompt: "standing at a hotel room door in a hotel corridor. Она в черном открытом купальнике. Он смотрит на нее и держит ее за талию и локоть. Она держит руками ручку двери и улыбается"
 - name: "Кровать в белых халатах"
   orientation: landscape
   prompt: "in a hotel bedroom, both wearing white bathrobes, sitting on a white bed, warm evening light"
@@ -46,7 +46,7 @@
     - scenes/euro/02.jpg
     - scenes/euro/03.jpg
     - scenes/euro/04.jpg
-  prompt: "outdoors in daylight, greenery behind. Из переднего плана протянута рука с купюрами евро. Она смотрит на деньги."
+  prompt: "outdoors in daylight, greenery behind. Из переднего плана протянута рука с купюрами евро. Она смотрит на деньги. Она в черной кожаной куртке и черном бюстгалтере. Она  улыбается. The man beside her is the actor from the actor reference, not a different man. The hand with the notes is only a foreground hand, not a third person."
 - name: "Утро после"
   orientation: portrait
   refs:

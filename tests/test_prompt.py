@@ -53,7 +53,8 @@ def test_refs_truncated_by_priority_scene_dropped_on_base():
 def test_scene_ref_included_on_premium_and_detail_appended():
     prompt, refs = build(_inp(people=2, actors=2, scene_ref="s", detail="in winter coats"), max_refs=14)
     assert refs == ["p0", "p1", "a0_0", "a1_0", "s", "a0_1", "a1_1"]
-    assert "Image 5 is a location reference. Match its framing, pose, place and props." in prompt
+    assert "Image 5 is a location reference. Match its framing, place and props." in prompt
+    assert "Do not replace the actor with a different man." in prompt
     assert "Requested change, apply it fully even if it replaces the outfit or the pose: in winter coats." in prompt
     assert prompt.index("in winter coats.") < prompt.index("Image 1 is person A.")
 
