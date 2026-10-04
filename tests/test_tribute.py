@@ -72,6 +72,25 @@ def test_parse_pack_by_name_and_other():
     assert ev2.kind == "other"
 
 
+def test_live_tribute_pack_links_resolve():
+    settings = Settings(_env_file=None, bot_token="x")
+    titles = {
+        "FpD": ("50 кристалликов 💎", "pack_50"),
+        "G6d": ("100 кристаллов", "pack_100"),
+        "G6e": ("300 кристаллов", "pack_300"),
+    }
+    for product_id, (name, code) in titles.items():
+        by_id = tribute.parse_event(
+            {"name": "new_digital_product", "payload": {"telegram_user_id": 7, "product_id": product_id, "product_name": name, "transaction_id": product_id}},
+            settings,
+        )
+        by_name = tribute.parse_event(
+            {"name": "new_digital_product", "payload": {"telegram_user_id": 7, "product_id": "999", "product_name": name, "transaction_id": product_id + "n"}},
+            settings,
+        )
+        assert by_id.product_code == by_name.product_code == code
+
+
 class FakeBot:
     def __init__(self):
         self.sent = []

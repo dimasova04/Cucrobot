@@ -80,9 +80,13 @@ def test_pay_buttons_show_both_methods_clearly():
                  tribute_sub_week_url="https://t.me/tribute/app?startapp=s17o6")
     labels = [b.text for row in pay_kb("sub_week", s).inline_keyboard for b in row]
     assert labels == ["💳 СБП / карта — 349 ₽", "⭐ Звёзды — 300 ⭐", texts.BTN_BACK]
-    s2 = Settings(_env_file=None, bot_token="x", stars_pack_50=250)
+    s2 = Settings(_env_file=None, bot_token="x", stars_pack_50=250, tribute_pack_50_url="")
     labels = [b.text for row in pay_kb("pack_50", s2).inline_keyboard for b in row]
     assert labels == ["⭐ Звёзды — 250 ⭐", texts.BTN_BACK]  # без ссылки Tribute кнопки карты нет
+    live = Settings(_env_file=None, bot_token="x")
+    labels = [b.text for row in pay_kb("pack_50", live).inline_keyboard for b in row]
+    assert labels[0] == "💳 СБП / карта — 450 ₽"
+    assert pay_kb("pack_50", live).inline_keyboard[0][0].url == "https://web.tribute.tg/p/FpD"
     sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
     assert sub_btns[0] == "Неделя · +5 💎 в подарок"
     pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]

@@ -30,12 +30,12 @@ class Settings(BaseSettings):
     webhook_port: int = 8080
     # Публичный адрес мини-приложения; пусто — кнопки «Кабинет» просто не будет.
     webapp_url: str = ""
-    tribute_pack_50_url: str = ""
-    tribute_pack_50_id: str = ""
-    tribute_pack_100_url: str = ""
-    tribute_pack_100_id: str = ""
-    tribute_pack_300_url: str = ""
-    tribute_pack_300_id: str = ""
+    tribute_pack_50_url: str = "https://web.tribute.tg/p/FpD"
+    tribute_pack_50_id: str = "FpD"
+    tribute_pack_100_url: str = "https://web.tribute.tg/p/G6d"
+    tribute_pack_100_id: str = "G6d"
+    tribute_pack_300_url: str = "https://web.tribute.tg/p/G6e"
+    tribute_pack_300_id: str = "G6e"
     tribute_sub_week_url: str = ""
     tribute_sub_week_id: str = ""
     tribute_sub_month_url: str = ""
@@ -51,9 +51,9 @@ class Settings(BaseSettings):
     stars_sub_month: int = 760
     stars_sub_3month: int = 1900
     # Цены в рублях только для показа в боте; реальную цену берёт Tribute. 0 = не показывать.
-    price_rub_pack_50: int = 0
-    price_rub_pack_100: int = 0
-    price_rub_pack_300: int = 0
+    price_rub_pack_50: int = 450
+    price_rub_pack_100: int = 850
+    price_rub_pack_300: int = 2350
     price_rub_sub_week: int = 350
     price_rub_sub_month: int = 990
     price_rub_sub_3month: int = 2490

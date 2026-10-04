@@ -18,6 +18,11 @@ def test_economy_defaults(monkeypatch):
     assert (s.stars_pack_50, s.stars_pack_100, s.stars_pack_300) == (350, 650, 1800)
     assert (s.stars_sub_week, s.stars_sub_month, s.stars_sub_3month) == (270, 760, 1900)
     assert (s.price_rub_sub_week, s.price_rub_sub_month, s.price_rub_sub_3month) == (350, 990, 2490)
+    assert (s.price_rub_pack_50, s.price_rub_pack_100, s.price_rub_pack_300) == (450, 850, 2350)
+    assert s.tribute_pack_50_url == "https://web.tribute.tg/p/FpD"
+    assert s.tribute_pack_100_url == "https://web.tribute.tg/p/G6d"
+    assert s.tribute_pack_300_url == "https://web.tribute.tg/p/G6e"
+    assert (s.tribute_pack_50_id, s.tribute_pack_100_id, s.tribute_pack_300_id) == ("FpD", "G6d", "G6e")
     assert (s.cost_base, s.cost_premium) == (1, 3)
     assert s.model_base_air == "bytedance:seedream@4.5"
     assert s.model_premium_air == "google:4@3"
