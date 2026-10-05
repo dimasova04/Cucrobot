@@ -3,6 +3,8 @@ from dataclasses import dataclass
 SAFETY_CLAUSE = (
     "Keep the face and the body build exactly as in the person and actor reference images: "
     "proportions, shoulders, torso, muscles and tattoos. "
+    "Do not move one person's arms, shoulders or muscles onto another person. "
+    "The woman's arms stay as in her own photo. "
     "Do not copy clothes, props or background from the person and actor photos. "
     "Clothing, pose and setting come from the scene description and the requested detail. "
     "A location reference is the exception: follow its framing, pose and place, but not the faces in it."

@@ -7,16 +7,17 @@ from services.generation.content_filter import is_allowed
 
 async def test_seed_scenes_once(session_factory):
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 13
+        assert await catalog.seed_scenes(s) == 12
         await s.commit()
     async with session_factory() as s:
         assert await catalog.seed_scenes(s) == 0
         scenes = await catalog.list_scenes(s)
-        assert len(scenes) == 13
+        assert len(scenes) == 12
         names = [sc.name for sc in scenes]
         assert "Кухня, готовим вместе" not in names and "Париж, Эйфелева башня" not in names
         assert "На кастинге у Пьера" not in names and "За 1000 евро" in names
-        assert "Утро после" in names and "Гримёрка" in names and "Лифт отеля" in names and "Его кухня" in names
+        assert "Утро после" in names and "Велкам-студия" in names and "На кастинге" in names
+        assert "Гримёрка" not in names and "Лифт отеля" not in names and "Его кухня" not in names
         hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
         assert "Она держит руками ручку двери и улыбается" in hotel.prompt
         assert "на нее и держит ее за талию" in hotel.prompt
@@ -42,9 +43,10 @@ async def test_seed_scenes_once(session_factory):
         assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]
         assert "Из переднего плана протянута рука с купюрами евро" in by_name["За 1000 евро"]
-        assert "Она в черной кожаной куртке и черном бюстгалтере. Она  улыбается." in by_name["За 1000 евро"]
-        assert "not a different man" in by_name["За 1000 евро"]
-        assert "not a third person" in by_name["За 1000 евро"]
+        assert "Она в черной кожаной куртке и черном бюстгалтере. Она улыбается." in by_name["За 1000 евро"]
+        assert "других мужчин в кадре нет" in by_name["За 1000 евро"]
+        assert "не накачанные" in by_name["За 1000 евро"]
+        assert "Do not add a man from the location photos" in by_name["За 1000 евро"]
         assert "casting room" not in by_name["За 1000 евро"]
         limo = next(sc for sc in scenes if sc.name == "Лимузин")
         euro = next(sc for sc in scenes if sc.name == "За 1000 евро")
@@ -77,7 +79,7 @@ async def test_seed_scenes_adds_missing_only(session_factory):
         s.add(catalog.Scene(name="Яхта", prompt="placeholder", orientation="landscape"))
         await s.commit()
     async with session_factory() as s:
-        assert await catalog.seed_scenes(s) == 12
+        assert await catalog.seed_scenes(s) == 11
 
 
 async def test_seed_scenes_fills_empty_refs_and_keeps_uploaded(session_factory):

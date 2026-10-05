@@ -157,8 +157,35 @@ def commit_pending(data: dict) -> None:
         data.setdefault("named", []).append({"name": pending["name"], "files": list(pending["files"])})
 
 
+def drop_added_people(data: dict) -> None:
+    """Новая сцена начинается с актёра, выбранного на старте.
+
+    Кого вписали потом — второго актёра, названное имя или себя — в этот кадр не берём.
+    """
+    if "base_actors" in data or "base_named" in data:
+        data["actors"] = list(data.get("base_actors") or [])
+        data["named"] = [
+            {"name": item["name"], "files": list(item.get("files") or [])}
+            for item in (data.get("base_named") or [])
+        ]
+    elif data.get("actors"):
+        data["actors"] = list(data["actors"][:1])
+        data["named"] = []
+    elif data.get("named"):
+        data["actors"] = []
+        first = data["named"][0]
+        data["named"] = [{"name": first["name"], "files": list(first.get("files") or [])}]
+    people = data.get("people")
+    if people:
+        data["people"] = list(people[:1])
+    data["self_file_id"] = None
+    data["self_role"] = None
+    data.pop("pending_insert", None)
+
+
 def apply_catalog_scene(data: dict, scene_id: int) -> dict:
-    """Новая сцена из каталога — свежий кадр: прошлая деталь не переносится."""
+    """Новая сцена из каталога — свежий кадр: прошлая деталь и добавленные люди не переносятся."""
+    drop_added_people(data)
     data["scene_id"] = scene_id
     data["custom_text"] = None
     data["custom_file_id"] = None
@@ -167,7 +194,8 @@ def apply_catalog_scene(data: dict, scene_id: int) -> dict:
 
 
 def apply_custom_scene(data: dict, *, text: str | None = None, file_id: str | None = None) -> dict:
-    """Своя сцена тоже сбрасывает деталь прошлой локации."""
+    """Своя сцена тоже сбрасывает деталь и людей, добавленных в прошлый кадр."""
+    drop_added_people(data)
     data["scene_id"] = None
     data["custom_text"] = text
     data["custom_file_id"] = file_id

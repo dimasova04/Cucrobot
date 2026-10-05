@@ -281,6 +281,8 @@ async def _finish_named_actor(target, state, session, user, settings, generator)
     st.pop("_pick_mode", None)
     st["actors"] = []
     st["named"] = [{"name": name, "files": files}]
+    st["base_actors"] = []
+    st["base_named"] = [{"name": name, "files": list(files)}]
     await state.set_data(st)
     await _show_scenes(target, state, session)
 
@@ -316,6 +318,8 @@ async def actor1_chosen(cb: CallbackQuery, state: FSMContext, session, user, set
         return
     st["actors"] = [actor_id]
     st["named"] = []
+    st["base_actors"] = [actor_id]
+    st["base_named"] = []
     await state.set_data(st)
     await cb.answer()
     await _show_scenes(cb.message, state, session)

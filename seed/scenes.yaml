@@ -46,7 +46,7 @@
     - scenes/euro/02.jpg
     - scenes/euro/03.jpg
     - scenes/euro/04.jpg
-  prompt: "outdoors in daylight, greenery behind. Из переднего плана протянута рука с купюрами евро. Она смотрит на деньги. Она в черной кожаной куртке и черном бюстгалтере. Она  улыбается. The man beside her is the actor from the actor reference, not a different man. The hand with the notes is only a foreground hand, not a third person."
+  prompt: "outdoors in daylight, greenery behind. Из переднего плана протянута рука с купюрами евро. Она смотрит на деньги. Она в черной кожаной куртке и черном бюстгалтере. Она улыбается. Рядом с ней только выбранный актёр, других мужчин в кадре нет. Кисть с купюрами обрезана краем кадра: без лица, плеча и тела. Её руки и плечи как на её фото, обычные, не накачанные. The only man is the actor from the actor reference. Do not add a man from the location photos. Do not give her his arms or muscles."
 - name: "Утро после"
   orientation: portrait
   refs:
@@ -56,12 +56,9 @@
     - scenes/morning/04.jpg
     - scenes/morning/05.jpg
   prompt: "a close phone selfie in the morning. У неё размазана тушь, телефон в руке. Он рядом и прижимается к ней. Смотрят в камеру."
-- name: "Гримёрка"
+- name: "Велкам-студия"
   orientation: portrait
-  prompt: "in a backstage dressing room with a lit mirror, she wears a black swimsuit, he stands close and looks at her"
-- name: "Лифт отеля"
+  prompt: "in a welcome studio with a lit mirror and a sofa, she wears a black swimsuit, he stands close and looks at her"
+- name: "На кастинге"
   orientation: portrait
-  prompt: "inside a hotel elevator with mirrored walls, she wears a black swimsuit, he stands close and holds her waist"
-- name: "Его кухня"
-  orientation: landscape
-  prompt: "in his kitchen at night, she sits on the counter in a short robe, he stands in front of her"
+  prompt: "at a casting, a small studio with a camera on a tripod, she wears a black swimsuit, he stands close and looks at her"

@@ -22,6 +22,44 @@ def test_validators():
     assert validate_custom_scene("y" * 201) == texts.CUSTOM_SCENE_TOO_LONG
 
 
+def test_new_scene_drops_people_added_after_the_start():
+    from bot.flow import apply_catalog_scene, apply_custom_scene
+
+    data = {
+        "people": ["wife", "me"], "actors": [1, 3],
+        "named": [{"name": "Рокко", "files": ["h1"]}],
+        "base_actors": [1], "base_named": [],
+        "self_file_id": "me", "self_role": "join",
+        "scene_id": 5, "custom_text": None, "custom_file_id": None, "detail": "белый купальник",
+        "pending_insert": {"kind": "actor", "actor_id": 9, "name": "Видаль"},
+    }
+    apply_catalog_scene(data, 8)
+    assert data["actors"] == [1] and data["named"] == []
+    assert data["people"] == ["wife"]
+    assert data["self_file_id"] is None and data["self_role"] is None
+    assert "pending_insert" not in data
+    assert data["scene_id"] == 8 and data["detail"] is None
+
+    typed = {
+        "people": ["wife"], "actors": [4],
+        "named": [{"name": "Рокко", "files": ["h1"]}, {"name": "Видаль", "files": ["v1"]}],
+        "base_actors": [], "base_named": [{"name": "Рокко", "files": ["h1"]}],
+        "scene_id": 5, "detail": None,
+    }
+    apply_custom_scene(typed, text="на крыше")
+    assert typed["actors"] == []
+    assert typed["named"] == [{"name": "Рокко", "files": ["h1"]}]
+    assert typed["custom_text"] == "на крыше"
+
+    legacy = {
+        "people": ["wife", "me"], "actors": [1, 2],
+        "named": [{"name": "Рокко", "files": []}],
+        "scene_id": 1, "detail": "x",
+    }
+    apply_catalog_scene(legacy, 3)
+    assert legacy["actors"] == [1] and legacy["named"] == [] and legacy["people"] == ["wife"]
+
+
 def test_new_scene_drops_previous_detail():
     from bot.flow import apply_catalog_scene, apply_custom_scene
 
