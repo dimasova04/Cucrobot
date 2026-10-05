@@ -186,7 +186,7 @@ async def test_shop_lists_six_products(session_factory):
     assert pack["crystals"] == 50 and pack["gift"] == 0 and pack["stars"] == 350
     assert pack["tribute_url"] == "https://t.me/tribute/pack50"
     sub = body["subs"][1]
-    assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 990 and sub["tribute_url"] == ""
+    assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 1290 and sub["tribute_url"] == ""
     assert body["daily_bonus"] == 10
 
 
