@@ -34,8 +34,9 @@ from services.channel_rank import level_title, published_count
 from services.referrals import CHANNEL_CODE, link_for
 from database.models import Generation
 from services import catalog
-from services.billing import bonus, wallet
+from services.billing import bonus, subscriptions, wallet
 from services.generation import faces
+from services.generation import watermark
 from services.generation import generator as gen_service
 from services.generation.content_filter import is_allowed
 from services.generation.generator import AlreadyRunning
@@ -392,6 +393,13 @@ async def detail_text(message: Message, state: FSMContext, session, user, settin
     await _run_generation(message, state, session, user, settings, generator)
 
 
+async def _photo_for_user(image: bytes, user) -> bytes:
+    """Без подписки на кадр ставится знак бота. Подписчик получает фото как есть."""
+    if image and not subscriptions.is_active(user):
+        return await asyncio.to_thread(watermark.apply_free_mark, image)
+    return image
+
+
 async def send_result_photo(
     target: Message, image: bytes, caption: str, data: dict, attempts: int = 2, *, publish: bool = False,
 ):
@@ -486,8 +494,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
         notice, markup = _with_empty_offer(notice, user, settings)
         await target.answer(notice, reply_markup=markup)
+        photo = await _photo_for_user(outcome.image_bytes, user)
         sent = await send_result_photo(
-            target, outcome.image_bytes, caption, st, publish=settings.channel_chat() is not None,
+            target, photo, caption, st, publish=settings.channel_chat() is not None,
         )
         if sent is None:
             await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
@@ -684,6 +693,7 @@ async def gen_hd(cb: CallbackQuery, session, user):
         logger.warning("hd download failed for generation {}: {}", gen.id, e)
         await cb.message.answer(texts.HD_EXPIRED)
         return
+    data = await _photo_for_user(data, user)
     await cb.message.answer_document(BufferedInputFile(data, "photo_hd.jpg"))
 
 

@@ -144,8 +144,9 @@ class _FakeCbMessage:
         self.answers.append((text, reply_markup))
         return _FakeSentMessage()
 
-    async def answer_photo(self, *a, **kw):
+    async def answer_photo(self, photo, *a, **kw):
         self.photo_sent = True
+        self.photo = photo
         self.caption = kw.get("caption")
         return _FakeSentMessage(photo=[SimpleNamespace(file_id="fid")])
 
@@ -259,6 +260,7 @@ async def test_write_own_asks_for_a_name():
 class _FakeUser:
     def __init__(self, uid):
         self.id = uid
+        self.sub_until = None
 
 
 async def test_hd_button_sends_document(session_factory, monkeypatch):
@@ -283,6 +285,62 @@ async def test_hd_button_sends_document(session_factory, monkeypatch):
 
     assert message.documents and message.documents[0].filename == "photo_hd.jpg"
     assert message.documents[0].data == b"BIGIMG"
+
+
+async def test_free_user_gets_the_bot_mark_and_subscriber_does_not(session_factory, monkeypatch):
+    from datetime import timedelta
+
+    import cv2
+    import numpy as np
+
+    from database.base import utcnow
+    from database.models import Generation
+    from services.generation.watermark import apply_free_mark
+
+    image = np.full((832, 1248, 3), (90, 160, 40), np.uint8)
+    ok, encoded = cv2.imencode(".jpg", image)
+    assert ok
+    raw = encoded.tobytes()
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 80, "u")
+        user.crystals = 4
+        user.last_bonus_at = utcnow()
+        actor = await catalog.create_actor(s, "Стэйтем", "desc", ["f1", "f2"], None)
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "portrait", None, None)
+        await s.commit()
+        actor_id, scene_id = actor.id, scene.id
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 80)
+        message = _FakeCbMessage()
+        await generate_mod._run_generation(
+            message, _FakeState(data=_ready_session(actor_id, scene_id)), s, user,
+            Settings(_env_file=None, bot_token="x"),
+            _FakeGenerator(GenerationOutcome(status="done", generation_id=3, image_bytes=raw, cost_usd=0.04, error=None)),
+        )
+    assert message.photo.data == apply_free_mark(raw)
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 80)
+        user.sub_until = utcnow() + timedelta(days=7)
+        user.sub_plan = "sub_week"
+        user.crystals = 4
+        gen = Generation(
+            user_id=80, model_air="m", model_tier="base", actors=[], location="x",
+            crystals_charged=1, status="done", result_url="http://x/orig.jpg",
+        )
+        s.add(gen)
+        await s.commit()
+        gid = gen.id
+
+        async def fake_download(url):
+            return raw
+
+        monkeypatch.setattr(generate_mod.gen_service, "download_bytes", fake_download)
+        message = _FakeCbMessage()
+        await generate_mod.gen_hd(_FakeCb(f"gen:hd:{gid}", message), s, user)
+    assert message.documents[0].data == raw
 
 
 async def test_hd_button_reports_expired_link(session_factory, monkeypatch):
