@@ -64,7 +64,7 @@ class Settings(BaseSettings):
 
     start_crystals: int = 3
     bonus_free_amount: int = 3
-    bonus_free_hours: int = 24
+    bonus_free_hours: int = 48
     bonus_sub_amount: int = 10
     bonus_sub_hours: int = 24
     cost_base: int = 1

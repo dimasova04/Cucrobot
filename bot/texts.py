@@ -97,7 +97,7 @@ MODEL_PREMIUM_LOCKED = "Премиум-качество открывается �
 NOT_ENOUGH = "Не хватает кристалликов: нужно {cost}, у тебя {balance}."
 NOT_ENOUGH_HINT = "Кристаллики — в профиле 👤"
 CHARGED = "-{cost} {word}, баланс: {balance}"
-BALANCE_EMPTY_BONUS = "Кристаллы кончились. Забери ежедневный бонус."
+BALANCE_EMPTY_BONUS = "Кристаллы кончились. Забери бонус."
 BALANCE_EMPTY_BUY = "Кристаллы кончились. Можно купить."
 GENERATING = "Колдую… секунд 20 ⏳"
 

@@ -37,9 +37,11 @@ def test_subscription_extend_stacks_when_active():
 def test_bonus_status_free_and_sub():
     s = _settings()
     now = datetime(2026, 1, 10, 12)
-    free = User(id=1, last_bonus_at=now - timedelta(hours=23))
+    free = User(id=1, last_bonus_at=now - timedelta(hours=47))
     st = bonus.bonus_status(free, s, now)
     assert not st.ready and st.amount == 3 and st.wait == timedelta(hours=1)
+    due = User(id=4, last_bonus_at=now - timedelta(hours=48))
+    assert bonus.bonus_status(due, s, now).ready
     sub = User(id=2, sub_plan="sub_week", sub_until=now + timedelta(days=1), last_bonus_at=now - timedelta(hours=25))
     st = bonus.bonus_status(sub, s, now)
     assert st.ready and st.amount == 10
@@ -58,7 +60,7 @@ async def test_claim_bonus_grants_once(session_factory):
         await db.commit()
     async with session_factory() as db:
         res = await bonus.claim_bonus(db, 1, s, now + timedelta(hours=1))
-        assert isinstance(res, bonus.BonusStatus) and res.wait == timedelta(hours=23)
+        assert isinstance(res, bonus.BonusStatus) and res.wait == timedelta(hours=47)
 
 
 async def test_grant_product_pack_and_sub_idempotent(session_factory):
