@@ -7,7 +7,7 @@ MARK = "cucro_bot"
 
 
 def apply_free_mark(image_bytes: bytes) -> bytes:
-    """Тёмная плашка с именем бота в правом нижнем углу. Битый файл возвращаем как есть."""
+    """Тёмная плашка с именем бота в правом верхнем углу. Битый файл возвращаем как есть."""
     try:
         img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
@@ -37,7 +37,7 @@ def _draw_mark(img: np.ndarray) -> None:
     box_h = text_h + baseline + pad_y * 2
     margin = max(8, int(short * 0.028))
     x = max(0, width - margin - box_w)
-    y = max(0, height - margin - box_h)
+    y = margin
     box_w = min(box_w, width - x)
     box_h = min(box_h, height - y)
     if box_w < 8 or box_h < 8:
