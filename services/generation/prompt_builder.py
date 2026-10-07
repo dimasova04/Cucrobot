@@ -16,6 +16,11 @@ REALISM_CLAUSE = (
     "no extra limbs, no fused or duplicated body parts."
 )
 
+# bytedance:seedream@4.5 отклоняет positivePrompt длиннее этого и кристалл возвращается.
+PROMPT_MAX_CHARS = 3000
+# Сцена без актёра в кадре. Префикс снимается и в промпт модели не попадает.
+_SOLO_MARK = "[solo]"
+
 # Просьба «просто сделать чётче»: модель иначе перерисовывает кадр целиком.
 _QUALITY_HINTS = (
     "улучш", "качество", "разрешен", "четче", "резче",
@@ -26,6 +31,33 @@ _QUALITY_HINTS = (
 def is_quality_request(detail: str) -> bool:
     low = (detail or "").lower().replace("ё", "е")
     return any(hint in low for hint in _QUALITY_HINTS)
+
+
+def scene_is_solo(scene_prompt: str) -> bool:
+    return (scene_prompt or "").lstrip().startswith(_SOLO_MARK)
+
+
+def scene_text(scene_prompt: str) -> str:
+    text = (scene_prompt or "").strip()
+    if text.startswith(_SOLO_MARK):
+        text = text[len(_SOLO_MARK):].strip()
+    return text
+
+
+def _join(lines: list[str]) -> str:
+    """Seedream отвергает промпт длиннее 3000 символов, генерация падает и кристалл возвращается."""
+    text = " ".join(line.strip() for line in lines if line and line.strip())
+    if len(text) <= PROMPT_MAX_CHARS:
+        return text
+    shorter = [ln for ln in lines if ln != REALISM_CLAUSE]
+    text = " ".join(line.strip() for line in shorter if line and line.strip())
+    if len(text) <= PROMPT_MAX_CHARS:
+        return text
+    clipped = text[:PROMPT_MAX_CHARS]
+    cut = clipped.rfind(" ")
+    return clipped[:cut] if cut > 2500 else clipped
+
+
 PERSON_LABELS = ["A", "B"]
 
 
@@ -97,9 +129,40 @@ def _validate(inp: GenerationInput, budget: int) -> None:
         raise ValueError("max_refs too small for people + primary actor refs")
 
 
+_FIRST_SCENE = (
+    "Image {n} is a location reference. Match its framing, place and props. "
+    "Faces and bodies in it are blanked out. Do not copy the faces, bodies or clothes "
+    "of any person who appears only in it, including a camera operator or crew. "
+    "Do not replace an actor with a different man."
+)
+_NEXT_SCENE = (
+    "Image {n} is another reference for this scene. Follow its framing and place. "
+    "Do not copy faces, bodies or clothes from it. Do not replace an actor with a different man."
+)
+# Восемь отдельных строк про кадры площадки раздували промпт за 3000 символов.
+_MORE_SCENES = (
+    "Images {a}-{b} are more references for this same place. Follow their framing and props. "
+    "Do not copy faces, bodies, clothes or crew from them. Do not replace an actor with a different man."
+)
+
+
+def _image_list(nums: list[int]) -> str:
+    if len(nums) == 1:
+        return str(nums[0])
+    if len(nums) == 2:
+        return f"{nums[0]} and {nums[1]}"
+    return ", ".join(str(n) for n in nums[:-1]) + f" and {nums[-1]}"
+
+
 def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start: int) -> list[str]:
     """Строки «кто есть кто» для референсов; нумерация с `start`."""
     lines: list[str] = []
+    scene_ns: list[int] = []
+    extra_groups: dict[int, list[int]] = {}
+    for n, (kind, _data, idx) in enumerate(ordered, start=start):
+        if kind == "actor_extra":
+            extra_groups.setdefault(idx, []).append(n)
+    seen_extra: set[int] = set()
     for n, (kind, _data, idx) in enumerate(ordered, start=start):
         if kind == "person":
             lines.append(f"Image {n} is person {PERSON_LABELS[idx]}.")
@@ -110,22 +173,26 @@ def _ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start:
                 f"Image {n} shows actor {a.name}{desc}. Match the face and the body build, not the clothes."
             )
         elif kind == "actor_extra":
-            lines.append(
-                f"Image {n} also shows actor {inp.actors[idx].name}. Another view of the same face and body."
-            )
+            group = extra_groups[idx]
+            if len(group) == 1:
+                lines.append(
+                    f"Image {n} also shows actor {inp.actors[idx].name}. Another view of the same face and body."
+                )
+            elif idx not in seen_extra:
+                seen_extra.add(idx)
+                lines.append(
+                    f"Images {_image_list(group)} also show actor {inp.actors[idx].name}. "
+                    "More views of the same face and body."
+                )
         elif kind == "scene":
-            if idx == 0:
-                lines.append(
-                    f"Image {n} is a location reference. Match its framing, place and props. "
-                    "Faces and bodies in it are blanked out. Do not copy the faces, bodies or clothes "
-                    "of any person who appears only in it, including a camera operator or crew. "
-                    "Do not replace an actor with a different man."
-                )
-            else:
-                lines.append(
-                    f"Image {n} is another reference for this scene. Follow its framing and place. "
-                    "Do not copy faces, bodies or clothes from it. Do not replace an actor with a different man."
-                )
+            scene_ns.append(n)
+    if scene_ns:
+        lines.append(_FIRST_SCENE.format(n=scene_ns[0]))
+        extra = scene_ns[1:]
+        if len(extra) == 1:
+            lines.append(_NEXT_SCENE.format(n=extra[0]))
+        elif extra:
+            lines.append(_MORE_SCENES.format(a=extra[0], b=extra[-1]))
     return lines
 
 
@@ -152,17 +219,34 @@ def _cast_lines(inp: GenerationInput) -> list[str]:
     return lines
 
 
+def _without_actors(ordered: list[tuple[str, str, int]]) -> list[tuple[str, str, int]]:
+    return [item for item in ordered if item[0] not in ("actor_primary", "actor_extra")]
+
+
 def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     _validate(inp, max_refs)
-    ordered = _ordered_refs(inp)[:max_refs]
+    ordered = _ordered_refs(inp)
+    solo = scene_is_solo(inp.scene_prompt)
+    if solo:
+        # Актёр выбран в боте, но в эту сцену не встаёт и его фото модели не уходят.
+        ordered = _without_actors(ordered)
+    ordered = ordered[:max_refs]
     people = ", ".join(PERSON_LABELS[: len(inp.people)])
-    actors = " and ".join(a.name for a in inp.actors)
+    scene = scene_text(inp.scene_prompt).rstrip(".").strip()
     # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
-    lines: list[str] = [f"A candid photorealistic photo of {people} together with {actors} {inp.scene_prompt.strip()}."]
+    if solo:
+        lines = [f"A candid photorealistic photo of {people} alone. {scene}."]
+        count = len(inp.people)
+    else:
+        actors = " and ".join(a.name for a in inp.actors)
+        lines = [f"A candid photorealistic photo of {people} together with {actors} {scene}."]
+        count = len(inp.people) + len(inp.actors)
     if inp.cast_note:
         lines.append(inp.cast_note.strip().rstrip(".") + ".")
-    lines.append(f"Exactly {len(inp.people) + len(inp.actors)} people in the frame, no other people in focus.")
-    lines.extend(_cast_lines(inp))
+    word = "person" if count == 1 else "people"
+    lines.append(f"Exactly {count} {word} in the frame, no other people in focus.")
+    if not solo:
+        lines.extend(_cast_lines(inp))
     if inp.detail:
         lines.append(
             "Requested change, apply it fully even if it replaces the outfit or the pose: "
@@ -171,7 +255,7 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     lines.extend(_ref_lines(inp, ordered, start=1))
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
-    return " ".join(lines), [d for _k, d, _i in ordered]
+    return _join(lines), [d for _k, d, _i in ordered]
 
 
 def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs: int) -> tuple[str, list[str]]:
@@ -193,9 +277,11 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
             "Do not redraw the scene. Only increase sharpness and fine detail.",
             REALISM_CLAUSE,
         ]
-        return " ".join(lines), [previous_image]
+        return _join(lines), [previous_image]
     # Первичное фото актёра — лицо и телосложение. Сцена и запасные ракурсы уводят кадр.
-    ordered = [item for item in _ordered_refs(inp) if item[0] in ("person", "actor_primary")]
+    # В сольной сцене актёра в кадре нет: его фото на правке вернуло бы его обратно.
+    keep = ("person",) if scene_is_solo(inp.scene_prompt) else ("person", "actor_primary")
+    ordered = [item for item in _ordered_refs(inp) if item[0] in keep]
     ordered = ordered[: max_refs - 1]
     lines: list[str] = [
         "Image 1 is the finished photo. Edit that exact photo. "
@@ -208,7 +294,7 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
     lines.extend(_ref_lines(inp, ordered, start=2))
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
-    return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]
+    return _join(lines), [previous_image] + [d for _k, d, _i in ordered]
 
 
 def _insert_face_refs(inp: GenerationInput) -> list[tuple[str, str, int]]:
@@ -255,12 +341,15 @@ def build_insert(inp: GenerationInput, previous_image: str, instruction: str, ma
         instruction.strip().rstrip(".") + ".",
         "Add exactly one new person. Do not duplicate anyone already in image 1 "
         "and do not replace them with a different face. "
-        "Keep the faces, clothes, pose and place of everyone already in the photo.",
+        "Keep the faces, expression, clothes, pose, framing and background of everyone already in the photo. "
+        "Do not invent extra people.",
     ]
     if ordered:
         lines.append(
-            "The new face and the new body come only from the later images. "
-            "Ignore clothes, props and background in them."
+            "The new person's face and body build come from the later images. "
+            "Do not copy the clothes or the nudity from those images. "
+            "Dress the new person to match the clothes already in image 1. "
+            "Do not undress anyone."
         )
         lines.extend(_ref_lines(inp, ordered, start=2))
     else:
@@ -272,4 +361,8 @@ def build_insert(inp: GenerationInput, previous_image: str, instruction: str, ma
         )
     lines.append(SAFETY_CLAUSE)
     lines.append(REALISM_CLAUSE)
-    return " ".join(lines), [previous_image] + [d for _k, d, _i in ordered]
+    lines.append(
+        "Clothes already in image 1 win. The new person wears clothes that match this photo. "
+        "Do not copy outfits or bare skin from the later images."
+    )
+    return _join(lines), [previous_image] + [d for _k, d, _i in ordered]

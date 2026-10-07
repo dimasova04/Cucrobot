@@ -49,12 +49,13 @@ def norm_name(name: str) -> str:
 INSERT_SELF = {
     "watch": (
         "Add person B into this exact photo. He stands nearby and only watches the people already there. "
-        "He does not touch them. Keep the same place, clothes, pose and faces of everyone already in the photo. "
-        "Do not redraw the scene."
+        "He does not touch them. Keep the same faces, expression, clothes, pose, framing and background. "
+        "Dress him to match the clothes already in this photo. Do not undress anyone. Do not redraw the scene."
     ),
     "join": (
-        "Add person B into this exact photo so he takes part in the same pose with the people already there. "
-        "Keep the same place and the faces of everyone already in the photo. Do not redraw the scene."
+        "Add person B into this exact photo beside the people already there. "
+        "Keep the same faces, expression, clothes, pose, framing and background of everyone already in the photo. "
+        "Dress him to match the clothes already in this photo. Do not undress anyone. Do not redraw the scene."
     ),
 }
 
@@ -63,7 +64,9 @@ def insert_actor_prompt(name: str) -> str:
     return (
         f"Add {name} into this exact photo beside the people already there. "
         f"{name} is the only new person. Do not add another copy of anyone already in the photo. "
-        "Keep the same place, clothes and pose of everyone already in the photo. Do not redraw the scene."
+        "Keep the same faces, expression, clothes, pose, framing and background of everyone already in the photo. "
+        "Dress the new person to match the clothes already in this photo. "
+        "Do not copy clothes or nudity from the reference photos. Do not undress anyone. Do not redraw the scene."
     )
 
 

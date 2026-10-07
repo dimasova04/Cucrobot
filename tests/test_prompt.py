@@ -2,7 +2,7 @@ import pytest
 
 from services.generation import content_filter
 from services.generation.prompt_builder import (
-    REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit, build_insert,
+    PROMPT_MAX_CHARS, REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit, build_insert,
 )
 
 
@@ -229,9 +229,13 @@ def test_insert_sends_only_the_new_actor():
     assert refs == ["prev", "vid-1", "vid-2", "vid-3"]
     assert "Siffredi" not in prompt and "Sins" not in prompt
     assert "Image 2 shows actor Vidal." in prompt
-    assert "Image 3 also shows actor Vidal." in prompt
+    assert "Images 3 and 4 also show actor Vidal." in prompt
     assert "Add exactly one new person." in prompt
     assert "Do not duplicate anyone already in image 1" in prompt
+    assert "Do not copy the clothes or the nudity" in prompt
+    assert "Dress the new person to match the clothes already in image 1." in prompt
+    assert "Do not copy outfits or bare skin" in prompt
+    assert "expression" in prompt
     assert "is a location reference" not in prompt
     assert "in a modern office" not in prompt
 
@@ -275,6 +279,53 @@ def test_insert_keeps_the_new_face_when_refs_are_tight():
     inp.insert_actor_index = 0
     _prompt, refs = build_insert(inp, "prev", "Add Actor0.", max_refs=3)
     assert refs == ["prev", "a0_0", "a0_1"]
+
+
+def test_solo_scene_drops_the_actor_and_his_photos():
+    inp = _inp(scene_refs=["e1", "e2", "e3", "e4"])
+    inp.scene_prompt = "[solo] outdoors in daylight. She looks at the camera."
+    prompt, refs = build(inp, max_refs=14)
+    assert refs == ["p0", "e1", "e2", "e3", "e4"]
+    assert "Actor0" not in prompt and "[solo]" not in prompt
+    assert "Exactly 1 person in the frame, no other people in focus." in prompt
+    assert prompt.startswith("A candid photorealistic photo of A alone. outdoors in daylight. She looks at the camera.")
+    assert "shows actor" not in prompt
+
+
+def test_solo_edit_does_not_bring_the_actor_back():
+    inp = _inp()
+    inp.scene_prompt = "[solo] outdoors in daylight."
+    prompt, refs = build_edit(inp, "prev", "улыбка шире", max_refs=14)
+    assert refs == ["prev", "p0"]
+    assert "Actor0" not in prompt and "shows actor" not in prompt
+
+
+def test_film_set_prompt_stays_inside_seedream_limit():
+    """Восемь кадров площадки раньше раздували промпт за 3000, и Seedream возвращал кристалл."""
+    film = (
+        "on a film set in a dressed room, studio lights on stands, a camera on a tripod, "
+        "cables on the floor. Он одет только в гавайские шорты. Она в черном нижнем белье. "
+        "Он смотрит на неё, она улыбается. Стоят у кровати"
+    )
+    inp = GenerationInput(
+        people=["wife", "self"],
+        actors=[
+            ActorInput("Сиффреди", "Rocco Siffredi, adult film actor, athletic build", ["a", "b", "c", "d"]),
+            ActorInput("Синс", "Johnny Sins, adult film actor", []),
+            ActorInput("Видаль", "Nacho Vidal, adult film actor, muscular build, tattoos on arms and torso", ["v1", "v2", "v3"]),
+        ],
+        scene_prompt=film,
+        scene_ref=None,
+        detail="х" * 300,
+        width=2048,
+        height=1152,
+        scene_refs=[f"s{i}" for i in range(8)],
+    )
+    prompt, _refs = build(inp, max_refs=14)
+    assert len(prompt) <= PROMPT_MAX_CHARS
+    assert REALISM_CLAUSE in prompt
+    assert "Images " in prompt and "are more references for this same place" in prompt
+    assert prompt.count("is another reference for this scene") == 0
 
 
 def test_insert_requires_a_target():
