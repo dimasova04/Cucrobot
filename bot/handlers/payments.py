@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery, Message, PreCheckoutQuery
 from loguru import logger
 
 from bot import texts
+from bot.admin_notify import notify_admins_payment
 from services.billing import grants
 from services.payments import stars
 
@@ -27,7 +28,7 @@ async def pre_checkout(query: PreCheckoutQuery):
 
 
 @payments_router.message(F.successful_payment)
-async def on_successful_payment(message: Message, session, user):
+async def on_successful_payment(message: Message, session, user, bot: Bot | None = None, settings=None):
     sp = message.successful_payment
     code = stars.parse_payload(sp.invoice_payload)
     if code is None:
@@ -43,6 +44,12 @@ async def on_successful_payment(message: Message, session, user):
     # Деньги уже списаны Telegram: фиксируем начисление до отправки сообщения,
     # чтобы упавший answer() не откатил транзакцию в DbSessionMiddleware.
     await session.commit()
+    await notify_admins_payment(
+        bot, settings,
+        user_id=user.id, username=user.username, product_title=res.product.title,
+        provider="stars", amount=sp.total_amount, currency="XTR",
+        balance=res.balance, sub_until=res.sub_until,
+    )
     text = (
         texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance)
         if res.product.kind == "pack"

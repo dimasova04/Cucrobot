@@ -19,6 +19,23 @@ def test_invoice_params():
         stars.invoice_params("nope", s)
 
 
+def test_payment_note_includes_subscription_date():
+    from datetime import datetime
+
+    from bot.admin_notify import payment_text
+
+    text = payment_text(
+        user_id=5, username=None, product_title="Подписка на месяц",
+        provider="tribute", amount=129000, currency="rub", balance=20,
+        sub_until=datetime(2026, 11, 7),
+    )
+    assert "Кто: 5\n" in text
+    assert "Что: Подписка на месяц" in text
+    assert "Сумма: 1290 ₽ · СБП / карта" in text
+    assert "Подписка до 07.11.2026" in text
+    assert "Баланс: 20 💎" in text
+
+
 def test_parse_payload():
     assert stars.parse_payload("sub_month") == "sub_month"
     assert stars.parse_payload("garbage") is None
@@ -50,6 +67,44 @@ def _successful_payment(code="pack_50", charge_id="ch1"):
         total_amount=250,
         model_dump=lambda mode="json": {"charge": charge_id},
     )
+
+
+class _OkMessage(_FailingMessage):
+    async def answer(self, text, **kw):
+        self.answers.append(text)
+
+
+class _NotifyBot:
+    def __init__(self, fail_id=None):
+        self.sent = []
+        self.fail_id = fail_id
+
+    async def send_message(self, chat_id, text):
+        if chat_id == self.fail_id:
+            raise RuntimeError("admin blocked the bot")
+        self.sent.append((chat_id, text))
+
+
+async def test_stars_payment_notifies_every_admin(session_factory):
+    from bot.handlers.payments import on_successful_payment
+
+    settings = Settings(_env_file=None, bot_token="x", admin_ids=[9, 8])
+    bot = _NotifyBot(fail_id=8)
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 1, "lena")
+        await s.commit()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 1)
+        message = _OkMessage(_successful_payment())
+        await on_successful_payment(message, s, user, bot, settings)
+    assert message.answers[0].startswith("Оплата прошла!")
+    assert len(bot.sent) == 1 and bot.sent[0][0] == 9
+    note = bot.sent[0][1]
+    assert "Кто: @lena · 1" in note
+    assert "Что: 50 кристалликов" in note
+    assert "Сумма: 250 ⭐ · Звёзды" in note
+    assert "Баланс: 50 💎" in note
+    assert "Подписка до" not in note
 
 
 async def test_stars_grant_survives_failed_confirmation(session_factory):

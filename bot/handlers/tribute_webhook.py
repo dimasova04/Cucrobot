@@ -7,6 +7,7 @@ from loguru import logger
 from sqlalchemy import delete
 
 from bot import texts
+from bot.admin_notify import notify_admins_payment
 from database import repo
 from database.models import Payment
 from services.billing import grants
@@ -51,9 +52,16 @@ def make_handler(session_factory, settings, bot):
                         )
                     )
                 await s.commit()
+                paid_user_id, paid_username = user.id, user.username
             if res is None:
                 logger.warning("tribute: duplicate {}", ev.external_id)
                 return web.Response(text="duplicate")
+            await notify_admins_payment(
+                bot, settings,
+                user_id=paid_user_id, username=paid_username, product_title=res.product.title,
+                provider="tribute", amount=ev.amount, currency=ev.currency,
+                balance=res.balance, sub_until=res.sub_until,
+            )
             text = (
                 texts.PAYMENT_OK_PACK.format(n=res.product.crystals, balance=res.balance)
                 if res.product.kind == "pack"

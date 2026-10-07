@@ -15,6 +15,7 @@ from services.payments import tribute
 
 
 def _settings(**kw):
+    kw.setdefault("admin_ids", [])
     return Settings(_env_file=None, bot_token="x", tribute_api_key="secret", tribute_sub_month_id="offer_42", tribute_pack_100_id="prod_7", **kw)
 
 
@@ -139,6 +140,25 @@ async def test_handler_grants_pack_and_notifies(session_factory):
         assert len(payments) == 1
         assert payments[0].product == "pack_50"
     assert bot.sent == [(5, texts.PAYMENT_OK_PACK.format(n=50, balance=50))]
+
+
+@pytest.mark.asyncio
+async def test_handler_notifies_admins_and_skips_duplicate(session_factory):
+    settings = _settings(tribute_pack_50_id="p50", admin_ids=[9])
+    bot = FakeBot()
+    handler = make_handler(session_factory, settings, bot)
+    body = {"name": "new_digital_product", "payload": {
+        "product_id": "p50", "telegram_user_id": 5, "payment_id": "t-admin", "amount": 45000, "currency": "rub",
+    }}
+    resp = await handler(_req(body))
+    assert resp.status == 200
+    assert bot.sent[0][0] == 9
+    assert "Кто: 5" in bot.sent[0][1]
+    assert "Что: 50 кристалликов" in bot.sent[0][1]
+    assert "Сумма: 450 ₽ · СБП / карта" in bot.sent[0][1]
+    assert bot.sent[1] == (5, texts.PAYMENT_OK_PACK.format(n=50, balance=50))
+    await handler(_req(body))
+    assert len(bot.sent) == 2
 
 
 @pytest.mark.asyncio

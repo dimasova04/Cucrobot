@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from database import repo
 from database.base import utcnow
@@ -9,7 +9,8 @@ from services import stats
 async def test_collect(session_factory):
     now = utcnow()
     async with session_factory() as s:
-        await repo.get_or_create_user(s, 1, "a")
+        u1 = await repo.get_or_create_user(s, 1, "a")
+        u1.rules_accepted_at = now
         u2 = await repo.get_or_create_user(s, 2, "b")
         u2.created_at = now - timedelta(days=10)
         s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x", status="done", cost_usd=0.002))
@@ -27,6 +28,7 @@ async def test_collect(session_factory):
     assert st.generations == {"base": 1, "premium": 1}
     assert abs(st.cost_usd - 0.052) < 1e-9
     assert st.stars == 250 and st.tribute_rub == 499
+    assert st.payments == 2 and st.payers == 1 and st.accepted == 1
 
 
 async def test_totals(session_factory):
@@ -47,6 +49,41 @@ async def test_totals(session_factory):
         t = await stats.totals(s, now)
     assert (t.users, t.accepted, t.active_subs, t.generations_done, t.crystals_in_wallets) == (2, 1, 1, 1, 12)
     assert t.ref_users == 1
+
+
+def test_month_start_follows_moscow_calendar():
+    # 2026-10-01 00:30 МСК — это ещё 30 сентября по UTC, но уже октябрь для отчёта.
+    start, title = stats.month_start(datetime(2026, 9, 30, 21, 30))
+    assert start == datetime(2026, 9, 30, 21, 0)
+    assert title == "Октябрь 2026"
+    start, title = stats.month_start(datetime(2026, 9, 30, 20, 0))
+    assert start == datetime(2026, 8, 31, 21, 0)
+    assert title == "Сентябрь 2026"
+    assert stats.day_start(datetime(2026, 9, 30, 21, 30)) == datetime(2026, 9, 30, 21, 0)
+
+
+async def test_stats_command_reports_the_current_month(session_factory):
+    from bot.handlers.admin.stats import cmd_stats
+    from tests.test_bot_core import _AdminMessage
+
+    now = utcnow()
+    _, title = stats.month_start(now)
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 1, "a")
+        user.rules_accepted_at = now
+        s.add(Payment(provider="stars", external_id="c1", user_id=1, product="pack_50", amount=350, currency="XTR"))
+        s.add(Generation(user_id=1, model_air="m", model_tier="base", actors=[], location="x", status="done", cost_usd=0.01))
+        await s.commit()
+    async with session_factory() as s:
+        msg = _AdminMessage()
+        await cmd_stats(msg, s)
+    text = msg.answers[0]
+    assert title in text
+    assert "Новые пользователи: 1" in text
+    assert "Приняли правила: 1" in text
+    assert "Платили: 1 · платежей: 1" in text
+    assert "Звёзды: 350" in text
+    assert "обычных · 0 премиум" in text
 
 
 def test_admin_commands_cover_help_list():

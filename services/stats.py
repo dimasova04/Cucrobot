@@ -1,11 +1,19 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.base import utcnow
 from database.models import Generation, Payment, User
+
+# Отчёт админу считается по календарю Москвы: платежи ночью не уезжают в прошлый месяц.
+_MSK = ZoneInfo("Europe/Moscow")
+MONTHS = (
+    "", "январь", "февраль", "март", "апрель", "май", "июнь",
+    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+)
 
 
 @dataclass
@@ -36,6 +44,29 @@ async def totals(session: AsyncSession, now: datetime) -> Totals:
     return Totals(int(users), int(accepted), int(active_subs), int(gens), int(crystals), int(ref_users))
 
 
+def _msk(now_utc_naive: datetime) -> datetime:
+    return now_utc_naive.replace(tzinfo=timezone.utc).astimezone(_MSK)
+
+
+def _to_naive_utc(moment) -> datetime:
+    return moment.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def month_start(now_utc_naive: datetime) -> tuple[datetime, str]:
+    """Начало текущего календарного месяца по Москве и подпись «Октябрь 2026»."""
+    local = _msk(now_utc_naive)
+    start = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    title = f"{MONTHS[start.month].capitalize()} {start.year}"
+    return _to_naive_utc(start), title
+
+
+def day_start(now_utc_naive: datetime) -> datetime:
+    """Полночь текущего дня по Москве, в наивном UTC для сравнения с created_at."""
+    local = _msk(now_utc_naive)
+    start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return _to_naive_utc(start)
+
+
 @dataclass
 class Stats:
     new_users: int
@@ -43,6 +74,9 @@ class Stats:
     cost_usd: float
     stars: int
     tribute_rub: int
+    payments: int
+    payers: int
+    accepted: int
 
 
 async def collect(session: AsyncSession, since: datetime) -> Stats:
@@ -69,7 +103,21 @@ async def collect(session: AsyncSession, since: datetime) -> Stats:
             func.lower(Payment.currency).in_(["rub", ""]),
         )
     )).scalar_one()
-    return Stats(new_users=int(new_users), generations=gens, cost_usd=cost, stars=int(stars), tribute_rub=int(trib) // 100)
+    paid = (Payment.created_at >= since, Payment.status == "ok")
+    payments = (await session.execute(
+        select(func.count()).select_from(Payment).where(*paid)
+    )).scalar_one()
+    payers = (await session.execute(
+        select(func.count(func.distinct(Payment.user_id))).where(*paid)
+    )).scalar_one()
+    accepted = (await session.execute(
+        select(func.count()).select_from(User).where(User.rules_accepted_at >= since)
+    )).scalar_one()
+    return Stats(
+        new_users=int(new_users), generations=gens, cost_usd=cost,
+        stars=int(stars), tribute_rub=int(trib) // 100,
+        payments=int(payments), payers=int(payers), accepted=int(accepted),
+    )
 
 
 def _day_key(value) -> str:
