@@ -5,7 +5,7 @@ SAFETY_CLAUSE = (
     "proportions, shoulders, torso, muscles and tattoos. "
     "Do not move one person's arms, shoulders or muscles onto another person. "
     "The woman's arms stay as in her own photo. "
-    "Do not copy clothes, props or background from the person and actor photos. "
+    "Do not copy clothes, props, background, logos or text from the person and actor photos. "
     "Clothing, pose and setting come from the scene description and the requested detail. "
     "A location reference is the exception: follow its framing, pose and place, but not the faces in it."
 )

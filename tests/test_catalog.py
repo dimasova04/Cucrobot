@@ -133,7 +133,6 @@ async def test_seed_actors_by_name(session_factory):
         siffredi = actors[0]
         assert siffredi.is_active
         assert [r.file_id for r in siffredi.refs] == [
-            "asset:actors/siffredi/01.jpg",
             "asset:actors/siffredi/02.jpg",
             "asset:actors/siffredi/03.jpg",
             "asset:actors/siffredi/04.jpg",
@@ -142,13 +141,14 @@ async def test_seed_actors_by_name(session_factory):
         by_name = {a.name: a for a in actors}
         assert by_name["Синс"].refs == []
         assert len(by_name["Видаль"].refs) == 3
-        assert len(by_name["Дюпри"].refs) == 3
+        assert len(by_name["Дюпри"].refs) == 1
+        assert by_name["Дюпри"].refs[0].file_id == "asset:actors/dupree/03.jpg"
         assert by_name["Видаль"].refs[0].file_id == "asset:actors/vidal/01.jpg"
         assert "Джорди" in by_name and "Мик Блю" in by_name
     async with session_factory() as s:
         assert await catalog.seed_actors(s) == 0
         actors = await catalog.list_actors(s)
-        assert len(next(a for a in actors if a.name == "Сиффреди").refs) == 4
+        assert len(next(a for a in actors if a.name == "Сиффреди").refs) == 3
 
 
 async def test_seed_actors_fills_empty_and_keeps_uploaded_refs(session_factory):
@@ -171,7 +171,22 @@ async def test_seed_actors_fills_empty_and_keeps_uploaded_refs(session_factory):
             "asset:actors/vidal/02.jpg",
             "asset:actors/vidal/03.jpg",
         ]
-        assert actors["Дюпри"].refs[0].file_id == "asset:actors/dupree/01.jpg"
+        assert actors["Дюпри"].refs[0].file_id == "asset:actors/dupree/03.jpg"
+
+
+def test_press_wall_photos_are_not_sent_to_the_model():
+    assert catalog.usable_ref_ids([
+        "asset:actors/siffredi/01.jpg",
+        "asset:actors/siffredi/02.jpg",
+        "asset:actors/dupree/01.jpg",
+        "asset:actors/dupree/02.jpg",
+        "asset:actors/dupree/03.jpg",
+        "tg-photo",
+    ]) == [
+        "asset:actors/siffredi/02.jpg",
+        "asset:actors/dupree/03.jpg",
+        "tg-photo",
+    ]
 
 
 async def test_seed_actors_rejects_missing_or_too_many_refs(session_factory, tmp_path):

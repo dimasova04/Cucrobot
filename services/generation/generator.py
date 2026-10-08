@@ -163,7 +163,8 @@ class Generator:
             await s.commit()
             gen_id = gen.id
             actor_inputs = [
-                ActorInput(a.name, a.description, [r.file_id for r in a.refs]) for a in actors
+                ActorInput(a.name, a.description, catalog.usable_ref_ids([r.file_id for r in a.refs]))
+                for a in actors
             ]
             actor_inputs += [ActorInput(name, "", list(files)) for name, files in named]
 

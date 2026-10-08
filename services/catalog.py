@@ -10,6 +10,12 @@ from services.generation.local_assets import asset_file_id
 
 SIZES = {"portrait": (832, 1248), "landscape": (1248, 832)}
 MIN_REFS, MAX_REFS = 2, 4
+# Пресс-волл AVN: модель переносит логотип в кадр. Эти файлы не отправляем.
+PRESS_WALL_REFS = frozenset({
+    "asset:actors/siffredi/01.jpg",
+    "asset:actors/dupree/01.jpg",
+    "asset:actors/dupree/02.jpg",
+})
 # У локации может быть больше кадров, чем у актёра: бюджет генерации всё равно 14.
 SCENE_MAX_REFS = 8
 
@@ -125,6 +131,11 @@ def _bundled_ref_ids(item: dict, limit: int = MAX_REFS) -> list[str]:
     if len(raw) > limit:
         raise ValueError(f"{item.get('name')} has {len(raw)} refs, max is {limit}")
     return [asset_file_id(str(rel)) for rel in raw]
+
+
+def usable_ref_ids(file_ids: list[str]) -> list[str]:
+    """Референсы актёра без пресс-волла. Логотип с того фото оказывается на готовом кадре."""
+    return [fid for fid in file_ids if fid not in PRESS_WALL_REFS]
 
 
 def _attach_refs(actor: Actor, file_ids: list[str]) -> None:

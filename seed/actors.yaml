@@ -4,7 +4,6 @@
 - name: "Сиффреди"
   description: "Rocco Siffredi, adult film actor, athletic build"
   refs:
-    - actors/siffredi/01.jpg
     - actors/siffredi/02.jpg
     - actors/siffredi/03.jpg
     - actors/siffredi/04.jpg
@@ -21,8 +20,6 @@
 - name: "Дюпри"
   description: "Markus Dupree, adult film actor, slim build"
   refs:
-    - actors/dupree/01.jpg
-    - actors/dupree/02.jpg
     - actors/dupree/03.jpg
 - name: "Кейран Ли"
   description: "Keiran Lee, adult film actor"
