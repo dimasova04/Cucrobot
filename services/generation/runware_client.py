@@ -60,6 +60,7 @@ class RunwareClient:
             includeCost=True,
             outputType="URL",
             outputFormat="JPG",
+            outputQuality=95,
             safety={"checkContent": False},
             inputs={"referenceImages": refs},
         )

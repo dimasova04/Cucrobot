@@ -74,11 +74,10 @@ async def test_seed_scenes_once(session_factory):
         assert morning.prompt != by_name["Селфи с размазанной тушью"]
         assert "oversized shirt" not in morning.prompt
         assert morning.orientation == "portrait"
+        assert "Одна комната" in morning.prompt
+        assert "без софитов" in morning.prompt
         assert catalog.scene_ref_ids(morning) == [
-            "asset:scenes/morning/01.jpg",
             "asset:scenes/morning/02.jpg",
-            "asset:scenes/morning/03.jpg",
-            "asset:scenes/morning/04.jpg",
             "asset:scenes/morning/05.jpg",
         ]
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
@@ -111,10 +110,7 @@ async def test_seed_scenes_fills_empty_refs_and_keeps_uploaded(session_factory):
         assert scenes["Лимузин"].prompt == "keep"
         assert scenes["Утро после"].prompt == "old"
         assert catalog.scene_ref_ids(scenes["Утро после"]) == [
-            "asset:scenes/morning/01.jpg",
             "asset:scenes/morning/02.jpg",
-            "asset:scenes/morning/03.jpg",
-            "asset:scenes/morning/04.jpg",
             "asset:scenes/morning/05.jpg",
         ]
 

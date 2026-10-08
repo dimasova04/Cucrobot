@@ -137,6 +137,7 @@ _FIRST_SCENE = (
 )
 _NEXT_SCENE = (
     "Image {n} is another reference for this scene. Follow its framing and place. "
+    "One room only: do not collage different places into one photo. "
     "Do not copy faces, bodies or clothes from it. Do not replace an actor with a different man."
 )
 # Восемь отдельных строк про кадры площадки раздували промпт за 3000 символов.

@@ -68,6 +68,7 @@ def test_several_location_refs_do_not_replace_faces():
     assert "another reference for this scene" in prompt
     assert "Do not copy the faces, bodies or clothes" in prompt
     assert "Do not copy faces, bodies or clothes from it." in prompt
+    assert "do not collage different places" in prompt
 
 
 def test_actor_photos_are_kept_when_the_location_has_many_frames():

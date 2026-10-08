@@ -50,12 +50,9 @@
 - name: "Утро после"
   orientation: portrait
   refs:
-    - scenes/morning/01.jpg
     - scenes/morning/02.jpg
-    - scenes/morning/03.jpg
-    - scenes/morning/04.jpg
     - scenes/morning/05.jpg
-  prompt: "a morning-after selfie with a white bathrobe, not a tight crying close-up. Белый халат на плечах, под ним бельё, телефон в руке. Он рядом и прижимается к ней. Смотрят в камеру. Тушь только лёгкими следами, не широкими чёрными потёками по щекам."
+  prompt: "a morning-after selfie with a white bathrobe, not a tight crying close-up. Белый халат на плечах, под ним бельё, телефон в руке. Он рядом и прижимается к ней. Смотрят в камеру. Тушь только лёгкими следами, не широкими чёрными потёками по щекам. Одна комната, без софитов, камеры на штативе и бассейна. Кожа резкая, как на фото людей, не пластиковая."
 - name: "Велкам-студия"
   orientation: portrait
   prompt: "in a welcome studio with a lit mirror and a sofa, she wears a black swimsuit, he stands close and looks at her"
