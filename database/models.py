@@ -21,6 +21,8 @@ class User(Base):
     # Реферальная привязка: ставится один раз при первом /start с ref-пейлоадом.
     ref_code: Mapped[str | None] = mapped_column(String(32), index=True)
     ref_attributed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Кто пригласил. Ставится до «Принимаю», один раз. Партнёрский ref_code не трогает.
+    invited_by: Mapped[int | None] = mapped_column(BigInteger)
     # Имя в закрытом канале. Выдаётся один раз, дальше не меняется.
     public_name: Mapped[str | None] = mapped_column(String(32), unique=True)
 
@@ -40,7 +42,7 @@ class CrystalTransaction(Base):
     __tablename__ = "crystal_transactions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # start, bonus, purchase, charge, refund, admin
+    kind: Mapped[str] = mapped_column(String(16))  # start, bonus, purchase, charge, refund, admin, invite
     amount: Mapped[int] = mapped_column(Integer)
     balance_after: Mapped[int] = mapped_column(Integer)
     ref_type: Mapped[str | None] = mapped_column(String(16))

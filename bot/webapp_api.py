@@ -81,6 +81,10 @@ def _me_payload(user, settings, username: str, published: int) -> dict:
         "costs": {"base": settings.cost_base, "premium": settings.cost_premium},
         "is_admin": settings.is_admin(user.id),
         "bot_username": username,
+        "invite": {
+            "reward": settings.invite_crystals,
+            "link": f"https://t.me/{username}?start=inv_{user.id}" if username else "",
+        },
     }
 
 

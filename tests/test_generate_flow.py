@@ -533,8 +533,13 @@ async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
             Settings(_env_file=None, bot_token="x"), _Spend(),
         )
     text, markup = message.answers[1]
-    assert text == "-1 кристалл, баланс: 0\n\n" + texts.BALANCE_EMPTY_BONUS
-    assert _callbacks(markup) == ["bonus:claim"]
+    assert text == (
+        "-1 кристалл, баланс: 0\n\n"
+        + texts.BALANCE_EMPTY_BONUS
+        + "\n"
+        + texts.BALANCE_EMPTY_BUY.format(n=3)
+    )
+    assert _callbacks(markup) == ["shop:packs", "bonus:claim", "invite:open", "shop:subs"]
 
     async with session_factory() as s:
         user = await repo.get_user(s, 81)
@@ -552,5 +557,5 @@ async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
         )
     assert texts.GENERATING not in [a[0] for a in message.answers]
     text, markup = message.answers[0]
-    assert texts.BALANCE_EMPTY_BUY in text
-    assert _callbacks(markup) == ["shop:packs", "shop:subs"]
+    assert texts.BALANCE_EMPTY_BUY.format(n=3) in text
+    assert _callbacks(markup) == ["shop:packs", "invite:open", "shop:subs"]

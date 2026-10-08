@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     price_rub_sub_3month: int = 3290
 
     start_crystals: int = 3
+    # Кристаллы пригласившему, когда новый человек жмёт «Принимаю» по его ссылке.
+    invite_crystals: int = 3
     bonus_free_amount: int = 3
     bonus_free_hours: int = 48
     bonus_sub_amount: int = 10

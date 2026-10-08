@@ -6,7 +6,8 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
-from services import aliases
+from bot.refs_view import bot_username
+from services import aliases, invites
 from services.channel_rank import level_title, published_count
 from services.billing import bonus, subscriptions
 from services.billing.products import PACKS, SUBS
@@ -42,6 +43,7 @@ def profile_kb(user, channel_url: str = "") -> InlineKeyboardMarkup:
             _quality_row(user),
             [(texts.BTN_BUY_PACK, "shop:packs")],
             [(texts.BTN_BUY_SUB, "shop:subs")],
+            [(texts.BTN_INVITE, "invite:open")],
             [(texts.BTN_BACK, "menu:home")],
         ],
     )
@@ -141,6 +143,26 @@ async def toggle_quality(cb: CallbackQuery, session, user, settings):
 @profile_router.callback_query(F.data == "profile:quality_locked")
 async def quality_locked(cb: CallbackQuery):
     await cb.answer(texts.MODEL_PREMIUM_LOCKED, show_alert=True)
+
+
+@profile_router.callback_query(F.data == "invite:open")
+async def open_invite(cb: CallbackQuery, user, settings):
+    await cb.answer()
+    username = await bot_username(cb.bot)
+    link = invites.invite_link(username, user.id)
+    share = invites.share_url(link, texts.INVITE_SHARE)
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=texts.BTN_INVITE_SHARE, url=share)],
+            [InlineKeyboardButton(text=texts.BTN_BUY_PACK, callback_data="shop:packs")],
+            [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="menu:profile")],
+        ]
+    )
+    await cb.message.answer(
+        texts.INVITE_RULES.format(link=link, n=settings.invite_crystals),
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
 
 
 @profile_router.callback_query(F.data == "shop:packs")

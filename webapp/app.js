@@ -97,12 +97,17 @@
       ? "Бонус готов: +" + me.bonus.amount + " 💎"
       : "Следующий бонус " + waitText(me.bonus.wait_seconds);
 
+    var cost = me.quality.tier === "premium" ? me.costs.premium : me.costs.base;
+    var low = me.crystals < cost;
     var html = "" +
       '<div class="card balance">' +
         '<div class="balance-value">💎 ' + num(me.crystals) + "</div>" +
         '<div class="balance-label">' + plural(me.crystals, "кристаллик", "кристаллика", "кристалликов") +
         " · 1 фото = " + me.costs.base + " 💎</div>" +
       "</div>" +
+      (low
+        ? '<button class="btn btn-primary" id="buy-pack-btn">💎 Купить пакет</button>' + inviteBlock(me, true)
+        : "") +
 
       (me.public_name
         ? '<div class="card"><div class="card-title">🎭 В канале</div><div>' + esc(me.public_name) +
@@ -132,12 +137,17 @@
         (me.quality.can_premium ? "" : '<div class="muted" style="margin-top:10px">Премиум открывается с подпиской — она в «Магазине».</div>') +
       "</div>" +
 
+      (low ? "" : inviteBlock(me, false)) +
       '<button class="btn btn-primary" id="create-btn">📸 Начни создание фото</button>';
 
     $("tab-profile").innerHTML = html;
 
     $("bonus-btn").onclick = claimBonus;
     $("create-btn").onclick = goCreate;
+    var buy = $("buy-pack-btn");
+    if (buy) buy.onclick = function () { showTab("shop"); };
+    var inviteBtn = $("invite-btn");
+    if (inviteBtn) inviteBtn.onclick = shareInvite;
     Array.prototype.forEach.call($("quality-seg").querySelectorAll("button"), function (b) {
       b.onclick = function () { setQuality(b.getAttribute("data-tier")); };
     });
@@ -191,6 +201,37 @@
     }).catch(function (e) {
       toast(e.code === "premium_locked" ? "Премиум-качество — по подписке ⭐" : "Не получилось переключить");
     });
+  }
+
+  function inviteBlock(me, urgent) {
+    var inv = me.invite || {};
+    if (!inv.link) return "";
+    var n = inv.reward;
+    return '<div class="card">' +
+      '<div class="card-title">👥 Пригласи друга</div>' +
+      (urgent ? '<div style="margin-bottom:8px">Пакет — сразу. Друг — дополнительно.</div>' : "") +
+      '<div class="invite-rules">' +
+        "<div>1. Друг открывает бота впервые по твоей ссылке и жмёт «Принимаю».</div>" +
+        "<div>2. Тебе +" + n + " 💎. Другу — стартовые кристаллики, как всем новым.</div>" +
+        "<div>3. Кто уже пользовался ботом — не считается.</div>" +
+        "<div>4. Себя пригласить нельзя. Один человек — один раз.</div>" +
+        "<div>5. Приглашение — дополнительно. Кристаллы кончились — сначала купи пакет: кадр не должен ждать друга.</div>" +
+      "</div>" +
+      '<div class="muted invite-link">' + esc(inv.link) + "</div>" +
+      '<button class="btn btn-outline" id="invite-btn">📤 Отправить другу</button>' +
+    "</div>";
+  }
+
+  function shareInvite() {
+    var link = state.me.invite && state.me.invite.link;
+    if (!link) return;
+    var url = "https://t.me/share/url?url=" + encodeURIComponent(link) +
+      "&text=" + encodeURIComponent("Сними кадр со звездой. 18+");
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+      return;
+    }
+    toast(link);
   }
 
   function goCreate() {

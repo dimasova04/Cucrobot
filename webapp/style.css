@@ -108,6 +108,10 @@ h2:first-child { margin-top: 0; }
 .btn-outline { background: transparent; border: 1.5px solid var(--stroke); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn-small { padding: 8px 12px; font-size: 14px; width: auto; }
+#buy-pack-btn { margin-bottom: 12px; }
+.invite-rules { margin: 8px 0 12px; font-size: 15px; }
+.invite-rules div { margin: 6px 0; }
+.invite-link { word-break: break-all; margin-bottom: 12px; }
 
 /* ---------- segmented ---------- */
 .seg {

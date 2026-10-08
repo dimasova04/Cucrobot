@@ -421,15 +421,18 @@ async def send_result_photo(
 
 
 def _empty_balance_offer(user, settings) -> tuple[str, object]:
-    """Если кристалликов не осталось: бонус, когда он уже доступен, иначе покупка."""
-    if bonus.bonus_status(user, settings).ready:
-        markup = keyboards.grid([(texts.BTN_BONUS_CLAIM, "bonus:claim")], 1)
-        return texts.BALANCE_EMPTY_BONUS, markup
-    markup = keyboards.grid(
-        [(texts.BTN_BUY_PACK, "shop:packs"), (texts.BTN_BUY_SUB, "shop:subs")],
-        1,
-    )
-    return texts.BALANCE_EMPTY_BUY, markup
+    """Кристаллы кончились: сначала пакет, затем бонус если он уже готов, затем друг."""
+    ready = bonus.bonus_status(user, settings).ready
+    lines = []
+    if ready:
+        lines.append(texts.BALANCE_EMPTY_BONUS)
+    lines.append(texts.BALANCE_EMPTY_BUY.format(n=settings.invite_crystals))
+    rows = [[(texts.BTN_BUY_PACK, "shop:packs")]]
+    if ready:
+        rows.append([(texts.BTN_BONUS_CLAIM, "bonus:claim")])
+    rows.append([(texts.BTN_INVITE, "invite:open")])
+    rows.append([(texts.BTN_BUY_SUB, "shop:subs")])
+    return "\n".join(lines), keyboards.grid([], 1, extra_rows=rows)
 
 
 def _with_empty_offer(text: str, user, settings) -> tuple[str, object | None]:

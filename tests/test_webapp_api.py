@@ -121,6 +121,8 @@ async def test_me_returns_profile_fields(session_factory):
     assert body["quality"] == {"tier": "base", "can_premium": False}
     assert body["costs"] == {"base": 1, "premium": 3}
     assert body["is_admin"] is False and body["bot_username"] == "CucroBot"
+    assert body["invite"]["reward"] == 3
+    assert body["invite"]["link"] == "https://t.me/CucroBot?start=inv_5"
 
 
 async def test_me_shows_active_subscription(session_factory):
