@@ -25,6 +25,8 @@ class User(Base):
     invited_by: Mapped[int | None] = mapped_column(BigInteger)
     # Имя в закрытом канале. Выдаётся один раз, дальше не меняется.
     public_name: Mapped[str | None] = mapped_column(String(32), unique=True)
+    # До этой минуты кнопка «В канал» молчит: три предупреждения за неделю.
+    channel_ban_until: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class ReferralCode(Base):
@@ -69,11 +71,22 @@ class Generation(Base):
     seed: Mapped[int | None] = mapped_column(Integer)
     # Сообщение в канале, если кадр уже опубликован. Повторно не постим.
     # id остаётся и после снятия: публикация всё равно считается в уровень.
-    channel_message_id: Mapped[int | None] = mapped_column(Integer)
+    channel_message_id: Mapped[int | None] = mapped_column(Integer, index=True)
     channel_removed_at: Mapped[datetime | None] = mapped_column(DateTime)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class ChannelWarning(Base):
+    """Один пост, снятый за 10 👎. Три таких за 7 дней закрывают канал на 30 дней."""
+
+    __tablename__ = "channel_warnings"
+    __table_args__ = (UniqueConstraint("generation_id", name="uq_channel_warning_generation"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    generation_id: Mapped[int] = mapped_column(ForeignKey("generations.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class Payment(Base):

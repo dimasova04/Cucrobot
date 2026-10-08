@@ -219,6 +219,8 @@ def test_channel_rules_fit_a_caption_and_link_the_bot():
     assert "Сделать свой кадр" in rules
     assert "https://t.me/cucro_bot?start=channel" in rules
     assert "18+" in rules
+    assert "10 👎 снимают пост сами" in rules
+    assert "Три предупреждения за неделю" in rules
 
 
 def test_probe_tells_a_live_post_from_a_deleted_one():

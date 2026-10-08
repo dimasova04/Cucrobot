@@ -119,6 +119,8 @@ async def scan_removed_posts(
         if not rows and after_id:
             rows = await _due_posts(session, 0, batch)
             after_id = 0
+        # Закрываем чтение, чтобы refresh увидел снятие, которое уже записал другой заход.
+        await session.commit()
         next_id = after_id
         for gen in rows:
             message_id = gen.channel_message_id
@@ -130,6 +132,12 @@ async def scan_removed_posts(
                 logger.warning("channel watch hit a limit: {}", e)
                 break
             if status == GONE:
+                await session.refresh(gen)
+                if gen.channel_removed_at is not None:
+                    next_id = gen.id
+                    if pause:
+                        await asyncio.sleep(pause)
+                    continue
                 if await _notify_removed(bot, gen.user_id):
                     gen.channel_removed_at = utcnow()
                     await session.commit()

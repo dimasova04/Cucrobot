@@ -29,10 +29,12 @@ from bot.flow import (
 )
 from bot.intro import send_intro
 from bot.refs_view import bot_username
+from database.base import utcnow
+from database.models import Generation
 from services import aliases
 from services.channel_rank import level_title, published_count
+from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
-from database.models import Generation
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
 from services.generation import faces
@@ -660,6 +662,12 @@ async def gen_publish(cb: CallbackQuery, state: FSMContext, session, user, setti
         return
     if gen.channel_message_id:
         await cb.answer(texts.CHANNEL_ALREADY, show_alert=True)
+        return
+    if posting_banned(user, utcnow()):
+        await cb.answer(
+            texts.CHANNEL_POST_BANNED.format(until=format_ban_until(user.channel_ban_until)),
+            show_alert=True,
+        )
         return
     name = await aliases.assign_public_name(session, user)
     level = level_title(await published_count(session, user.id) + 1)

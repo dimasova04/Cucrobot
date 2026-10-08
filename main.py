@@ -10,6 +10,7 @@ from loguru import logger
 
 from bot import texts
 from bot.channel_reactions import allow_channel_reactions
+from bot.channel_strikes import strike_router
 from bot.channel_watch import start_channel_watch
 from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import profile_router
@@ -109,6 +110,7 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
     # Роутеры: админские первыми, затем пользовательские. Роутеры с глобальными
     # кнопками и платежами идут до generate_router, у которого есть catch-all
     # хендлеры состояний.
+    dp.include_router(strike_router(settings, session_factory))
     dp.include_router(build_admin_router(settings))
     dp.include_router(start_router)
     dp.include_router(menu_router)
