@@ -21,6 +21,15 @@ def test_custom_video_prompt_allows_adult_words_and_blocks_minors():
     assert validate_video_prompt("а" * 2001) == texts.VIDEO_PROMPT_TOO_LONG
     assert "Animate this exact photo." in video_prompt("custom", "они целуются")
     assert "come alive" in ACTIONS["auto"]
+    assert "rub their bodies" in ACTIONS["rub"]
+    assert "shirt" in ACTIONS["undress_him"]
+    assert "jacket" in ACTIONS["undress_top"]
+    for key in ("rub", "undress_him", "undress_top"):
+        text = ACTIONS[key].lower()
+        assert "same clothes" not in text
+        assert "do not add anyone" in text
+    assert texts.BTN_VIDEO_AUTO == "✨ Авто"
+    assert "«Авто»" in texts.VIDEO_MENU
 
 
 def test_seedance_keeps_the_photo_and_asks_for_five_seconds():
@@ -44,8 +53,15 @@ def test_video_button_is_its_own_row_when_the_token_is_set():
     cbs = [b.callback_data for row in menu.inline_keyboard for b in row]
     assert cbs == [
         "gen:v:auto:7", "gen:v:closer:7", "gen:v:kiss:7", "gen:v:hug:7",
-        "gen:v:dance:7", "gen:v:custom:7", "gen:video:cancel",
+        "gen:v:dance:7", "gen:v:rub:7", "gen:v:undress_him:7", "gen:v:undress_top:7",
+        "gen:v:custom:7", "gen:video:cancel",
     ]
+    labels = [b.text for row in menu.inline_keyboard for b in row]
+    assert labels[0] == "✨ Авто"
+    assert "🔥 Трутся" in labels
+    assert "👔 Раздевает его" in labels
+    assert "🧥 Снимает верх" in labels
+    assert all(len(cb.encode()) <= 64 for cb in cbs)
 
 
 class _Bot:

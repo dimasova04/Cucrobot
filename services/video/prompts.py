@@ -2,7 +2,8 @@
 
 VIDEO_PROMPT_MAX = 2000
 
-# Кнопка сама описывает движение. Лица, одежда и место остаются с фото.
+# Кнопка сама описывает движение. Лица и место остаются с фото.
+# У «трутся» и раздеваний одежда как раз должна меняться — там нет фразы same clothes.
 ACTIONS = {
     "auto": (
         "The people already in this photo come alive for a few seconds. "
@@ -26,6 +27,21 @@ ACTIONS = {
     "dance": (
         "The people already in this photo start a slow dance together. "
         "Same faces, same clothes, same place. Do not add anyone."
+    ),
+    "rub": (
+        "The people already in this photo step close and slowly rub their bodies against each other. "
+        "Keep their faces recognizable. Same place and framing. "
+        "Do not add anyone. Do not change who is in the frame."
+    ),
+    "undress_him": (
+        "One person already in this photo unbuttons the man's shirt and slides it off his shoulders, then drops it. "
+        "Leave his other clothes on. Keep their faces recognizable. Same place and framing. "
+        "Do not add anyone."
+    ),
+    "undress_top": (
+        "The woman already in this photo takes off her outer layer, a jacket, coat or cardigan, and drops it. "
+        "Leave the clothes underneath on. Keep her face recognizable. Same place and framing. "
+        "Do not add anyone."
     ),
 }
 

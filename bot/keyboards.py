@@ -86,10 +86,15 @@ def video_menu_kb(generation_id: int) -> InlineKeyboardMarkup:
             (texts.BTN_VIDEO_KISS, f"gen:v:kiss:{gid}"),
             (texts.BTN_VIDEO_HUG, f"gen:v:hug:{gid}"),
             (texts.BTN_VIDEO_DANCE, f"gen:v:dance:{gid}"),
-            (texts.BTN_VIDEO_CUSTOM, f"gen:v:custom:{gid}"),
+            (texts.BTN_VIDEO_RUB, f"gen:v:rub:{gid}"),
+            (texts.BTN_VIDEO_UNDRESS_HIM, f"gen:v:undress_him:{gid}"),
+            (texts.BTN_VIDEO_UNDRESS_TOP, f"gen:v:undress_top:{gid}"),
         ],
         2,
-        [[(texts.BTN_CANCEL, "gen:video:cancel")]],
+        [
+            [(texts.BTN_VIDEO_CUSTOM, f"gen:v:custom:{gid}")],
+            [(texts.BTN_CANCEL, "gen:video:cancel")],
+        ],
     )
 
 
