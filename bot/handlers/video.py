@@ -30,18 +30,21 @@ def _parse_generation_id(data: str) -> int | None:
     return int(raw)
 
 
-async def _frame_bytes(bot, gen: Generation, user) -> bytes:
-    """Берём уже отправленное фото: у бесплатных на нём есть знак. Иначе оригинал и тот же знак."""
-    if gen.result_file_id:
-        buf = BytesIO()
-        await bot.download(gen.result_file_id, destination=buf)
-        return buf.getvalue()
-    if not gen.result_url:
+async def _frame_bytes(bot, gen: Generation) -> bytes:
+    """Чистое фото, без знака. Знак рисуется уже на готовом ролике, иначе модель срезает край."""
+    if gen.result_url:
+        try:
+            data = await gen_service.download_bytes(gen.result_url)
+        except Exception as e:
+            logger.warning("video source url failed for {}: {}", gen.id, type(e).__name__)
+            data = b""
+        if data:
+            return data
+    if not gen.result_file_id:
         return b""
-    data = await gen_service.download_bytes(gen.result_url)
-    if data and not subscriptions.is_active(user):
-        return await asyncio.to_thread(watermark.apply_free_mark, data)
-    return data
+    buf = BytesIO()
+    await bot.download(gen.result_file_id, destination=buf)
+    return buf.getvalue()
 
 
 async def _run(
@@ -63,7 +66,7 @@ async def _run(
         await _answer_not_enough(target, user, settings, cost)
         return
     try:
-        frame = await _frame_bytes(target.bot, gen, user)
+        frame = await _frame_bytes(target.bot, gen)
     except Exception as e:
         logger.warning("video frame download failed for {}: {}", gen.id, e)
         await target.answer(texts.VIDEO_NO_FRAME)
@@ -97,6 +100,8 @@ async def _run(
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
             return
+        if not subscriptions.is_active(user):
+            video = await asyncio.to_thread(watermark.apply_free_mark_video, video)
         await session.refresh(user)
         caption = texts.VIDEO_CAPTION.format(seconds=settings.video_seconds)
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)

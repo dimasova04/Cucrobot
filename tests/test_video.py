@@ -219,6 +219,70 @@ async def test_menu_explains_the_price(session_factory):
     assert msg.sent[-1][1].inline_keyboard[0][0].callback_data == f"gen:v:auto:{gen_id}"
 
 
+async def test_free_clip_gets_a_fixed_mark_and_subscriber_clip_stays_clean(session_factory, monkeypatch):
+    from datetime import timedelta
+
+    from database.base import utcnow
+
+    calls = []
+
+    def mark(data):
+        calls.append(data)
+        return b"marked-mp4"
+
+    monkeypatch.setattr("bot.handlers.video.watermark.apply_free_mark_video", mark)
+    async with session_factory() as s:
+        gen_id = await _ready(s)
+    animator = _Animator()
+    msg = _Msg()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        gen = await s.get(Generation, gen_id)
+        await _run(msg, s, user, _settings(), gen, "auto", None, client=animator)
+    assert calls == [b"mp4"]
+    assert msg.videos == [(b"marked-mp4", texts.VIDEO_CAPTION.format(seconds=5))]
+
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        user.crystals = 10
+        user.sub_until = utcnow() + timedelta(days=3)
+        await s.commit()
+    calls.clear()
+    msg = _Msg()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        gen = await s.get(Generation, gen_id)
+        await _run(msg, s, user, _settings(), gen, "auto", None, client=animator)
+    assert calls == []
+    assert msg.videos == [(b"mp4", texts.VIDEO_CAPTION.format(seconds=5))]
+
+
+async def test_video_animates_the_clean_photo(session_factory, monkeypatch):
+    async def clean(url):
+        assert url == "http://x/clean.jpg"
+        return b"clean-jpeg"
+
+    monkeypatch.setattr("bot.handlers.video.gen_service.download_bytes", clean)
+    async with session_factory() as s:
+        gen_id = await _ready(s)
+        gen = await s.get(Generation, gen_id)
+        gen.result_url = "http://x/clean.jpg"
+        await s.commit()
+
+    class _StrictBot(_Bot):
+        async def download(self, file_id, destination):
+            raise AssertionError("chat photo already has the mark")
+
+    animator = _Animator()
+    msg = _Msg()
+    msg.bot = _StrictBot()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        gen = await s.get(Generation, gen_id)
+        await _run(msg, s, user, _settings(), gen, "hug", None, client=animator)
+    assert animator.calls[0][0] == b"clean-jpeg"
+
+
 async def test_empty_balance_does_not_call_the_model(session_factory):
     async with session_factory() as s:
         gen_id = await _ready(s, crystals=2)
