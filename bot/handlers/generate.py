@@ -402,8 +402,15 @@ async def _photo_for_user(image: bytes, user) -> bytes:
     return image
 
 
+def _video_cost(settings) -> int | None:
+    if not (settings.replicate_api_token or "").strip():
+        return None
+    return settings.cost_video
+
+
 async def send_result_photo(
     target: Message, image: bytes, caption: str, data: dict, attempts: int = 2, *, publish: bool = False,
+    video_cost: int | None = None,
 ):
     """Отправка результата с одним повтором. Кристаллики не возвращаются (спек §7):
     генерация удалась, результат лежит в базе."""
@@ -412,7 +419,7 @@ async def send_result_photo(
             return await target.answer_photo(
                 BufferedInputFile(image, "photo.jpg"),
                 caption=caption,
-                reply_markup=keyboards.result_kb(data, publish=publish),
+                reply_markup=keyboards.result_kb(data, publish=publish, video_cost=video_cost),
             )
         except Exception as e:
             logger.warning("send result photo failed (attempt {}/{}): {}", attempt, attempts, e)
@@ -501,7 +508,9 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         await target.answer(notice, reply_markup=markup)
         photo = await _photo_for_user(outcome.image_bytes, user)
         sent = await send_result_photo(
-            target, photo, caption, st, publish=settings.channel_chat() is not None,
+            target, photo, caption, st,
+            publish=settings.channel_chat() is not None,
+            video_cost=_video_cost(settings),
         )
         if sent is None:
             await wait_msg.edit_text(texts.RESULT_SEND_FAILED)
@@ -769,7 +778,11 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings
             await state.set_state(GenStates.result)
             await cb.message.answer(
                 texts.BACK_TO_RESULT,
-                reply_markup=keyboards.result_kb(st, publish=settings.channel_chat() is not None),
+                reply_markup=keyboards.result_kb(
+                    st,
+                    publish=settings.channel_chat() is not None,
+                    video_cost=_video_cost(settings),
+                ),
             )
             return
     st = await state.get_data()

@@ -64,14 +64,33 @@ def yes_no_kb(yes_cb: str, no_cb: str, yes_text: str, no_text: str) -> InlineKey
     return grid([(yes_text, yes_cb), (no_text, no_cb)], cols=2)
 
 
-def result_kb(data: dict, *, publish: bool = False) -> InlineKeyboardMarkup:
+def result_kb(data: dict, *, publish: bool = False, video_cost: int | None = None) -> InlineKeyboardMarkup:
     buttons = result_buttons(data)
-    # «Опубликовать» и «Новая фотосессия» — каждая своей строкой.
+    # «Оживить», «Опубликовать» и «Новая фотосессия» — каждая своей строкой.
     extra = []
-    if publish and data.get("last_generation_id"):
+    gen_id = data.get("last_generation_id")
+    if video_cost and gen_id:
+        extra.append([(texts.BTN_VIDEO.format(n=video_cost), f"gen:video:{gen_id}")])
+    if publish and gen_id:
         extra.append([(texts.BTN_PUBLISH, "gen:publish")])
     extra.append([buttons[-1]])
     return grid(buttons[:-1], cols=2, extra_rows=extra)
+
+
+def video_menu_kb(generation_id: int) -> InlineKeyboardMarkup:
+    gid = str(generation_id)
+    return grid(
+        [
+            (texts.BTN_VIDEO_AUTO, f"gen:v:auto:{gid}"),
+            (texts.BTN_VIDEO_CLOSER, f"gen:v:closer:{gid}"),
+            (texts.BTN_VIDEO_KISS, f"gen:v:kiss:{gid}"),
+            (texts.BTN_VIDEO_HUG, f"gen:v:hug:{gid}"),
+            (texts.BTN_VIDEO_DANCE, f"gen:v:dance:{gid}"),
+            (texts.BTN_VIDEO_CUSTOM, f"gen:v:custom:{gid}"),
+        ],
+        2,
+        [[(texts.BTN_CANCEL, "gen:video:cancel")]],
+    )
 
 
 def cancel_row() -> list[tuple[str, str]]:

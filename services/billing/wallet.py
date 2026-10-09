@@ -46,16 +46,18 @@ async def charge_generation(session: AsyncSession, user_id: int, cost: int, gene
     return await apply(session, user_id, -cost, "charge", "generation", str(generation_id))
 
 
-async def refund_generation(session: AsyncSession, user_id: int, generation_id: int) -> int | None:
-    ref_id = str(generation_id)
-    # Lock the user row before the idempotency check so concurrent refunds serialize.
+async def charge_video(session: AsyncSession, user_id: int, cost: int, ref_id: str) -> int:
+    return await apply(session, user_id, -cost, "charge", "video", ref_id)
+
+
+async def _refund_ref(session: AsyncSession, user_id: int, ref_type: str, ref_id: str) -> int | None:
     if await get_user_for_update(session, user_id) is None:
         return None
     rows = await session.execute(
         select(CrystalTransaction)
         .where(
             CrystalTransaction.user_id == user_id,
-            CrystalTransaction.ref_type == "generation",
+            CrystalTransaction.ref_type == ref_type,
             CrystalTransaction.ref_id == ref_id,
         )
         .order_by(CrystalTransaction.id)
@@ -64,4 +66,13 @@ async def refund_generation(session: AsyncSession, user_id: int, generation_id: 
     charge = next((t for t in txs if t.kind == "charge"), None)
     if charge is None or any(t.kind == "refund" for t in txs):
         return None
-    return await apply(session, user_id, -charge.amount, "refund", "generation", ref_id)
+    return await apply(session, user_id, -charge.amount, "refund", ref_type, ref_id)
+
+
+async def refund_generation(session: AsyncSession, user_id: int, generation_id: int) -> int | None:
+    # Lock the user row before the idempotency check so concurrent refunds serialize.
+    return await _refund_ref(session, user_id, "generation", str(generation_id))
+
+
+async def refund_video(session: AsyncSession, user_id: int, ref_id: str) -> int | None:
+    return await _refund_ref(session, user_id, "video", ref_id)

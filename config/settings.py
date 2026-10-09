@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     bonus_sub_hours: int = 24
     cost_base: int = 1
     cost_premium: int = 3
+    # Оживление кадра. Пустой токен — кнопки «Оживить» нет.
+    replicate_api_token: str = ""
+    video_model: str = "bytedance/seedance-1-lite"
+    video_seconds: int = 5
+    video_resolution: str = "720p"
+    cost_video: int = 3
+    video_timeout_sec: int = 180
     session_ttl_min: int = 30
     gen_timeout_sec: int = 90
 

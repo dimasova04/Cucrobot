@@ -23,7 +23,10 @@ def test_economy_defaults(monkeypatch):
     assert s.tribute_pack_100_url == "https://web.tribute.tg/p/G6d"
     assert s.tribute_pack_300_url == "https://web.tribute.tg/p/G6e"
     assert (s.tribute_pack_50_id, s.tribute_pack_100_id, s.tribute_pack_300_id) == ("FpD", "G6d", "G6e")
-    assert (s.cost_base, s.cost_premium) == (1, 3)
+    assert (s.cost_base, s.cost_premium, s.cost_video) == (1, 3, 3)
+    assert s.video_model == "bytedance/seedance-1-lite"
+    assert s.video_seconds == 5 and s.video_resolution == "720p"
+    assert s.replicate_api_token == ""
     assert s.model_base_air == "bytedance:seedream@4.5"
     assert s.model_premium_air == "google:4@3"
     assert s.model_base_max_refs == 14 and s.model_premium_max_refs == 14

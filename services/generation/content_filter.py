@@ -93,3 +93,22 @@ def _normalize(text: str) -> str:
 
 def is_allowed(text: str) -> bool:
     return _RE.search(_normalize(text)) is None
+
+
+# Свой промпт видео не режем по взрослым словам. Несовершеннолетних не пускаем.
+_MINOR_STEMS = (
+    "малолет", "несовершеннолет", "школьниц", "школьник", "ребен",
+    "подрост", "малыш", "младен", "детск", "underage", "loli",
+)
+_MINOR_WORDS = (
+    "child", "children", "kid", "kids", "teen", "teens", "minor", "minors",
+    "дети", "детей", "детям", "детьми",
+)
+_MINOR_RE = re.compile(
+    r"\b(?:" + "|".join(map(re.escape, _MINOR_STEMS)) + r")"
+    r"|\b(?:" + "|".join(map(re.escape, _MINOR_WORDS)) + r")\b"
+)
+
+
+def mentions_minor(text: str) -> bool:
+    return _MINOR_RE.search(_normalize(text)) is not None

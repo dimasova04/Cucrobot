@@ -2,7 +2,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 from bot import texts
 from services.billing import subscriptions
-from services.generation.content_filter import is_allowed
+from services.generation.content_filter import is_allowed, mentions_minor
+from services.video.prompts import VIDEO_PROMPT_MAX
 from services.generation.generator import GenerationRequest
 
 
@@ -17,6 +18,7 @@ class GenStates(StatesGroup):
     self_role = State()
     self_photo = State()
     result = State()
+    video_prompt = State()
 
 
 ACTORS_PER_PAGE = 10
@@ -85,6 +87,18 @@ def validate_detail(text: str) -> str | None:
     if len(text) > DETAIL_MAX_LEN:
         return texts.DETAIL_TOO_LONG
     if not is_allowed(text):
+        return texts.TEXT_REJECTED
+    return None
+
+
+def validate_video_prompt(text: str) -> str | None:
+    """Свой текст видео. Длину почти не режем, взрослые слова проходят. Детей нет."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return texts.VIDEO_PROMPT_EMPTY
+    if len(cleaned) > VIDEO_PROMPT_MAX:
+        return texts.VIDEO_PROMPT_TOO_LONG
+    if mentions_minor(cleaned):
         return texts.TEXT_REJECTED
     return None
 
