@@ -10,6 +10,7 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.flow import GenStates, validate_video_prompt
+from bot.handlers.balance import subs_kb
 from bot.handlers.generate import _answer_not_enough
 from database.models import Generation
 from services.billing import subscriptions, wallet
@@ -28,6 +29,18 @@ def _parse_generation_id(data: str) -> int | None:
     if not raw.isdigit():
         return None
     return int(raw)
+
+
+def video_allowed(user, settings) -> bool:
+    """Ролик — подписчикам и админам. Остальным пейвол, кристаллики не списываем."""
+    return bool(settings.is_admin(user.id) or subscriptions.is_active(user))
+
+
+async def _send_paywall(target, settings) -> None:
+    daily = settings.bonus_sub_amount
+    text = texts.VIDEO_PAYWALL.format(seconds=settings.video_seconds, n=settings.cost_video)
+    text += "\n\n" + texts.SHOP_SUBS.format(daily=daily, monthly=daily * 30)
+    await target.answer(text, parse_mode="HTML", reply_markup=subs_kb(settings))
 
 
 async def _frame_bytes(bot, gen: Generation) -> bytes:
@@ -60,6 +73,9 @@ async def _run(
 ) -> None:
     if user.id in _running:
         await target.answer(texts.ALREADY_RUNNING)
+        return
+    if not video_allowed(user, settings):
+        await _send_paywall(target, settings)
         return
     cost = settings.cost_video
     if user.crystals < cost:
@@ -143,6 +159,10 @@ async def open_video_menu(cb: CallbackQuery, state: FSMContext, session, user, s
     if gen is None:
         await cb.answer(texts.VIDEO_NO_FRAME, show_alert=True)
         return
+    if not video_allowed(user, settings):
+        await cb.answer()
+        await _send_paywall(cb.message, settings)
+        return
     await state.set_state(GenStates.result)
     await state.update_data(video_generation_id=gen.id)
     await cb.answer()
@@ -164,6 +184,10 @@ async def pick_video_action(cb: CallbackQuery, state: FSMContext, session, user,
     if gen is None or (action != "custom" and action not in ACTIONS):
         await cb.answer(texts.VIDEO_NO_FRAME, show_alert=True)
         return
+    if not video_allowed(user, settings):
+        await cb.answer()
+        await _send_paywall(cb.message, settings)
+        return
     if action == "custom":
         await state.set_state(GenStates.video_prompt)
         await state.update_data(video_generation_id=gen.id)
@@ -176,6 +200,10 @@ async def pick_video_action(cb: CallbackQuery, state: FSMContext, session, user,
 
 @video_router.message(GenStates.video_prompt, F.text)
 async def video_custom_text(message: Message, state: FSMContext, session, user, settings):
+    if not video_allowed(user, settings):
+        await state.set_state(GenStates.result)
+        await _send_paywall(message, settings)
+        return
     err = validate_video_prompt(message.text)
     if err:
         await message.answer(err)

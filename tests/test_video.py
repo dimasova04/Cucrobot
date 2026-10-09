@@ -76,7 +76,7 @@ class _Msg:
         self.videos = []
         self.edits = []
 
-    async def answer(self, text, reply_markup=None):
+    async def answer(self, text, reply_markup=None, **_kwargs):
         self.sent.append((text, reply_markup))
         return self
 
@@ -100,16 +100,19 @@ class _Animator:
         return b"mp4"
 
 
-def _settings():
+def _settings(**overrides):
     from config.settings import Settings
-    return Settings(
+    fields = dict(
         _env_file=None,
         bot_token="x",
+        admin_ids=[],
         replicate_api_token="token",
         cost_video=3,
         video_seconds=5,
         video_resolution="720p",
     )
+    fields.update(overrides)
+    return Settings(**fields)
 
 
 class _Cb:
@@ -134,9 +137,14 @@ class _State:
         self.data.update(kw)
 
 
-async def _ready(session, crystals=10):
+async def _ready(session, crystals=10, *, subscribed=True):
+    from datetime import timedelta
+
+    from database.base import utcnow
+
     user = await repo.get_or_create_user(session, 5, "u")
     user.crystals = crystals
+    user.sub_until = utcnow() + timedelta(days=7) if subscribed else None
     gen = Generation(
         user_id=5, model_air="m", model_tier="base", actors=[], location="Офис",
         crystals_charged=1, status="done", result_file_id="photo-file",
@@ -232,13 +240,13 @@ async def test_free_clip_gets_a_fixed_mark_and_subscriber_clip_stays_clean(sessi
 
     monkeypatch.setattr("bot.handlers.video.watermark.apply_free_mark_video", mark)
     async with session_factory() as s:
-        gen_id = await _ready(s)
+        gen_id = await _ready(s, subscribed=False)
     animator = _Animator()
     msg = _Msg()
     async with session_factory() as s:
         user = await repo.get_user(s, 5)
         gen = await s.get(Generation, gen_id)
-        await _run(msg, s, user, _settings(), gen, "auto", None, client=animator)
+        await _run(msg, s, user, _settings(admin_ids=[5]), gen, "auto", None, client=animator)
     assert calls == [b"mp4"]
     assert msg.videos == [(b"marked-mp4", texts.VIDEO_CAPTION.format(seconds=5))]
 
@@ -281,6 +289,41 @@ async def test_video_animates_the_clean_photo(session_factory, monkeypatch):
         gen = await s.get(Generation, gen_id)
         await _run(msg, s, user, _settings(), gen, "hug", None, client=animator)
     assert animator.calls[0][0] == b"clean-jpeg"
+
+
+async def test_without_subscription_the_paywall_opens_and_nothing_is_charged(session_factory):
+    async with session_factory() as s:
+        gen_id = await _ready(s, subscribed=False)
+    animator = _Animator()
+    msg = _Msg()
+    cb = _Cb(msg)
+    cb.data = f"gen:video:{gen_id}"
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        await open_video_menu(cb, _State(), s, user, _settings())
+    assert "подписк" in msg.sent[-1][0].lower()
+    assert msg.sent[-1][1] is not None
+    buttons = [b.callback_data for row in msg.sent[-1][1].inline_keyboard for b in row]
+    assert any(item.startswith("buy:sub_") for item in buttons)
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        gen = await s.get(Generation, gen_id)
+        await _run(msg, s, user, _settings(), gen, "auto", None, client=animator)
+    assert animator.calls == []
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 5)).crystals == 10
+
+
+async def test_admin_without_subscription_can_animate(session_factory):
+    async with session_factory() as s:
+        gen_id = await _ready(s, subscribed=False)
+    msg = _Msg()
+    cb = _Cb(msg)
+    cb.data = f"gen:video:{gen_id}"
+    async with session_factory() as s:
+        user = await repo.get_user(s, 5)
+        await open_video_menu(cb, _State(), s, user, _settings(admin_ids=[5]))
+    assert msg.sent[-1][1].inline_keyboard[0][0].callback_data == f"gen:v:auto:{gen_id}"
 
 
 async def test_empty_balance_does_not_call_the_model(session_factory):
