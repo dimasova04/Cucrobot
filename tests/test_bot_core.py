@@ -34,11 +34,11 @@ def test_grid_layout_and_extra_rows():
     assert rows[2][0].callback_data == "back"
 
 
-def test_main_menu_opens_photo_and_video():
+def test_main_menu_opens_generation():
     kb = keyboards.main_menu()
     btn_texts = [b.text for row in kb.keyboard for b in row]
-    assert btn_texts[:2] == [texts.BTN_MAKE_PHOTO, texts.BTN_MAKE_VIDEO]
-    assert texts.BTN_PROFILE in btn_texts
+    assert btn_texts[0] == texts.BTN_GENERATION
+    assert texts.BTN_BALANCE in btn_texts and texts.BTN_HELP in btn_texts
 
 
 def test_cancel_row():
@@ -276,8 +276,14 @@ def test_admin_help_lists_every_admin_command():
 def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert cbs == ["menu:photo", "menu:video", "menu:profile", "menu:bonus", "menu:help"]
-    assert "<b>" in texts.INTRO and "💎" in texts.INTRO
+    assert cbs == ["invite:open", "menu:profile", "menu:help", "menu:rules", "menu:support", "menu:generate"]
+    assert kb.inline_keyboard[-1][0].text == texts.BTN_GENERATION
+    assert len(kb.inline_keyboard[-1]) == 1
+    assert "{link}" in texts.INTRO and "конфиденциально" in texts.INTRO
+    pick = keyboards.generation_kb()
+    assert [b.callback_data for row in pick.inline_keyboard for b in row] == [
+        "menu:photo", "menu:video", "nav:back:menu",
+    ]
 
 
 async def test_send_intro_caches_file_id(monkeypatch):

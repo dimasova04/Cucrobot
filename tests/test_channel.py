@@ -60,9 +60,10 @@ def test_channel_link_is_its_own_start_payload():
 
 def test_channel_button_on_start_and_profile_only_when_linked():
     intro = keyboards.intro_kb(channel_url="https://t.me/+invite")
-    assert intro.inline_keyboard[-1][0].url == "https://t.me/+invite"
-    assert intro.inline_keyboard[-1][0].text == texts.BTN_OPEN_CHANNEL
-    assert all(row[0].url is None for row in keyboards.intro_kb().inline_keyboard)
+    channel = intro.inline_keyboard[0][1]
+    assert channel.url == "https://t.me/+invite"
+    assert channel.text == texts.BTN_START_CHANNEL
+    assert all(b.url is None for row in keyboards.intro_kb().inline_keyboard for b in row)
 
     user = User(id=1, preferred_tier="base", public_name="Lord M")
     kb = profile_kb(user, "https://t.me/+invite")

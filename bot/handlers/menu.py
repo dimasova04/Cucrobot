@@ -59,3 +59,25 @@ async def help_msg(message: Message, session):
 async def cb_help(cb: CallbackQuery, session):
     await cb.answer()
     await cb.message.answer(await build_help(session), parse_mode="HTML", reply_markup=_help_markup())
+
+
+@menu_router.callback_query(F.data == "menu:rules")
+async def cb_rules(cb: CallbackQuery):
+    await cb.answer()
+    await cb.message.answer(texts.RULES, reply_markup=_help_markup())
+
+
+@menu_router.callback_query(F.data == "menu:support")
+async def cb_support(cb: CallbackQuery, settings):
+    await cb.answer()
+    text = texts.SUPPORT
+    if settings.channel_url:
+        text += f"\nКанал: {settings.channel_url}"
+    await cb.message.answer(text, reply_markup=_help_markup())
+
+
+@menu_router.callback_query(F.data == "menu:generate")
+async def cb_generate(cb: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await cb.answer()
+    await cb.message.answer(texts.GEN_PICK, reply_markup=keyboards.generation_kb())

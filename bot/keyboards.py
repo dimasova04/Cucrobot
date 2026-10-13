@@ -13,32 +13,42 @@ from bot.flow import result_buttons
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=texts.BTN_MAKE_PHOTO), KeyboardButton(text=texts.BTN_MAKE_VIDEO)],
-            [KeyboardButton(text=texts.BTN_PROFILE)],
-            [KeyboardButton(text=texts.BTN_HELP)],
+            [KeyboardButton(text=texts.BTN_GENERATION)],
+            [KeyboardButton(text=texts.BTN_BALANCE), KeyboardButton(text=texts.BTN_HELP)],
         ],
         resize_keyboard=True,
     )
 
 
 def intro_kb(webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
-    kb = grid(
+    earn = InlineKeyboardButton(text=texts.BTN_EARN, callback_data="invite:open")
+    if channel_url:
+        first = [earn, InlineKeyboardButton(text=texts.BTN_START_CHANNEL, url=channel_url)]
+    else:
+        first = [earn]
+    rows = [
+        first,
+        [
+            InlineKeyboardButton(text=texts.BTN_BALANCE, callback_data="menu:profile"),
+            InlineKeyboardButton(text=texts.BTN_INTRO_HELP, callback_data="menu:help"),
+        ],
+        [
+            InlineKeyboardButton(text=texts.BTN_RULES, callback_data="menu:rules"),
+            InlineKeyboardButton(text=texts.BTN_SUPPORT, callback_data="menu:support"),
+        ],
+        [InlineKeyboardButton(text=texts.BTN_GENERATION, callback_data="menu:generate")],
+    ]
+    if webapp_url:
+        rows.append([InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def generation_kb() -> InlineKeyboardMarkup:
+    return grid(
         [(texts.BTN_MAKE_PHOTO, "menu:photo"), (texts.BTN_MAKE_VIDEO, "menu:video")],
         1,
-        [
-            [(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_BONUS, "menu:bonus")],
-            [(texts.BTN_INTRO_HELP, "menu:help")],
-        ],
+        [back_row("menu")],
     )
-    if channel_url:
-        kb.inline_keyboard.append(
-            [InlineKeyboardButton(text=texts.BTN_OPEN_CHANNEL, url=channel_url)]
-        )
-    if webapp_url:
-        kb.inline_keyboard.append(
-            [InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))]
-        )
-    return kb
 
 
 def rules_kb() -> InlineKeyboardMarkup:

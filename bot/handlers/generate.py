@@ -85,6 +85,12 @@ async def btn_create(message: Message, state: FSMContext):
     await start_create_flow(message, state)
 
 
+@generate_router.message(F.text == texts.BTN_GENERATION)
+async def btn_generation(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(texts.GEN_PICK, reply_markup=keyboards.generation_kb())
+
+
 @generate_router.message(F.text == texts.BTN_MAKE_VIDEO)
 async def btn_video(message: Message, state: FSMContext):
     await start_video_flow(message, state)
