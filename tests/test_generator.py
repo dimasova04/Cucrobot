@@ -174,17 +174,11 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done" and out.image_bytes == b"IMG" and out.cost_usd == 0.002
     call = provider.calls[0]
-    assert call["model"] == "civitai:101055@128078"
+    assert call["model"] == "bytedance:seedream@4.5"
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
-    assert (call["width"], call["height"]) == (832, 1216)
-    assert call["family"] == "sdxl"
-    assert call["steps"] == 28 and call["cfg"] == 5.0
-    assert call.get("seed_image") is None
-    assert call["ip_adapters"][0]["weight"] == 1.2
-    assert call["ip_adapters"][0]["guideImages"] == [call["refs"][0]]
-    assert call["ip_adapters"][0]["model"] == "runware:55@3"
-    assert call["prompt"].startswith("raw photo")
-    assert "Image 1 is" not in call["prompt"]
+    assert (call["width"], call["height"]) == (1664, 2496)
+    assert call.get("family") is None
+    assert "Image 1 is person A." in call["prompt"]
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 4
         row = await s.get(Generation, out.generation_id)
@@ -192,8 +186,8 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
         assert row.result_url == "http://x/img.jpg"
 
 
-async def test_civitai_air_uses_sdxl_even_if_family_is_old(session_factory, monkeypatch):
-    """Семейство reference и чекпоинт SDXL: referenceImages этот чекпоинт не принимает."""
+async def test_sdxl_env_still_calls_seedream(session_factory, monkeypatch):
+    """Даже если на сервере остались чекпоинт SDXL и кадр 832×1216, фото идёт через Seedream."""
     actor_id, scene_id = await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
 
@@ -203,35 +197,17 @@ async def test_civitai_air_uses_sdxl_even_if_family_is_old(session_factory, monk
     from services.generation import generator as g
     monkeypatch.setattr(g, "download_bytes", fake_download)
     settings = _settings()
-    settings.model_base_family = "reference"
+    settings.model_base_family = "sdxl"
     settings.model_base_air = "civitai:101055@128078"
-    gen = Generator(session_factory, provider, FakeFetcher(), settings)
-    out = await gen.run(_req(actor_id, scene_id))
-    assert out.status == "done"
-    assert provider.calls[0]["family"] == "sdxl"
-    assert provider.calls[0]["model"] == "civitai:101055@128078"
-
-
-async def test_stale_seedream_env_still_calls_sdxl(session_factory, monkeypatch):
-    """Старые переменные Railway: Сидрим и кадр 1664×2496. Такой запрос SDXL не принимает."""
-    actor_id, scene_id = await _seed(session_factory)
-    provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
-
-    async def fake_download(url):
-        return b"IMG"
-
-    from services.generation import generator as g
-    monkeypatch.setattr(g, "download_bytes", fake_download)
-    settings = _settings()
-    settings.model_base_air = "bytedance:seedream@4.5"
-    settings.model_base_portrait = "1664x2496"
+    settings.model_base_portrait = "832x1216"
     gen = Generator(session_factory, provider, FakeFetcher(), settings)
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done"
     call = provider.calls[0]
-    assert call["model"] == "civitai:101055@128078"
-    assert (call["width"], call["height"]) == (832, 1216)
-    assert call["family"] == "sdxl"
+    assert call["model"] == "bytedance:seedream@4.5"
+    assert (call["width"], call["height"]) == (1664, 2496)
+    assert call.get("family") is None
+    assert "Image 1 is" in call["prompt"]
 
 
 async def test_named_actor_photo_replaces_catalog_actor(session_factory, monkeypatch):
@@ -254,7 +230,7 @@ async def test_named_actor_photo_replaces_catalog_actor(session_factory, monkeyp
     call = provider.calls[0]
     # ровно два референса: фото пользователя и фото названного актёра
     assert len(call["refs"]) == 2
-    assert "exactly 2 people" in call["prompt"]
+    assert "Exactly 2 people" in call["prompt"]
     assert "Рокко" in call["prompt"]
     async with session_factory() as s:
         row = await s.get(Generation, out.generation_id)
@@ -296,11 +272,10 @@ async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
     out = await gen.run(req)
     assert out.status == "done" and out.image_bytes == b"IMG"
     prompt = provider.calls[0]["prompt"]
-    assert prompt.startswith("raw photo")
+    assert prompt.startswith("A candid photorealistic photo")
     assert "on a yacht, he holds her hand" in prompt
     assert "together with" not in prompt
-    assert "exactly" not in prompt
-    assert provider.calls[0].get("seed_image") is None
+    assert provider.calls[0].get("family") is None
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         row = await s.get(Generation, out.generation_id)
@@ -447,9 +422,8 @@ async def test_detail_edit_reuses_previous_image_and_seed(session_factory, monke
     call = provider.calls[1]
     assert call["seed"] == 4242
     assert call["refs"][0] == "data:image/jpeg;base64," + base64.b64encode(b"PREV").decode()
-    assert call["seed_image"] == call["refs"][0]
-    assert call["strength"] == 0.32
-    assert call["prompt"].startswith("raw photo, the same photograph")
+    assert call.get("family") is None
+    assert "Image 1 is the finished photo" in call["prompt"]
     assert "в пальто" in call["prompt"]
     assert "on a yacht" not in call["prompt"] and "night club" not in call["prompt"]
     async with session_factory() as s:
@@ -503,12 +477,11 @@ async def test_insert_actor_attaches_only_the_new_face(session_factory, monkeypa
     payloads = _ref_payloads(call["refs"])
     assert payloads[0] == b"PREV"
     assert payloads[1:] == [b"\xff\xd8" + name.encode() for name in ("vb1", "vb2", "vb3")]
-    assert "add exactly one new person" in call["prompt"]
+    assert "Add exactly one new person" in call["prompt"]
     assert "Видаль" in call["prompt"]
     assert "Stat" not in call["prompt"] and "Рокко" not in call["prompt"]
-    assert call["seed_image"] == call["refs"][0]
-    assert call["strength"] == 0.42
-    assert [item["guideImages"] for item in call["ip_adapters"]] == [[call["refs"][1]]]
+    assert call.get("family") is None
+    assert call["refs"][0] == "data:image/jpeg;base64," + base64.b64encode(b"PREV").decode()
     async with session_factory() as s:
         row = await s.get(Generation, second.generation_id)
         assert [a["name"] for a in row.actors] == ["Stat", "Видаль", "Рокко"]
@@ -541,8 +514,8 @@ async def test_detail_edit_falls_back_when_base_download_fails(session_factory, 
     assert out.status == "done"
     call = provider.calls[0]
     assert call["seed"] is None  # откат к обычной генерации
-    assert call["prompt"].startswith("raw photo")
-    assert call.get("seed_image") is None
+    assert "Image 1 is person A." in call["prompt"]
+    assert call.get("family") is None
     assert len(call["refs"]) == 3
 
 
@@ -571,5 +544,5 @@ async def test_detail_edit_ignores_foreign_or_unfinished_base(session_factory, m
     ))
     assert out.status == "done"
     assert provider.calls[0]["seed"] is None
-    assert provider.calls[0]["prompt"].startswith("raw photo")
-    assert provider.calls[0].get("seed_image") is None
+    assert "Image 1 is person A." in provider.calls[0]["prompt"]
+    assert provider.calls[0].get("family") is None

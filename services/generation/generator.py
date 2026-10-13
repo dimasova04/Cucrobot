@@ -104,11 +104,6 @@ def _data_uri(data: bytes) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(data).decode()
 
 
-def _is_sdxl_air(air: str) -> bool:
-    low = (air or "").lower()
-    return low.startswith("civitai:") or "sdxl" in low
-
-
 class Generator:
     def __init__(self, session_factory, provider: ImageProvider, fetcher: FileFetcher, settings: Settings):
         self._sf = session_factory
@@ -121,27 +116,20 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        air = s.model_base_air
-        # На сервере может остаться старый AIR Сидрима. С семейством sdxl он не умеет
-        # IP-Adapter и запрос падает, поэтому подставляем чекпоинт SDXL.
-        if s.model_base_family == "sdxl" and not _is_sdxl_air(air):
-            air = "civitai:101055@128078"
-        return air, s.model_base_max_refs, s.cost_base
+        # SDXL с IP-Adapter Runware отклоняет: кадра нет, кристалл возвращается.
+        # Обычное фото снова Seedream 4.5 с референсами. Переменные sdxl на сервере это не перебивают.
+        return "bytedance:seedream@4.5", s.model_base_max_refs, s.cost_base
 
-    def _sdxl_frame(self, width: int, height: int) -> tuple[int, int]:
-        """Сидрим просил 1664×2496. У SDXL сторона не больше 2048, иначе генерация не стартует."""
-        if width <= 2048 and height <= 2048 and width % 8 == 0 and height % 8 == 0 and width * height <= 1_572_864:
+    def _seedream_frame(self, width: int, height: int) -> tuple[int, int]:
+        """Seedream 4.5 берёт кадр от 3.69 Мпикс. 832×1216 для него слишком мал, генерация не стартует."""
+        if width * height >= 3_690_000 and width % 8 == 0 and height % 8 == 0:
             return width, height
         if height >= width:
-            return 832, 1216
-        return 1216, 832
+            return 1664, 2496
+        return 2496, 1664
 
     def _uses_sdxl(self, tier: str) -> bool:
-        if tier == "premium":
-            return False
-        s = self._settings
-        # Чекпоинт SDXL не умеет referenceImages. Семейство в переменных могло остаться старым.
-        return s.model_base_family == "sdxl" or _is_sdxl_air(s.model_base_air)
+        return False
 
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings
@@ -257,8 +245,8 @@ class Generator:
                 for fid in scene_ref_ids
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
-            if self._uses_sdxl(req.tier):
-                width, height = self._sdxl_frame(width, height)
+            if req.tier != "premium":
+                width, height = self._seedream_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None
