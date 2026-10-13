@@ -8,7 +8,7 @@ from database.models import CrystalTransaction, Generation
 from services.billing import wallet
 from services.generation.content_filter import is_allowed, mentions_minor
 from services.video.prompts import ACTIONS, video_prompt
-from services.video.replicate_client import VideoError, seedance_input
+from services.video.replicate_client import VideoError, jpeg_frame, seedance_input, wait_seconds
 from sqlalchemy import select
 
 
@@ -51,6 +51,26 @@ def test_seedance_keeps_the_photo_and_asks_for_five_seconds():
     assert payload["duration"] == 5
     assert payload["resolution"] == "720p"
     assert payload["camera_fixed"] is False
+
+
+def test_video_wait_outlasts_a_three_minute_env_cap():
+    assert wait_seconds(180) == 420
+    assert wait_seconds(None) == 420
+    assert wait_seconds(600) == 600
+
+
+def test_frame_for_seedance_is_a_jpeg_no_wider_than_1280():
+    import cv2
+    import numpy as np
+
+    big = cv2.imencode(".png", np.full((2000, 3000, 3), 40, dtype=np.uint8))[1].tobytes()
+    frame = jpeg_frame(big)
+    assert frame[:2] == b"\xff\xd8"
+    img = cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+    height, width = img.shape[:2]
+    assert max(height, width) <= 1280
+    assert width % 2 == 0 and height % 2 == 0
+    assert jpeg_frame(b"not an image") == b"not an image"
 
 
 def test_video_button_is_its_own_row_when_the_token_is_set():
@@ -300,6 +320,68 @@ async def test_video_animates_the_clean_photo(session_factory, monkeypatch):
         gen = await s.get(Generation, gen_id)
         await _run(msg, s, user, _settings(), gen, "hug", None, client=animator)
     assert animator.calls[0][0] == b"clean-jpeg"
+
+
+def test_telegram_animation_strips_the_soundtrack():
+    import os
+    import subprocess
+    import tempfile
+
+    from services.generation.watermark import telegram_animation
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "loud.mp4")
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=s=64x64:d=0.2:r=10",
+                "-f", "lavfi", "-i", "sine=f=440:d=0.2",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                "-shortest", path,
+            ],
+            check=True,
+        )
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    quiet = telegram_animation(raw)
+    assert quiet != raw
+    assert telegram_animation(b"not a video") == b"not a video"
+    probe = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-select_streams", "a",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+            "-i", "pipe:0",
+        ],
+        input=quiet,
+        capture_output=True,
+    )
+    assert probe.stdout.strip() == b""
+
+
+async def test_gif_rejected_by_telegram_is_sent_as_a_video(session_factory, monkeypatch):
+    from bot.handlers.video import animate_frame
+
+    monkeypatch.setattr("bot.handlers.video.watermark.telegram_animation", lambda data: data)
+
+    class _NoGif(_Msg):
+        async def answer_animation(self, file, caption=None, reply_markup=None):
+            raise RuntimeError("animation must not have sound")
+
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 11, "u")
+        user.crystals = 10
+        await s.commit()
+    msg = _NoGif()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 11)
+        ok = await animate_frame(
+            msg, s, user, _settings(), b"jpeg", "wave",
+            caption="Яхта", client=_Animator(), teaser=False, as_gif=True,
+        )
+    assert ok is True
+    assert msg.videos == [(b"mp4", "Яхта")]
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 11)).crystals == 7
 
 
 async def test_teaser_gif_is_blurred_and_unblur_opens_the_subscription(session_factory, monkeypatch):

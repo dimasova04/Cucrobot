@@ -106,7 +106,8 @@ class Settings(BaseSettings):
     video_seconds: int = 5
     video_resolution: str = "720p"
     cost_video: int = 3
-    video_timeout_sec: int = 180
+    # 720p у Seedance часто дольше трёх минут. Клиент всё равно ждёт не меньше 420 секунд.
+    video_timeout_sec: int = 420
     session_ttl_min: int = 30
     gen_timeout_sec: int = 90
 

@@ -41,6 +41,18 @@ def apply_video_blur(video_bytes: bytes) -> bytes:
     return blurred or video_bytes
 
 
+def telegram_animation(video_bytes: bytes) -> bytes:
+    """Тихий H.264. Гифка со звуком в Telegram не уходит, и бот возвращает кристалл."""
+    if not video_bytes:
+        return video_bytes
+    try:
+        prepared = _filter_video(video_bytes, "scale=trunc(iw/2)*2:trunc(ih/2)*2")
+    except Exception:
+        logger.exception("telegram animation encode failed")
+        return video_bytes
+    return prepared or video_bytes
+
+
 def apply_free_mark_video(video_bytes: bytes) -> bytes:
     """Тот же знак на готовом ролике, с отступом от края. Битый ролик возвращаем как есть.
 

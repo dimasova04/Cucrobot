@@ -47,6 +47,27 @@ async def _frame_bytes(bot, gen: Generation) -> bytes:
     return buf.getvalue()
 
 
+async def _send_clip(target: Message, video: bytes, caption: str, markup, *, animation: bool) -> None:
+    """Гифка в чат — без звука. Если Telegram её не берёт, тот же ролик уходит обычным видео."""
+    payload = video
+    if animation:
+        payload = await asyncio.to_thread(watermark.telegram_animation, video)
+        try:
+            await target.answer_animation(
+                BufferedInputFile(payload, "video.mp4"),
+                caption=caption,
+                reply_markup=markup,
+            )
+            return
+        except Exception as e:
+            logger.warning("animation send failed ({}), sending as video", e)
+    await target.answer_video(
+        BufferedInputFile(payload, "video.mp4"),
+        caption=caption,
+        reply_markup=markup,
+    )
+
+
 async def animate_frame(
     target: Message,
     session,
@@ -92,7 +113,7 @@ async def animate_frame(
                 frame, prompt, seconds=settings.video_seconds, resolution=settings.video_resolution,
             )
         except (VideoError, Exception) as e:
-            logger.warning("scene video failed for user {}: {}", user.id, type(e).__name__)
+            logger.warning("scene video failed for user {}: {}", user.id, e)
             await wallet.refund_video(session, user.id, ref)
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
@@ -104,13 +125,8 @@ async def animate_frame(
             markup = keyboards.scene_video_kb()
         await session.refresh(user)
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
-        send = target.answer_animation if (as_gif or teaser) else target.answer_video
         try:
-            await send(
-                BufferedInputFile(video, "video.mp4"),
-                caption=caption,
-                reply_markup=markup,
-            )
+            await _send_clip(target, video, caption, markup, animation=as_gif or teaser)
             await wait.edit_text(notice)
         except Exception as e:
             logger.warning("scene video send failed for {}: {}", user.id, e)
@@ -172,7 +188,7 @@ async def _run(
                 resolution=settings.video_resolution,
             )
         except (VideoError, Exception) as e:
-            logger.warning("video failed for user {} gen {}: {}", user.id, gen.id, type(e).__name__)
+            logger.warning("video failed for user {} gen {}: {}", user.id, gen.id, e)
             await wallet.refund_video(session, user.id, ref)
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
