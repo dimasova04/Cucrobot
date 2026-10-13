@@ -3,7 +3,6 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
-    WebAppInfo,
 )
 
 from bot import texts
@@ -13,34 +12,30 @@ from bot.flow import result_buttons
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=texts.BTN_GENERATION)],
-            [KeyboardButton(text=texts.BTN_BALANCE), KeyboardButton(text=texts.BTN_HELP)],
+            [KeyboardButton(text=texts.BTN_MENU_PHOTO), KeyboardButton(text=texts.BTN_MENU_VIDEO)],
+            [KeyboardButton(text=texts.BTN_BALANCE)],
         ],
         resize_keyboard=True,
     )
 
 
-def intro_kb(webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
+def intro_kb(_webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
+    """Сначала фото и видео, потом кабинет. Мини-приложение открывается кнопкой «Магазин» у поля ввода."""
     earn = InlineKeyboardButton(text=texts.BTN_EARN, callback_data="earn:open")
-    if channel_url:
-        first = [earn, InlineKeyboardButton(text=texts.BTN_START_CHANNEL, url=channel_url)]
-    else:
-        first = [earn]
-    rows = [
-        first,
+    friends = [earn, InlineKeyboardButton(text=texts.BTN_START_CHANNEL, url=channel_url)] if channel_url else [earn]
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text=texts.BTN_BALANCE, callback_data="menu:profile"),
-            InlineKeyboardButton(text=texts.BTN_INTRO_HELP, callback_data="menu:help"),
+            InlineKeyboardButton(text=texts.BTN_MENU_PHOTO, callback_data="menu:photo"),
+            InlineKeyboardButton(text=texts.BTN_MENU_VIDEO, callback_data="menu:video"),
         ],
+        [InlineKeyboardButton(text=texts.BTN_BALANCE, callback_data="menu:profile")],
+        friends,
+        [InlineKeyboardButton(text=texts.BTN_INTRO_HELP, callback_data="menu:help")],
         [
             InlineKeyboardButton(text=texts.BTN_RULES, callback_data="menu:rules"),
             InlineKeyboardButton(text=texts.BTN_SUPPORT, callback_data="menu:support"),
         ],
-        [InlineKeyboardButton(text=texts.BTN_GENERATION, callback_data="menu:generate")],
-    ]
-    if webapp_url:
-        rows.append([InlineKeyboardButton(text=texts.BTN_WEBAPP, web_app=WebAppInfo(url=webapp_url))])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    ])
 
 
 def generation_kb() -> InlineKeyboardMarkup:

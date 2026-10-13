@@ -103,7 +103,7 @@ async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
         logger.warning("bonus card send failed: {}", e)
 
 
-@profile_router.message(F.text.in_({texts.BTN_PROFILE, texts.BTN_BALANCE, texts.BTN_BALANCE_OLD}))
+@profile_router.message(F.text.in_({texts.BTN_PROFILE, texts.BTN_BALANCE, texts.BTN_BALANCE_OLD, texts.BTN_CABINET_OLD}))
 async def show_profile(message: Message, session, user, settings):
     text, markup = await _with_alias(session, user, settings)
     await message.answer(text, reply_markup=markup)

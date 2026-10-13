@@ -36,11 +36,10 @@ def test_grid_layout_and_extra_rows():
     assert rows[2][0].callback_data == "back"
 
 
-def test_main_menu_opens_generation():
+def test_main_menu_is_photo_video_and_cabinet():
     kb = keyboards.main_menu()
     btn_texts = [b.text for row in kb.keyboard for b in row]
-    assert btn_texts[0] == texts.BTN_GENERATION
-    assert texts.BTN_BALANCE in btn_texts and texts.BTN_HELP in btn_texts
+    assert btn_texts == [texts.BTN_MENU_PHOTO, texts.BTN_MENU_VIDEO, texts.BTN_BALANCE]
 
 
 def test_cancel_row():
@@ -278,12 +277,13 @@ def test_admin_help_lists_every_admin_command():
 def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert cbs == ["earn:open", "menu:profile", "menu:help", "menu:rules", "menu:support", "menu:generate"]
+    assert cbs == ["menu:photo", "menu:video", "menu:profile", "earn:open", "menu:help", "menu:rules", "menu:support"]
     profile_btn = next(b for row in kb.inline_keyboard for b in row if b.callback_data == "menu:profile")
     assert profile_btn.text == texts.BTN_BALANCE and "Кабинет" in profile_btn.text
-    assert kb.inline_keyboard[-1][0].text == texts.BTN_GENERATION
-    assert len(kb.inline_keyboard[-1]) == 1
-    assert "{link}" in texts.INTRO and "конфиденциально" in texts.INTRO
+    assert len(kb.inline_keyboard[0]) == 2
+    help_row = next(row for row in kb.inline_keyboard if row[0].callback_data == "menu:help")
+    assert len(help_row) == 1
+    assert "{link}" in texts.INTRO and "Кабинет" in texts.INTRO and "не продаём" in texts.INTRO
     pick = keyboards.generation_kb()
     assert [b.callback_data for row in pick.inline_keyboard for b in row] == [
         "menu:photo", "menu:video", "nav:back:menu",
@@ -385,13 +385,13 @@ async def test_help_next_replaces_the_slide():
     help_tour._file_ids.clear()
 
 
-def test_intro_keyboard_gets_webapp_button_when_url_is_set():
-    kb = keyboards.intro_kb("https://example.test/app")
-    last = kb.inline_keyboard[-1][0]
-    assert last.text == texts.BTN_WEBAPP
-    assert last.web_app.url == "https://example.test/app"
-    # без адреса клавиатура прежняя
-    assert len(keyboards.intro_kb().inline_keyboard) == len(kb.inline_keyboard) - 1
+def test_intro_keyboard_has_one_cabinet_even_with_webapp():
+    plain = [b.text for row in keyboards.intro_kb().inline_keyboard for b in row]
+    with_app = [b.text for row in keyboards.intro_kb("https://example.test/app").inline_keyboard for b in row]
+    assert plain == with_app
+    assert plain.count(texts.BTN_BALANCE) == 1
+    assert texts.WEBAPP_MENU_BUTTON == "Магазин"
+    assert "Кабинет" not in texts.WEBAPP_MENU_BUTTON
 
 
 class _FakeState:

@@ -41,18 +41,22 @@ RULES_PRIVACY = (
 RULE_PAGES = (RULES, RULES_AGREEMENT, RULES_REFUND, RULES_PRIVACY)
 RULES_ACCEPT_BTN = "✅ Принимаю"
 RULES_REQUIRED = "Сначала прими правила: /start"
-WELCOME = "Готово! Тебе упало {n} 💎\n\nДальше жми «Генерация»."
+WELCOME = "Готово! Тебе упало {n} 💎\n\nДальше жми «Фото» или «Видео»."
 MENU = "Что делаем?"
 INTRO = (
-    "Нажми 🔮 <b>Генерация</b> и попробуй 100+ сценариев, "
-    "или напиши свой промпт 🔥\n\n"
-    "🔒 Строго конфиденциально\n\n"
-    "Сохрани ссылку, чтобы не потерять:\n"
+    "Кинь фото девушки — на выходе кадр или короткий ролик.\n\n"
+    "📷 <b>Фото</b> приходит сразу. Выбираешь образ.\n"
+    "🎞 <b>Видео</b> — обычные сцены, откровенные или все сразу.\n"
+    "💎 <b>Кабинет</b> — баланс и подписка. С подпиской открывается всё.\n\n"
+    "🔒 Фото никому не продаём.\n"
+    "Сохрани бота, чтобы не потерять:\n"
     "{link}"
 )
 GEN_PICK = "Что генерируем?\n\n📷 Фото — придёт сразу.\n🎞 Видео — SFW, NSFW или все сценарии."
 BTN_GENERATION = "🔮 Генерация"
-BTN_EARN = "💸 Зарабатывай"
+BTN_MENU_PHOTO = "📷 Фото"
+BTN_MENU_VIDEO = "🎞 Видео"
+BTN_EARN = "👥 Друзья 25%"
 BTN_EARN_PAYOUT = "Заказать выплату 💸"
 BTN_EARN_CHAT = "Чат рефералов 💬"
 BTN_EARN_PAID = "Выплачено"
@@ -96,18 +100,19 @@ EARN_ADMIN_DONE = "\n\nВыплачено. Баланс реферала спи�
 EARN_PAID_USER = "Выплата {amount} отправлена. Баланс обновлён."
 EARN_ALREADY_PAID = "Эта выплата уже отмечена."
 BTN_START_CHANNEL = "📢 Канал"
-BTN_BALANCE = "🏠 Кабинет"
-# Старая подпись нижней клавиатуры, пока человек не нажмёт /start заново.
+BTN_BALANCE = "💎 Кабинет"
+# Старые подписи нижней клавиатуры, пока человек не нажмёт /start заново.
 BTN_BALANCE_OLD = "💰 Баланс"
+BTN_CABINET_OLD = "🏠 Кабинет"
 BTN_RULES = "📜 Правила"
-BTN_SUPPORT = "🆘 Поддержка"
+BTN_SUPPORT = "💬 Написать"
 SUPPORT = "Если что-то пошло не так — напиши прямо в этот чат, разберёмся."
 BTN_MAKE_PHOTO = "📷 Сделать фото"
 BTN_MAKE_VIDEO = "🎞 Сделать видео"
 BTN_INTRO_CREATE = BTN_MAKE_PHOTO
 BTN_INTRO_PROFILE = "👤 Твой профиль"
 BTN_INTRO_BONUS = "🎁 Бонус"
-BTN_INTRO_HELP = "❓ Как это работает"
+BTN_INTRO_HELP = "❓ Как устроен бот"
 BTN_HELP_NEXT = "Далее ➡️"
 BTN_HELP_PREV = "◀️"
 HELP_TOUR_INTRO = (
@@ -127,8 +132,8 @@ HELP_TOUR_VIDEO = (
     "С подпиской — баланс и доступ ко всему.\n"
     "Собирай коллекцию и зови друзей 💋"
 )
-BTN_WEBAPP = "🧭 Кабинет"
-WEBAPP_MENU_BUTTON = "Кабинет"
+BTN_WEBAPP = "🛒 Магазин"
+WEBAPP_MENU_BUTTON = "Магазин"
 
 BTN_CREATE = BTN_MAKE_PHOTO
 BTN_PROFILE = "👤 Профиль"

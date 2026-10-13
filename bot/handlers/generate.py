@@ -80,7 +80,7 @@ async def start_video_flow(message: Message, state: FSMContext):
     await _show_clip_categories(message, state)
 
 
-@generate_router.message(F.text.in_({texts.BTN_MAKE_PHOTO, texts.BTN_CREATE, "🎬 Создать"}))
+@generate_router.message(F.text.in_({texts.BTN_MAKE_PHOTO, texts.BTN_MENU_PHOTO, texts.BTN_CREATE, "🎬 Создать"}))
 async def btn_create(message: Message, state: FSMContext):
     await start_create_flow(message, state)
 
@@ -91,7 +91,7 @@ async def btn_generation(message: Message, state: FSMContext):
     await message.answer(texts.GEN_PICK, reply_markup=keyboards.generation_kb())
 
 
-@generate_router.message(F.text == texts.BTN_MAKE_VIDEO)
+@generate_router.message(F.text.in_({texts.BTN_MAKE_VIDEO, texts.BTN_MENU_VIDEO}))
 async def btn_video(message: Message, state: FSMContext):
     await start_video_flow(message, state)
 
