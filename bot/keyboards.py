@@ -51,10 +51,10 @@ def generation_kb() -> InlineKeyboardMarkup:
     )
 
 
-def rules_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=texts.RULES_ACCEPT_BTN, callback_data="rules:accept")]]
-    )
+def rules_kb(page: int = 0, *, accept: bool = True) -> InlineKeyboardMarkup:
+    from bot.rules_tour import rules_markup
+
+    return rules_markup(page, accept=accept)
 
 
 def grid(

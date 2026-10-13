@@ -21,7 +21,8 @@ def needs_rules(user, event) -> bool:
     text = getattr(event, "text", None) or ""
     if text.startswith("/start"):
         return False
-    if getattr(event, "data", None) == "rules:accept":
+    data = getattr(event, "data", None) or ""
+    if data == "rules:accept" or (data.startswith("rules:page:") and data.removeprefix("rules:page:").isdigit()):
         return False
     return True
 

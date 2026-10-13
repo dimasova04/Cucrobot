@@ -7,6 +7,7 @@ from loguru import logger
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
 from bot.help_tour import SLIDES, send_page, show_page
+from bot.rules_tour import send_rules
 from bot.intro import send_intro
 
 menu_router = Router(name="menu")
@@ -71,7 +72,7 @@ async def cb_help_page(cb: CallbackQuery):
 @menu_router.callback_query(F.data == "menu:rules")
 async def cb_rules(cb: CallbackQuery):
     await cb.answer()
-    await cb.message.answer(texts.RULES, reply_markup=_help_markup())
+    await send_rules(cb.message, 0, accept=False)
 
 
 @menu_router.callback_query(F.data == "menu:support")

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
 from bot.intro import send_intro
+from bot.rules_tour import send_rules, show_rules
 from database.base import utcnow
 from database.models import CrystalTransaction
 from database.repo import get_user_for_update
@@ -59,7 +60,7 @@ async def cmd_start_deep_link(message: Message, command: CommandObject, state: F
 async def cmd_start(message: Message, state: FSMContext, user, settings):
     await state.clear()
     if user.rules_accepted_at is None:
-        await message.answer(texts.RULES, reply_markup=keyboards.rules_kb())
+        await send_rules(message, 0, accept=True)
         return
     await send_intro(message.bot, user.id, settings.webapp_url, settings.channel_url)
     await _try_send_bonus_card(message.bot, user.id, user, settings)
@@ -70,6 +71,16 @@ async def _tell_inviter(bot, inviter_id: int, amount: int, balance: int) -> None
         await bot.send_message(inviter_id, texts.INVITE_REWARDED.format(n=amount, balance=balance))
     except Exception as e:
         logger.warning("invite reward notify failed: {}", e)
+
+
+@start_router.callback_query(F.data.regexp(r"^rules:page:\d+$"))
+async def cb_rules_page(cb: CallbackQuery, user):
+    page = int(cb.data.rsplit(":", 1)[1])
+    if page < 0 or page >= len(texts.RULE_PAGES):
+        await cb.answer()
+        return
+    await cb.answer()
+    await show_rules(cb.message, page, accept=user.rules_accepted_at is None)
 
 
 @start_router.callback_query(F.data == "rules:accept")

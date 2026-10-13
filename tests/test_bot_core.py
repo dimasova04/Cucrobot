@@ -19,6 +19,8 @@ def test_needs_rules():
     assert not needs_rules(u, _msg("/start"))
     assert not needs_rules(u, _msg("/start ref123"))
     assert not needs_rules(u, _cb("rules:accept"))
+    assert not needs_rules(u, _cb("rules:page:2"))
+    assert needs_rules(u, _cb("rules:page:nope"))
     assert needs_rules(u, _cb("shop:open"))
     # оплата проходит даже без принятых правил: деньги уже списаны
     assert not needs_rules(u, SimpleNamespace(text=None, data=None, successful_payment=object()))
@@ -304,6 +306,45 @@ async def test_send_intro_caches_file_id(monkeypatch):
     await intro.send_intro(FakeBot(), 1)
     assert calls[1] == "banner_id" and not isinstance(calls[0], str)
 
+
+
+def test_rules_open_as_pages_and_still_need_accept():
+    from bot.rules_tour import rules_markup
+
+    assert texts.RULE_PAGES[0] is texts.RULES
+    assert [page.split("\n", 1)[0] for page in texts.RULE_PAGES[1:]] == [
+        "Пользовательское соглашение",
+        "Политика возвратов",
+        "Политика конфиденциальности",
+    ]
+    assert "совершеннолетн" in texts.RULES and "не храним" in texts.RULES
+    assert "кристаллики возвращаются" in texts.RULES_REFUND
+    assert "7 дней" in texts.RULES_PRIVACY
+    start = rules_markup(0, accept=True)
+    assert [b.callback_data for row in start.inline_keyboard for b in row] == ["rules:page:1", "rules:accept"]
+    last = rules_markup(len(texts.RULE_PAGES) - 1, accept=True)
+    assert [b.callback_data for row in last.inline_keyboard for b in row] == ["rules:page:2", "rules:accept"]
+    reread = rules_markup(0, accept=False)
+    assert "rules:accept" not in [b.callback_data for row in reread.inline_keyboard for b in row]
+    assert reread.inline_keyboard[-1][0].callback_data == "menu:home"
+
+
+async def test_rules_next_edits_the_same_message():
+    from bot.rules_tour import show_rules
+
+    class Msg:
+        def __init__(self):
+            self.text = None
+            self.markup = None
+
+        async def edit_text(self, text, reply_markup=None):
+            self.text = text
+            self.markup = reply_markup
+
+    msg = Msg()
+    await show_rules(msg, 1, accept=True)
+    assert msg.text == texts.RULES_AGREEMENT
+    assert msg.markup.inline_keyboard[-1][0].callback_data == "rules:accept"
 
 
 def test_help_tour_shows_animation_and_examples():
