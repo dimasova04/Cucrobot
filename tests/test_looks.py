@@ -28,11 +28,16 @@ def test_photo_looks_match_the_example_and_skip_a_schoolgirl():
         assert item.prompt.startswith("[solo]")
         assert "same frame" in item.prompt
         assert "same face" in item.prompt
-        assert "same appearance" in item.prompt
         assert "Do not replace this person." in item.prompt
         if item.id == "pregnant":
+            assert "same appearance" in item.prompt
             assert "pregnant belly" in item.prompt
+        elif item.id in ("strip", "stockings"):
+            assert "same figure" in item.prompt
+            assert "Remove the clothes" in item.prompt
+            assert "Change only the clothes" not in item.prompt
         else:
+            assert "same appearance" in item.prompt
             assert "same figure" in item.prompt
             assert "Change only the clothes:" in item.prompt
         assert not mentions_minor(item.prompt)
@@ -46,7 +51,24 @@ def test_photo_looks_match_the_example_and_skip_a_schoolgirl():
         if item.id == "bdsm":
             assert "harness" in item.prompt
         else:
-            assert "nude" in item.prompt
+            assert "naked" in item.prompt
+
+
+def test_strip_look_removes_the_clothes_instead_of_replacing_them():
+    look = get_look("strip")
+    assert "completely naked" in look.prompt
+    assert "no top" in look.prompt and "no skirt" in look.prompt and "no belt" in look.prompt
+    prompt, refs = build(
+        GenerationInput(
+            people=["p"], actors=[], scene_prompt=look.prompt, scene_ref=None,
+            detail=None, width=832, height=1248,
+        ),
+        max_refs=4,
+    )
+    assert refs == ["p"]
+    assert "completely naked" in prompt
+    assert "Do not replace them with another outfit." in prompt
+    assert prompt.rfind("Do not replace them with another outfit.") > prompt.rfind("Change only the clothes")
 
 
 def test_locked_look_stays_one_adult_woman():
@@ -195,7 +217,7 @@ async def test_admin_without_subscription_opens_a_locked_look(session_factory, m
         monkeypatch.setattr("bot.handlers.generate.watermark.apply_free_mark", lambda data: data)
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
     assert generator.calls[0].custom_scene_text.startswith("[solo]")
-    assert "nude" in generator.calls[0].custom_scene_text
+    assert "completely naked" in generator.calls[0].custom_scene_text
     assert message.photos == [texts.PHOTO_SCENE_CAPTION.format(scene="Снять всё 😭")]
 
 

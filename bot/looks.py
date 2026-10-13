@@ -19,10 +19,17 @@ _KEEP = (
     "Keep the source photograph: same frame, same face, same figure, same appearance. "
     "Do not replace this person. Change only the clothes: "
 )
+# «Сменить одежду» Клейн читает как переодеть. Снятие — отдельная команда.
+_UNDRESS = (
+    "Keep the source photograph: same frame, same face, same figure, same pose, same place. "
+    "Do not replace this person. "
+    "Remove the clothes she is wearing in this photo. Do not dress her in a new outfit. "
+)
 LOOKS: tuple[Look, ...] = (
     Look(
         "strip", "Снять всё 😭",
-        "[solo] " + _KEEP + "completely nude",
+        "[solo] " + _UNDRESS + "She is completely naked: no top, no bra, no skirt, no shorts, no belt, no underwear. "
+        "Bare chest, bare stomach, bare hips.",
         True,
     ),
     Look(
@@ -32,7 +39,8 @@ LOOKS: tuple[Look, ...] = (
     ),
     Look(
         "stockings", "⚡ Голая в чулках 🖤",
-        "[solo] " + _KEEP + "nude, wearing black stockings",
+        "[solo] " + _UNDRESS + "She is naked except for black stockings. "
+        "No top, no bra, no skirt, no belt, no underwear. Bare chest and bare hips.",
         True,
     ),
     Look(

@@ -52,6 +52,12 @@ def scene_is_solo(scene_prompt: str) -> bool:
     return (scene_prompt or "").lstrip().startswith(_SOLO_MARK)
 
 
+def _clothes_come_off(scene: str) -> bool:
+    """Кнопка «снять» просит убрать одежду с фото, а не заменить её другим комплектом."""
+    low = (scene or "").lower()
+    return "remove the clothes" in low or "completely naked" in low
+
+
 def scene_text(scene_prompt: str) -> str:
     text = (scene_prompt or "").strip()
     if text.startswith(_SOLO_MARK):
@@ -526,6 +532,11 @@ def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple
         )
     lines.extend(_ref_lines(inp, ordered, start=1))
     lines.append(SAFETY_CLAUSE)
+    if _clothes_come_off(scene):
+        lines.append(
+            "The clothes from the source photo are removed. "
+            "Do not replace them with another outfit."
+        )
     lines.append(REALISM_CLAUSE)
     return _join(lines), [d for _k, d, _i in ordered]
 
