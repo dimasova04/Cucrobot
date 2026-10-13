@@ -23,6 +23,15 @@ from services.generation.prompt_builder import (
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
 
+# Размеры Kling IMAGE O1. Чужой кадр, в том числе 1024×1536 у Квена, модель не берёт.
+_KLING_SIZES = {
+    (1024, 1024), (1248, 832), (832, 1248), (1168, 880), (880, 1168),
+    (768, 1360), (1360, 768), (1552, 656),
+    (2048, 2048), (2496, 1664), (1664, 2496), (2336, 1760), (1760, 2336),
+    (1536, 2720), (2720, 1536), (3104, 1312),
+}
+
+
 class AlreadyRunning(Exception):
     pass
 
@@ -116,20 +125,17 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        # Обычное фото — Qwen-Image-Edit-Plus: правит загруженный кадр.
-        # Старые MODEL_BASE_AIR / кадр Seedream на сервере это не перебивают.
-        return "runware:108@22", QWEN_MAX_REFS, s.cost_base
+        # Обычное фото — Kling IMAGE O1: точечная правка и устойчивое лицо.
+        # Qwen подменял человека. Старый AIR на сервере это не перебивает.
+        return "klingai:kling-image@o1", QWEN_MAX_REFS, s.cost_base
 
-    def _qwen_frame(self, width: int, height: int) -> tuple[int, int]:
-        """Qwen берёт сторону от 512 до 2048. Кадр Seedream 1664×2496 он отклоняет."""
-        if (
-            512 <= width <= 2048 and 512 <= height <= 2048
-            and width % 8 == 0 and height % 8 == 0
-        ):
+    def _kling_frame(self, width: int, height: int) -> tuple[int, int]:
+        """O1 принимает только свой список кадров. 2K 2:3 — 1664×2496."""
+        if (width, height) in _KLING_SIZES:
             return width, height
         if height >= width:
-            return 1024, 1536
-        return 1536, 1024
+            return 1664, 2496
+        return 2496, 1664
 
     def _uses_sdxl(self, tier: str) -> bool:
         return False
@@ -249,7 +255,7 @@ class Generator:
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
             if req.tier != "premium":
-                width, height = self._qwen_frame(width, height)
+                width, height = self._kling_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None

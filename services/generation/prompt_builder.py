@@ -386,11 +386,13 @@ def _qwen_lead(inp: GenerationInput) -> str:
     if len(inp.people) <= 1:
         return (
             "Edit reference image 1. It is the photograph to change. "
-            "Keep this person's face, identity, body and pose."
+            "Preserve the exact facial identity, age, skin tone, hair and body proportions of this person. "
+            "Keep this person's face and pose."
         )
     return (
         "Edit reference image 1. It is the photograph to change. "
-        "Keep these people's faces, identity, bodies and poses."
+        "Preserve the exact facial identity, age, skin tone, hair and body proportions of these people. "
+        "Keep their faces and poses."
     )
 
 

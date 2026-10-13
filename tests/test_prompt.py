@@ -387,7 +387,8 @@ def test_qwen_edits_image_one_and_keeps_at_most_three_refs():
     prompt, refs = build(_inp(scene_ref="s"), max_refs=14, style="qwen")
     assert refs == ["p0", "a0_0", "s"]
     assert prompt.startswith("Edit reference image 1. It is the photograph to change.")
-    assert "Keep this person's face, identity, body and pose." in prompt
+    assert "Preserve the exact facial identity" in prompt
+    assert "Keep this person's face and pose." in prompt
     assert "Make only this change: on a yacht." in prompt
     assert "Exactly 2 people." in prompt
     assert "Reference image 2 is Actor0." in prompt

@@ -117,7 +117,7 @@ def test_guide_photo_becomes_a_small_jpeg():
     import cv2
     import numpy as np
 
-    from services.generation.runware_client import jpeg_data_uri, sdxl_retry_fields
+    from services.generation.runware_client import jpeg_data_uri, kling_reference_fields, sdxl_retry_fields
 
     big = cv2.imencode(".png", np.full((1800, 1200, 3), 40, dtype=np.uint8))[1].tobytes()
     uri = "data:image/jpeg;base64," + base64.b64encode(big).decode()
@@ -143,6 +143,19 @@ def test_guide_photo_becomes_a_small_jpeg():
     assert "inputs" not in plain
     assert plain["ipAdapters"] == [{"model": "runware:55@3", "guideImages": ["face"]}]
     assert sdxl_retry_fields(plain) is None
+    kling = kling_reference_fields({
+        "model": "klingai:kling-image@o1",
+        "positivePrompt": "face " * 900,
+        "width": 1024,
+        "height": 1536,
+        "inputs": {"referenceImages": ["data:image/jpeg;base64,abc"]},
+    })
+    assert "width" not in kling and "height" not in kling
+    assert kling["resolution"] == "2k"
+    assert len(kling["positivePrompt"]) <= 2500
+    assert kling["inputs"]["referenceImages"] == ["data:image/jpeg;base64,abc"]
+    other = {"model": "google:4@3", "width": 1696, "height": 2528}
+    assert kling_reference_fields(other) is other
 
 
 async def test_face_detector_returns_false_on_blank():
@@ -174,10 +187,10 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done" and out.image_bytes == b"IMG" and out.cost_usd == 0.002
     call = provider.calls[0]
-    assert call["model"] == "runware:108@22"
+    assert call["model"] == "klingai:kling-image@o1"
     # Фото пользователя и одно фото актёра. Запасной ракурс и место клуба не уходят: у клуба нет кадра.
     assert len(call["refs"]) == 2 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
-    assert (call["width"], call["height"]) == (1024, 1536)
+    assert (call["width"], call["height"]) == (1664, 2496)
     assert call.get("family") is None
     assert "Edit reference image 1." in call["prompt"]
     assert "Keep this person's face" in call["prompt"]
@@ -189,18 +202,18 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
         assert row.result_url == "http://x/img.jpg"
 
 
-def test_qwen_frame_clamps_an_illegal_seedream_size():
+def test_kling_frame_snaps_to_the_allowlist():
     gen = Generator(None, None, None, _settings())
-    assert gen._model("base")[:2] == ("runware:108@22", 3)
+    assert gen._model("base")[:2] == ("klingai:kling-image@o1", 3)
     assert gen._model("premium")[0] == "google:4@3"
-    assert gen._qwen_frame(1664, 2496) == (1024, 1536)
-    assert gen._qwen_frame(2496, 1664) == (1536, 1024)
-    assert gen._qwen_frame(1024, 1536) == (1024, 1536)
-    assert gen._qwen_frame(832, 1216) == (832, 1216)
+    assert gen._kling_frame(1664, 2496) == (1664, 2496)
+    assert gen._kling_frame(2496, 1664) == (2496, 1664)
+    assert gen._kling_frame(1024, 1536) == (1664, 2496)
+    assert gen._kling_frame(832, 1216) == (1664, 2496)
 
 
-async def test_stale_env_still_calls_qwen(session_factory, monkeypatch):
-    """Старый AIR и кадр Seedream 1664×2496 на сервере не уводят обычное фото с Квена."""
+async def test_stale_env_still_calls_kling(session_factory, monkeypatch):
+    """Старый AIR Квена и его кадр 1024×1536 не уводят обычное фото с Клинга."""
     actor_id, scene_id = await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
 
@@ -210,16 +223,16 @@ async def test_stale_env_still_calls_qwen(session_factory, monkeypatch):
     from services.generation import generator as g
     monkeypatch.setattr(g, "download_bytes", fake_download)
     settings = _settings()
-    settings.model_base_family = "sdxl"
-    settings.model_base_air = "civitai:101055@128078"
-    settings.model_base_portrait = "1664x2496"
+    settings.model_base_family = "qwen"
+    settings.model_base_air = "runware:108@22"
+    settings.model_base_portrait = "1024x1536"
     settings.model_base_max_refs = 14
     gen = Generator(session_factory, provider, FakeFetcher(), settings)
     out = await gen.run(_req(actor_id, scene_id))
     assert out.status == "done"
     call = provider.calls[0]
-    assert call["model"] == "runware:108@22"
-    assert (call["width"], call["height"]) == (1024, 1536)
+    assert call["model"] == "klingai:kling-image@o1"
+    assert (call["width"], call["height"]) == (1664, 2496)
     assert len(call["refs"]) <= 3
     assert call.get("family") is None
     assert "Edit reference image 1." in call["prompt"]

@@ -43,6 +43,24 @@ def clean_scheduler(value: str | None) -> str | None:
     return cleaned or None
 
 
+def kling_reference_fields(fields: dict) -> dict:
+    """Kling IMAGE O1 с референсом берёт resolution, а не width и height.
+
+    Вместе эти поля API отклоняет, кадра нет и кристалл возвращается.
+    Промпт длиннее 2500 символов тоже отклоняется.
+    """
+    model = str(fields.get("model") or "")
+    if not model.startswith("klingai:kling-image"):
+        return fields
+    out = {key: value for key, value in fields.items() if key not in ("width", "height")}
+    out["resolution"] = "2k"
+    prompt = out.get("positivePrompt") or ""
+    if len(prompt) > 2500:
+        cut = prompt[:2500].rsplit(" ", 1)[0]
+        out["positivePrompt"] = cut or prompt[:2500]
+    return out
+
+
 def sdxl_retry_fields(fields: dict) -> dict | None:
     """Повтор без полей, из-за которых API отклоняет кадр целиком.
 
@@ -149,6 +167,7 @@ class RunwareClient:
                 fields["strength"] = strength
         else:
             fields["inputs"] = {"referenceImages": refs}
+            fields = kling_reference_fields(fields)
         try:
             return await self._infer(client, fields)
         except RunwareGenerationError as first:
@@ -164,8 +183,12 @@ class RunwareClient:
         from runware import IImageInference
 
         req = IImageInference(**fields)
+        timeout = self._timeout
+        if str(fields.get("model") or "").startswith("klingai:"):
+            # Официальные примеры O1 — около 30–50 секунд. Короткий таймаут с сервера обрывает кадр.
+            timeout = max(timeout, 120)
         try:
-            images = await asyncio.wait_for(client.imageInference(requestImage=req), timeout=self._timeout)
+            images = await asyncio.wait_for(client.imageInference(requestImage=req), timeout=timeout)
         except asyncio.TimeoutError:
             raise RunwareGenerationError(f"timeout after {self._timeout}s")
         except Exception as e:  # SDK raises RunwareAPIError / generic
