@@ -17,19 +17,19 @@ from services.billing import wallet
 from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import (
-    NEGATIVE_PROMPT, QWEN_MAX_REFS, ActorInput, GenerationInput, build, build_edit, build_insert,
+    NEGATIVE_PROMPT, ActorInput, GenerationInput, build, build_edit, build_insert,
     is_quality_request, sdxl_adapter_groups,
 )
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
 
-# Размеры Kling IMAGE O1. Чужой кадр, в том числе 1024×1536 у Квена, модель не берёт.
-_KLING_SIZES = {
-    (1024, 1024), (1248, 832), (832, 1248), (1168, 880), (880, 1168),
-    (768, 1360), (1360, 768), (1552, 656),
-    (2048, 2048), (2496, 1664), (1664, 2496), (2336, 1760), (1760, 2336),
-    (1536, 2720), (2720, 1536), (3104, 1312),
-}
+# CyberRealistic XL Play v10, основной fp16. Тот же вес, что в Dimasova/neonclub-checkpoints.
+# Civitai отдаёт его Runware по этому AIR, отдельная заливка не нужна и денег за хранение нет.
+CYBERREALISTIC_AIR = "civitai:312530@2840768"
+SDXL_MAX_REFS = 4
+# Родной портрет модели: 832×1216. Кадр 2K у SDXL считает дольше и рисует лишние конечности.
+_SDXL_PORTRAIT = (832, 1216)
+_SDXL_LANDSCAPE = (1216, 832)
 
 
 class AlreadyRunning(Exception):
@@ -125,20 +125,18 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        # Обычное фото — Kling IMAGE O1: точечная правка и устойчивое лицо.
-        # Qwen подменял человека. Старый AIR на сервере это не перебивает.
-        return "klingai:kling-image@o1", QWEN_MAX_REFS, s.cost_base
+        # Обычное фото — свой SDXL. Квен и Клинг подменяли человека и стоят дороже.
+        # Старый AIR на сервере это не перебивает.
+        return CYBERREALISTIC_AIR, SDXL_MAX_REFS, s.cost_base
 
-    def _kling_frame(self, width: int, height: int) -> tuple[int, int]:
-        """O1 принимает только свой список кадров. 2K 2:3 — 1664×2496."""
-        if (width, height) in _KLING_SIZES:
-            return width, height
+    def _sdxl_frame(self, width: int, height: int) -> tuple[int, int]:
+        """Чужой кадр, в том числе 2K Клинга, на этот чекпоинт не отправляем."""
         if height >= width:
-            return 1664, 2496
-        return 2496, 1664
+            return _SDXL_PORTRAIT
+        return _SDXL_LANDSCAPE
 
     def _uses_sdxl(self, tier: str) -> bool:
-        return False
+        return tier != "premium"
 
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings
@@ -255,7 +253,7 @@ class Generator:
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
             if req.tier != "premium":
-                width, height = self._kling_frame(width, height)
+                width, height = self._sdxl_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None
@@ -275,7 +273,7 @@ class Generator:
             if req.tier == "premium":
                 style = "instruct"
             else:
-                style = "qwen"
+                style = "sdxl"
             if previous_image and req.insert_prompt:
                 mode = "insert"
                 prompt, refs = build_insert(

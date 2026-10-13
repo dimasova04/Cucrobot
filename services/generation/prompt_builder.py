@@ -603,10 +603,13 @@ def build_insert(
         # Только первое фото нового человека. Запасные ракурсы Квен смешивает с теми, кто уже в кадре.
         room = 1 if min(max_refs, QWEN_MAX_REFS) > 1 else 0
         return _qwen_insert(inp, previous_image, instruction, _insert_face_refs(inp)[:room])
+    if style == "sdxl":
+        # В адаптер уходит одно новое лицо. Проверка всего состава здесь не нужна:
+        # фото тех, кто уже в кадре, модель копирует второй раз.
+        ordered = _insert_face_refs(inp)[:1]
+        return _sdxl_insert(instruction), [previous_image] + [d for _k, d, _i in ordered]
     _validate(inp, max_refs - 1)
     ordered = _insert_face_refs(inp)[: max_refs - 1]
-    if style == "sdxl":
-        return _sdxl_insert(instruction), [previous_image] + [d for _k, d, _i in ordered]
     lines = [
         "Image 1 is the finished photo. Edit that exact photo.",
         instruction.strip().rstrip(".") + ".",

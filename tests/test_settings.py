@@ -29,13 +29,13 @@ def test_economy_defaults(monkeypatch):
     assert s.video_model == "bytedance/seedance-1-lite"
     assert s.video_seconds == 5 and s.video_resolution == "720p"
     assert s.replicate_api_token == ""
-    assert s.model_base_air == "klingai:kling-image@o1"
-    assert s.model_base_family == "kling"
+    assert s.model_base_air == "civitai:312530@2840768"
+    assert s.model_base_family == "sdxl"
     assert s.model_base_steps == 28 and s.model_base_cfg == 5.0
     assert s.sdxl_face_weight == 1.2 and s.sdxl_place_weight == 0.0
     assert s.sdxl_edit_strength == 0.32
     assert s.model_premium_air == "google:4@3"
-    assert s.model_base_max_refs == 3 and s.model_premium_max_refs == 14
+    assert s.model_base_max_refs == 4 and s.model_premium_max_refs == 14
 
 
 def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
@@ -57,9 +57,9 @@ def test_scheduler_quotes_from_env_are_stripped(monkeypatch):
 def test_frame_size_per_model(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)
-    assert s.frame_size("base", "portrait") == (1664, 2496)
-    assert s.frame_size("base", "landscape") == (2496, 1664)
+    assert s.frame_size("base", "portrait") == (832, 1216)
+    assert s.frame_size("base", "landscape") == (1216, 832)
     assert s.frame_size("premium", "portrait") == (1696, 2528)
     assert s.frame_size("premium", "landscape") == (2528, 1696)
     w, h = s.frame_size("base", "portrait")
-    assert (w, h) == (1664, 2496)
+    assert (w, h) == (832, 1216)

@@ -14,17 +14,18 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    # Обычное фото — Kling IMAGE O1. Квен подменял человека.
-    # Код всё равно шлёт именно эту модель: старый AIR на сервере не перебивает.
-    model_base_air: str = "klingai:kling-image@o1"
-    model_base_family: str = "kling"
+    # Обычное фото — CyberRealistic XL Play v10 (fp16), тот же файл, что на Hugging Face.
+    # Runware берёт его с Civitai, отдельно хранить 6,5 ГБ не нужно.
+    # Код всё равно шлёт именно эту модель: старый AIR Клинга или Квена на сервере не перебивает.
+    model_base_air: str = "civitai:312530@2840768"
+    model_base_family: str = "sdxl"
     model_premium_air: str = "google:4@3"
-    model_base_max_refs: int = 3
+    model_base_max_refs: int = 4
     model_premium_max_refs: int = 14
-    # Kling IMAGE O1, 2K 2:3 и 3:2. В запрос уходит resolution=2k, эти числа — запасной кадр.
+    # Родной портрет SDXL. Большой кадр Клинга эту модель только удорожает и ломает.
     # Премиум — официальный 2K 2:3 Nano Banana 2, его этим списком не режем.
-    model_base_portrait: str = "1664x2496"
-    model_base_landscape: str = "2496x1664"
+    model_base_portrait: str = "832x1216"
+    model_base_landscape: str = "1216x832"
     model_premium_portrait: str = "1696x2528"
     model_premium_landscape: str = "2528x1696"
     model_base_steps: int = 28

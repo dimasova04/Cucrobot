@@ -184,13 +184,17 @@ class RunwareClient:
 
         req = IImageInference(**fields)
         timeout = self._timeout
-        if str(fields.get("model") or "").startswith("klingai:"):
+        model = str(fields.get("model") or "")
+        if model.startswith("klingai:"):
             # Официальные примеры O1 — около 30–50 секунд. Короткий таймаут с сервера обрывает кадр.
             timeout = max(timeout, 120)
+        elif model.startswith("civitai:"):
+            # Первый запрос ещё скачивает чекпоинт. Повторный кадр уже из кэша Runware.
+            timeout = max(timeout, 180)
         try:
             images = await asyncio.wait_for(client.imageInference(requestImage=req), timeout=timeout)
         except asyncio.TimeoutError:
-            raise RunwareGenerationError(f"timeout after {self._timeout}s")
+            raise RunwareGenerationError(f"timeout after {timeout}s")
         except Exception as e:  # SDK raises RunwareAPIError / generic
             self._client = None  # force reconnect next time
             raise RunwareGenerationError(str(e)) from e
