@@ -29,8 +29,8 @@ def test_economy_defaults(monkeypatch):
     assert s.video_model == "bytedance/seedance-1-lite"
     assert s.video_seconds == 5 and s.video_resolution == "720p"
     assert s.replicate_api_token == ""
-    assert s.model_base_air == "civitai:312530@2840768"
-    assert s.model_base_family == "sdxl"
+    assert s.model_base_air == "runware:400@2"
+    assert s.model_base_family == "flux"
     assert s.model_base_steps == 28 and s.model_base_cfg == 5.0
     assert s.sdxl_face_weight == 1.2 and s.sdxl_place_weight == 0.0
     assert s.sdxl_edit_strength == 0.32

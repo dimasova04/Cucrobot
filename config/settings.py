@@ -14,11 +14,9 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    # Обычное фото — CyberRealistic XL Play v10 (fp16), тот же файл, что на Hugging Face.
-    # Runware берёт его с Civitai, отдельно хранить 6,5 ГБ не нужно.
-    # Код всё равно шлёт именно эту модель: старый AIR Клинга или Квена на сервере не перебивает.
-    model_base_air: str = "civitai:312530@2840768"
-    model_base_family: str = "sdxl"
+    # Обычное фото — FLUX.2 [klein] 9B. Код шлёт именно её: чужой AIR на сервере не перебивает.
+    model_base_air: str = "runware:400@2"
+    model_base_family: str = "flux"
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 4
     model_premium_max_refs: int = 14

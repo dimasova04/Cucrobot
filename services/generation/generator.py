@@ -23,13 +23,13 @@ from services.generation.prompt_builder import (
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
 
-# CyberRealistic XL Play v10, основной fp16. Тот же вес, что в Dimasova/neonclub-checkpoints.
-# Civitai отдаёт его Runware по этому AIR, отдельная заливка не нужна и денег за хранение нет.
-CYBERREALISTIC_AIR = "civitai:312530@2840768"
-SDXL_MAX_REFS = 4
-# Родной портрет модели: 832×1216. Кадр 2K у SDXL считает дольше и рисует лишние конечности.
-_SDXL_PORTRAIT = (832, 1216)
-_SDXL_LANDSCAPE = (1216, 832)
+# FLUX.2 [klein] 9B. В каталоге Runware живая, берёт до 4 фото и стоит около $0.001.
+# CyberRealistic XL в этом каталоге нет: запрос с ним падает и кристалл возвращается.
+KLEIN_AIR = "runware:400@2"
+KLEIN_MAX_REFS = 4
+# Выше 2048 по стороне klein не принимает. 2K Клинга поэтому сюда не отправляем.
+_BASE_PORTRAIT = (832, 1216)
+_BASE_LANDSCAPE = (1216, 832)
 
 
 class AlreadyRunning(Exception):
@@ -125,18 +125,18 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        # Обычное фото — свой SDXL. Квен и Клинг подменяли человека и стоят дороже.
+        # Обычное фото — klein. Чекпоинт с Civitai и IP-Adapter Runware отклоняет.
         # Старый AIR на сервере это не перебивает.
-        return CYBERREALISTIC_AIR, SDXL_MAX_REFS, s.cost_base
+        return KLEIN_AIR, KLEIN_MAX_REFS, s.cost_base
 
-    def _sdxl_frame(self, width: int, height: int) -> tuple[int, int]:
-        """Чужой кадр, в том числе 2K Клинга, на этот чекпоинт не отправляем."""
+    def _base_frame(self, width: int, height: int) -> tuple[int, int]:
+        """Чужой кадр, в том числе 2K, на klein не отправляем: сторона выше 2048 отклоняется."""
         if height >= width:
-            return _SDXL_PORTRAIT
-        return _SDXL_LANDSCAPE
+            return _BASE_PORTRAIT
+        return _BASE_LANDSCAPE
 
     def _uses_sdxl(self, tier: str) -> bool:
-        return tier != "premium"
+        return False
 
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings
@@ -253,7 +253,7 @@ class Generator:
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
             if req.tier != "premium":
-                width, height = self._sdxl_frame(width, height)
+                width, height = self._base_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None
@@ -270,10 +270,7 @@ class Generator:
             )
             previous_image, seed = await self._load_base_image(base)
             sdxl = self._uses_sdxl(req.tier)
-            if req.tier == "premium":
-                style = "instruct"
-            else:
-                style = "sdxl"
+            style = "instruct"
             if previous_image and req.insert_prompt:
                 mode = "insert"
                 prompt, refs = build_insert(

@@ -608,8 +608,9 @@ def build_insert(
         # фото тех, кто уже в кадре, модель копирует второй раз.
         ordered = _insert_face_refs(inp)[:1]
         return _sdxl_insert(instruction), [previous_image] + [d for _k, d, _i in ordered]
-    _validate(inp, max_refs - 1)
-    ordered = _insert_face_refs(inp)[: max_refs - 1]
+    # В референсы идёт только новый человек. Проверка всего состава здесь роняет
+    # кадр, где жена и актёры уже стоят: их фото модель копирует второй раз.
+    ordered = _insert_face_refs(inp)[: max(max_refs - 1, 0)]
     lines = [
         "Image 1 is the finished photo. Edit that exact photo.",
         instruction.strip().rstrip(".") + ".",
