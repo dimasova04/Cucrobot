@@ -277,6 +277,8 @@ def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
     assert cbs == ["earn:open", "menu:profile", "menu:help", "menu:rules", "menu:support", "menu:generate"]
+    profile_btn = next(b for row in kb.inline_keyboard for b in row if b.callback_data == "menu:profile")
+    assert profile_btn.text == texts.BTN_BALANCE and "Кабинет" in profile_btn.text
     assert kb.inline_keyboard[-1][0].text == texts.BTN_GENERATION
     assert len(kb.inline_keyboard[-1]) == 1
     assert "{link}" in texts.INTRO and "конфиденциально" in texts.INTRO

@@ -46,7 +46,7 @@ def test_payload_is_not_a_partner_code():
 def test_profile_offers_invite_after_pack():
     user = User(id=1, preferred_tier="base")
     cbs = [b.callback_data for row in profile_kb(user).inline_keyboard for b in row]
-    assert cbs.index("shop:packs") < cbs.index("invite:open") < cbs.index("menu:home")
+    assert cbs.index("shop:subs") < cbs.index("shop:packs") < cbs.index("invite:open") < cbs.index("menu:home")
 
 
 async def test_deep_link_remembers_only_a_new_user(session_factory):

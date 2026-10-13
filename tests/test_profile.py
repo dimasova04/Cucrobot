@@ -55,6 +55,13 @@ async def test_opening_profile_assigns_the_channel_name(session_factory):
     assert "Уровень: Новичок" in msg.texts[0]
 
 
+def test_cabinet_pitches_the_subscription():
+    text = texts.PROFILE.format(crystals=3, sub=texts.SUB_NONE, bonus=texts.BONUS_READY, quality="обычное", quality_costs="x")
+    assert text.startswith("🏠 Кабинет")
+    assert "получишь баланс и доступ ко всему" in text
+    assert "Неделя · +5 💎 в подарок" == texts.SUB_BTN.format(name="Неделя", gift=5)
+
+
 def test_profile_kb_toggle_for_subscriber():
     subscriber = User(id=1, preferred_tier="base", sub_until=utcnow() + timedelta(days=1))
     cbs = _callbacks(profile_kb(subscriber))
