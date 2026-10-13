@@ -200,6 +200,56 @@ async def test_scene_video_without_subscription_is_a_blurred_gif(session_factory
     assert animated == [(True, True, texts.VIDEO_BLUR_CAPTION.format(scene="Яхта"))]
 
 
+async def test_scene_list_is_deleted_after_the_photo(session_factory, monkeypatch):
+    async with session_factory() as s:
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)
+        user = await repo.get_or_create_user(s, 93, "u")
+        user.crystals = 10
+        await s.commit()
+
+        class _Bot:
+            def __init__(self):
+                self.deleted = []
+
+            async def delete_message(self, chat_id, message_id):
+                self.deleted.append((chat_id, message_id))
+
+        class _List(_CapMessage):
+            def __init__(self):
+                super().__init__()
+                self.bot = _Bot()
+                self.chat = SimpleNamespace(id=93)
+                self.message_id = 4
+                self.photos = []
+                self._next = 10
+
+            async def answer(self, text, reply_markup=None, **kw):
+                sent = SimpleNamespace(
+                    message_id=self._next, chat=self.chat, bot=self.bot,
+                )
+                self._next += 1
+                self.answers.append((text, reply_markup))
+                return sent
+
+            async def answer_photo(self, photo, caption=None, reply_markup=None, **kw):
+                self.photos.append((caption, reply_markup))
+
+        message = _List()
+        state = _FakeState(data={"people": ["p1"], "actors": []}, state=GenStates.scene)
+        await generate_mod._show_scenes(message, state, s)
+        assert state._data["menu_message_id"] == 10
+        state._data["scene_id"] = scene.id
+        state._data["mode"] = "photo"
+        settings = Settings(_env_file=None, bot_token="x", admin_ids=[], cost_base=1, cost_premium=3)
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=3, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=1)
+        )
+        monkeypatch.setattr("bot.handlers.generate.watermark.apply_free_mark", lambda data: data)
+        await generate_mod._run_scene_photo(message, state, s, user, settings, generator)
+    assert message.bot.deleted == [(93, 10)]
+    assert "menu_message_id" not in state._data
+
+
 async def test_photo_section_sends_the_picture_immediately(session_factory, monkeypatch):
     async with session_factory() as s:
         scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)

@@ -211,16 +211,54 @@ def looks_markup(
     return keyboards.grid(chunk, 2, extra)
 
 
+async def _remember_menu(state: FSMContext, message) -> None:
+    """Запоминает сообщение со списком, чтобы убрать его после готового кадра."""
+    message_id = getattr(message, "message_id", None)
+    chat_id = getattr(getattr(message, "chat", None), "id", None)
+    if not message_id or not chat_id:
+        return
+    st = await state.get_data()
+    previous = st.get("menu_message_id")
+    prev_chat = st.get("menu_chat_id")
+    bot = getattr(message, "bot", None)
+    if previous and previous != message_id and bot is not None and prev_chat:
+        try:
+            await bot.delete_message(prev_chat, previous)
+        except TelegramAPIError:
+            pass
+    st["menu_message_id"] = message_id
+    st["menu_chat_id"] = chat_id
+    await state.set_data(st)
+
+
+async def _drop_menu(target: Message, state: FSMContext) -> None:
+    """Список сцен после генерации больше не нужен: по нему начинают жать снова."""
+    st = await state.get_data()
+    message_id = st.pop("menu_message_id", None)
+    chat_id = st.pop("menu_chat_id", None)
+    await state.set_data(st)
+    bot = getattr(target, "bot", None)
+    chat_id = chat_id or getattr(getattr(target, "chat", None), "id", None)
+    if not message_id or bot is None or not chat_id:
+        return
+    try:
+        await bot.delete_message(chat_id, message_id)
+    except TelegramAPIError:
+        pass
+
+
 async def _show_looks(target: Message, state: FSMContext, page: int = 0, edit: bool = False):
     await state.set_state(GenStates.scene)
     markup = looks_markup(_look_items(), page)
     if edit:
         try:
             await target.edit_text(texts.CHOOSE_LOOKS, reply_markup=markup)
+            await _remember_menu(state, target)
             return
         except TelegramAPIError:
             pass
-    await target.answer(texts.CHOOSE_LOOKS, reply_markup=markup)
+    sent = await target.answer(texts.CHOOSE_LOOKS, reply_markup=markup)
+    await _remember_menu(state, sent)
 
 
 async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0, back: str | None = None):
@@ -240,7 +278,8 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     extra.append(keyboards.back_row(back_to))
     extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.scene)
-    await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
+    sent = await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
+    await _remember_menu(state, sent)
 
 
 def _clip_categories_kb():
@@ -263,10 +302,12 @@ async def _show_clip_categories(target: Message, state: FSMContext, edit: bool =
     if edit:
         try:
             await target.edit_text(texts.CHOOSE_CLIP_CATS, reply_markup=markup)
+            await _remember_menu(state, target)
             return
         except TelegramAPIError:
             pass
-    await target.answer(texts.CHOOSE_CLIP_CATS, reply_markup=markup)
+    sent = await target.answer(texts.CHOOSE_CLIP_CATS, reply_markup=markup)
+    await _remember_menu(state, sent)
 
 
 def _clip_caption(section: str) -> str:
@@ -300,10 +341,12 @@ async def _show_clips(
     if edit:
         try:
             await target.edit_text(caption, reply_markup=markup)
+            await _remember_menu(state, target)
             return
         except TelegramAPIError:
             pass
-    await target.answer(caption, reply_markup=markup)
+    sent = await target.answer(caption, reply_markup=markup)
+    await _remember_menu(state, sent)
 
 
 async def _drop_edit(state: FSMContext, st: dict) -> dict:
@@ -788,6 +831,7 @@ async def _run_scene_photo(target: Message, state: FSMContext, session, user, se
         reply_markup=keyboards.scene_video_kb(),
     )
     await target.answer(notice)
+    await _drop_menu(target, state)
 
 
 async def _run_scene_video(target: Message, state: FSMContext, session, user, settings, generator):
@@ -832,10 +876,12 @@ async def _run_scene_video(target: Message, state: FSMContext, session, user, se
         if teaser
         else texts.VIDEO_SCENE_CAPTION.format(scene=label, seconds=settings.video_seconds)
     )
-    await animate_frame(
+    sent = await animate_frame(
         target, session, user, settings, outcome.image_bytes, scene_motion(source),
         caption=caption, teaser=teaser, as_gif=True,
     )
+    if sent:
+        await _drop_menu(target, state)
 
 
 async def _run_generation(target: Message, state: FSMContext, session, user, settings, generator):
@@ -899,6 +945,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         if gen and sent.photo:
             gen.result_file_id = sent.photo[-1].file_id
         await wait_msg.delete()
+        await _drop_menu(target, state)
         if user.crystals > 0:
             try:
                 await send_bonus_card(target.bot, user.id, user, settings)
