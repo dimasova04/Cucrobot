@@ -55,7 +55,8 @@ KLEIN_NEGATIVE = (
     "missing finger, fused fingers, melted hand, disconnected limb, floating hand, "
     "broken elbow, broken wrist, broken knee, merged bodies, duplicate torso, "
     "extra breast, third breast, fused breasts, extra nipple, deformed breast, "
-    "extra genitals, duplicate vulva, penis on a woman, plastic skin"
+    "smooth crotch, featureless groin, slit drawn on skin, vulva fused to the thigh, "
+    "penis on a woman, plastic skin"
 )
 
 
