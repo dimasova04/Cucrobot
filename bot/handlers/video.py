@@ -70,15 +70,17 @@ async def animate_frame(
     *,
     caption: str,
     client=None,
+    teaser: bool = False,
+    as_gif: bool = False,
 ) -> bool:
-    """Списывает ролик и присылает видео. False — пейвол, нехватка кристаллов или сбой."""
+    """Списывает ролик и присылает гифку. Без подписки teaser уходит в блюре."""
     if user.id in _running:
         await target.answer(texts.ALREADY_RUNNING)
         return False
     if not (settings.replicate_api_token or "").strip():
         await target.answer(texts.VIDEO_NOT_READY)
         return False
-    if not video_allowed(user, settings):
+    if not teaser and not video_allowed(user, settings):
         await _send_paywall(target, settings)
         return False
     cost = settings.cost_video
@@ -111,15 +113,22 @@ async def animate_frame(
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
             return False
-        if not subscriptions.is_active(user):
+        if teaser:
+            video = await asyncio.to_thread(watermark.apply_video_blur, video)
+            markup = keyboards.blur_video_kb()
+        elif not subscriptions.is_active(user):
             video = await asyncio.to_thread(watermark.apply_free_mark_video, video)
+            markup = keyboards.scene_video_kb()
+        else:
+            markup = keyboards.scene_video_kb()
         await session.refresh(user)
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
+        send = target.answer_animation if (as_gif or teaser) else target.answer_video
         try:
-            await target.answer_video(
+            await send(
                 BufferedInputFile(video, "video.mp4"),
                 caption=caption,
-                reply_markup=keyboards.scene_video_kb(),
+                reply_markup=markup,
             )
             await wait.edit_text(notice)
         except Exception as e:

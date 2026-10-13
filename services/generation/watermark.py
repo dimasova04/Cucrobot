@@ -26,6 +26,21 @@ def apply_free_mark(image_bytes: bytes) -> bytes:
     return encoded.tobytes()
 
 
+def apply_video_blur(video_bytes: bytes) -> bytes:
+    """Сильный блюр готового ролика. Битый файл возвращаем как есть."""
+    if not video_bytes:
+        return video_bytes
+    try:
+        blurred = _filter_video(
+            video_bytes,
+            "scale=trunc(iw/8)*2:trunc(ih/8)*2,gblur=sigma=6,scale=iw*4:ih*4:flags=bilinear",
+        )
+    except Exception:
+        logger.exception("video blur failed")
+        return video_bytes
+    return blurred or video_bytes
+
+
 def apply_free_mark_video(video_bytes: bytes) -> bytes:
     """Тот же знак на готовом ролике, с отступом от края. Битый ролик возвращаем как есть.
 
@@ -40,6 +55,28 @@ def apply_free_mark_video(video_bytes: bytes) -> bytes:
         logger.exception("free video mark failed")
         return video_bytes
     return marked or video_bytes
+
+
+def _filter_video(video_bytes: bytes, video_filter: str) -> bytes:
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "in.mp4")
+        dst = os.path.join(tmp, "out.mp4")
+        with open(src, "wb") as fh:
+            fh.write(video_bytes)
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", src,
+            "-vf", video_filter,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "23",
+            "-an", "-movflags", "+faststart",
+            dst,
+        ]
+        proc = subprocess.run(cmd, capture_output=True)
+        if proc.returncode != 0 or not os.path.exists(dst) or os.path.getsize(dst) < 32:
+            logger.warning("video filter failed: {}", proc.stderr[:300])
+            return video_bytes
+        with open(dst, "rb") as fh:
+            return fh.read()
 
 
 def _mark_video(video_bytes: bytes) -> bytes:

@@ -304,6 +304,40 @@ async def test_video_animates_the_clean_photo(session_factory, monkeypatch):
     assert animator.calls[0][0] == b"clean-jpeg"
 
 
+async def test_teaser_gif_is_blurred_and_unblur_opens_the_subscription(session_factory, monkeypatch):
+    from bot.handlers.video import animate_frame
+
+    monkeypatch.setattr("bot.handlers.video.watermark.apply_video_blur", lambda data: b"blurred")
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 8, "u")
+        user.crystals = 10
+        user.sub_until = None
+        await s.commit()
+
+    class _Gif(_Msg):
+        def __init__(self):
+            super().__init__()
+            self.animations = []
+
+        async def answer_animation(self, file, caption=None, reply_markup=None):
+            self.animations.append((file.data, caption, reply_markup))
+
+    msg = _Gif()
+    async with session_factory() as s:
+        user = await repo.get_user(s, 8)
+        ok = await animate_frame(
+            msg, s, user, _settings(), b"jpeg", "wave",
+            caption="Яхта", client=_Animator(), teaser=True, as_gif=True,
+        )
+    assert ok is True
+    assert msg.animations[0][0] == b"blurred"
+    assert msg.animations[0][1] == "Яхта"
+    buttons = [b.callback_data for row in msg.animations[0][2].inline_keyboard for b in row]
+    assert buttons[0] == "shop:subs"
+    async with session_factory() as s:
+        assert (await repo.get_user(s, 8)).crystals == 7
+
+
 async def test_without_subscription_the_paywall_opens_and_nothing_is_charged(session_factory):
     async with session_factory() as s:
         gen_id = await _ready(s, subscribed=False)

@@ -101,8 +101,8 @@ async def test_show_scenes_pages_by_twelve(session_factory):
         # ровно одна страница: стрелок нет, «Своя сцена» на месте
         assert not [c for c in cbs if ":page:" in c]
         assert "scene:custom" in cbs
-        # фото уже есть, актёра нет — «Назад» возвращает к фото
-        assert "nav:back:photo" in cbs
+        # фото уже есть — «Назад» возвращает к выбору раздела
+        assert "nav:back:section" in cbs
 
 
 class _CapMessage:
@@ -148,8 +148,8 @@ async def test_scene_choice_builds_a_still_then_animates(session_factory, monkey
         )
         animated = []
 
-        async def fake_animate(target, session, user, settings, frame, prompt, *, caption, client=None):
-            animated.append((frame, prompt, caption))
+        async def fake_animate(target, session, user, settings, frame, prompt, *, caption, client=None, teaser=False, as_gif=False):
+            animated.append((frame, prompt, caption, teaser, as_gif))
             return True
 
         monkeypatch.setattr("bot.handlers.video.animate_frame", fake_animate)
@@ -159,10 +159,11 @@ async def test_scene_choice_builds_a_still_then_animates(session_factory, monkey
     assert animated[0][0] == b"IMG"
     assert "on a yacht" in animated[0][1]
     assert "Яхта" in animated[0][2]
+    assert animated[0][3] is False and animated[0][4] is True
     assert state._state == GenStates.result
 
 
-async def test_scene_video_without_subscription_is_a_paywall(session_factory):
+async def test_scene_video_without_subscription_is_a_blurred_gif(session_factory, monkeypatch):
     async with session_factory() as s:
         scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)
         user = await repo.get_or_create_user(s, 91, "u")
@@ -170,7 +171,7 @@ async def test_scene_video_without_subscription_is_a_paywall(session_factory):
         user.sub_until = None
         await s.commit()
         state = _FakeState(data={
-            "people": ["p1"], "actors": [], "scene_id": scene.id,
+            "people": ["p1"], "actors": [], "scene_id": scene.id, "mode": "video",
             "custom_text": None, "custom_file_id": None, "detail": None,
         })
         message = _CapMessage()
@@ -180,10 +181,51 @@ async def test_scene_video_without_subscription_is_a_paywall(session_factory):
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
         )
+        animated = []
+
+        async def fake_animate(target, session, user, settings, frame, prompt, *, caption, client=None, teaser=False, as_gif=False):
+            animated.append((teaser, as_gif, caption))
+            return True
+
+        monkeypatch.setattr("bot.handlers.video.animate_frame", fake_animate)
         await generate_mod._run_scene_video(message, state, s, user, settings, generator)
 
-    assert generator.calls == []
-    assert "подпиской" in message.answers[-1][0]
+    assert generator.calls[0].bill is False
+    assert animated == [(True, True, texts.VIDEO_BLUR_CAPTION.format(scene="Яхта"))]
+
+
+async def test_photo_section_sends_the_picture_immediately(session_factory, monkeypatch):
+    async with session_factory() as s:
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)
+        user = await repo.get_or_create_user(s, 93, "u")
+        user.crystals = 10
+        await s.commit()
+        state = _FakeState(data={
+            "people": ["p1"], "actors": [], "scene_id": scene.id, "mode": "photo",
+            "custom_text": None, "custom_file_id": None, "detail": None,
+        })
+
+        class _Photo(_CapMessage):
+            def __init__(self):
+                super().__init__()
+                self.photos = []
+
+            async def answer_photo(self, photo, caption=None, reply_markup=None, **kw):
+                self.photos.append((caption, reply_markup))
+
+        message = _Photo()
+        settings = Settings(_env_file=None, bot_token="x", admin_ids=[], cost_base=1, cost_premium=3)
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=3, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=1)
+        )
+        monkeypatch.setattr("bot.handlers.generate.watermark.apply_free_mark", lambda data: data)
+        await generate_mod._run_scene_photo(message, state, s, user, settings, generator)
+
+    assert generator.calls[0].bill is True
+    assert message.photos[0][0] == texts.PHOTO_SCENE_CAPTION.format(scene="Яхта")
+    buttons = [b.callback_data for row in message.photos[0][1].inline_keyboard for b in row]
+    assert buttons == ["gen:change_scene", "gen:new"]
+    assert state._state == GenStates.result
 
 
 async def test_scene_still_failure_does_not_claim_a_refund(session_factory):

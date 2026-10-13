@@ -19,6 +19,7 @@ class GenStates(StatesGroup):
     self_photo = State()
     result = State()
     video_prompt = State()
+    section = State()
 
 
 ACTORS_PER_PAGE = 10
@@ -41,6 +42,7 @@ def empty_data() -> dict:
         "people": [], "actors": [], "named": [],
         "self_file_id": None, "self_role": None,
         "scene_id": None, "custom_text": None, "custom_file_id": None, "detail": None,
+        "mode": None,
     }
 
 

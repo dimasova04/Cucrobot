@@ -70,6 +70,38 @@ def _white_span(frame: np.ndarray) -> tuple[int, int, int, int]:
     return int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
 
 
+def test_video_blur_softens_a_sharp_edge():
+    import os
+    import subprocess
+    import tempfile
+
+    from services.generation.watermark import apply_video_blur
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "edge.mp4")
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=s=320x240:d=0.2:r=10",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                path,
+            ],
+            check=True,
+        )
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    blurred = apply_video_blur(raw)
+    assert blurred != raw
+    assert apply_video_blur(b"not a video") == b"not a video"
+
+    def _edge(video: bytes) -> float:
+        cap_frame = _first_frame(video)
+        gray = cap_frame.astype("float32")
+        return float(np.abs(np.diff(gray, axis=1)).mean())
+
+    assert _edge(blurred) < _edge(raw) * 0.45
+
+
 def test_broken_video_stays_untouched():
     from services.generation.watermark import apply_free_mark_video
 

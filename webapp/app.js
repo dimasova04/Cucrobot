@@ -268,13 +268,14 @@
   function renderShop() {
     var shop = state.shop;
     var html = "<h2>💎 Кристаллики</h2>" +
-      '<div class="card"><div class="muted">Ролик — ' + (shop.cost_video || 3) +
-      " 💎. Кристаллики не сгорают.</div></div>";
+      '<div class="card"><div class="muted">Фото — ' + (shop.cost_base || 1) +
+      " 💎, приходит сразу. Видео — " + (shop.cost_video || 3) +
+      " 💎. Без подписки оно в блюре.</div></div>";
 
     shop.packs.forEach(function (p) {
       html += '<div class="product">' +
         '<div class="product-head"><span class="product-title">' + num(p.crystals) + " 💎</span></div>" +
-        '<div class="product-sub">' + num(p.crystals) + " 💎 на ролики</div>" +
+        '<div class="product-sub">' + num(p.crystals) + " 💎 на фото и видео</div>" +
         priceRow(p) +
       "</div>";
     });
@@ -282,7 +283,7 @@
     html += "<h2>⭐ Подписка</h2>" +
       '<div class="card"><ul class="benefits">' +
         "<li><span>🎁</span><span>" + shop.daily_bonus + " кристалликов каждый день</span></li>" +
-        "<li><span>🎞</span><span>Видео по выбранной сцене</span></li>" +
+        "<li><span>✨</span><span>Снять блюр с видео</span></li>" +
         "<li><span>🎬</span><span>Все сцены</span></li>" +
         "<li><span>⚡</span><span>Кристаллики на ролики: до " + shop.daily_bonus + " в день</span></li>" +
         "<li><span>🎉</span><span>И подарок сразу при покупке</span></li>" +

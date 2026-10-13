@@ -78,11 +78,24 @@ def result_kb(data: dict, *, publish: bool = False, video_cost: int | None = Non
 
 
 def scene_video_kb() -> InlineKeyboardMarkup:
-    """После ролика: та же девушка и другая сцена, либо фото заново."""
+    """После кадра или ролика: та же девушка и другая сцена, либо фото заново."""
     return grid(
         [],
         1,
         [
+            [(texts.BTN_CHANGE_SCENE, "gen:change_scene")],
+            [(texts.BTN_NEW_PHOTO, "gen:new")],
+        ],
+    )
+
+
+def blur_video_kb() -> InlineKeyboardMarkup:
+    """Гифка в блюре: снять блюр открывает подписку."""
+    return grid(
+        [],
+        1,
+        [
+            [(texts.BTN_UNBLUR, "shop:subs")],
             [(texts.BTN_CHANGE_SCENE, "gen:change_scene")],
             [(texts.BTN_NEW_PHOTO, "gen:new")],
         ],
