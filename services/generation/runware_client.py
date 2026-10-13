@@ -48,7 +48,9 @@ def clean_scheduler(value: str | None) -> str | None:
 KLEIN_AIR = "runware:400@2"
 KLEIN_NEGATIVE = (
     "new tattoo, extra tattoo, tattoo on clear skin, different face, different body, "
-    "changed figure, extra limbs, plastic skin"
+    "changed figure, extra arm, third arm, extra hand, extra finger, six fingers, "
+    "missing finger, fused fingers, melted hand, disconnected limb, floating hand, "
+    "broken elbow, broken wrist, broken knee, merged bodies, duplicate torso, plastic skin"
 )
 
 

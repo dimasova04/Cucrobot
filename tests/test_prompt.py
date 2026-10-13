@@ -36,6 +36,10 @@ def test_prompt_one_person_one_actor():
     assert prompt.startswith("Image 1 is the source photograph.")
     assert "Exact face and body from this photo." in prompt
     assert "No new tattoos." in prompt
+    assert "Copy this skeleton" in prompt
+    assert prompt.index("Copy this skeleton") < prompt.index("on a yacht")
+    assert "Five separate fingers" in prompt
+    assert "do not fuse with the man" in prompt
     assert "A together with Actor0." in prompt
     assert "on a yacht" in prompt
     assert "Exactly 2 people in the frame, no other people in focus." in prompt

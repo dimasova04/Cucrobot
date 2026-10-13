@@ -161,6 +161,7 @@ def test_guide_photo_becomes_a_small_jpeg():
     klein = klein_identity_fields({"model": "runware:400@2", "positivePrompt": "keep her"})
     assert klein["steps"] == 4 and klein["CFGScale"] == 2 and klein["acceleration"] == "none"
     assert "tattoo" in klein["negativePrompt"]
+    assert "extra arm" in klein["negativePrompt"] and "fused fingers" in klein["negativePrompt"]
     assert klein_identity_fields(other) is other
 
 

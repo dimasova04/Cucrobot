@@ -3,19 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
-    "Keep the face and the body build exactly as in the person and actor reference images: "
-    "proportions, shoulders, torso and muscles. No new tattoos. "
-    "Do not move one person's arms, shoulders or muscles onto another person. "
-    "The woman's arms stay as in her own photo. "
-    "Do not copy clothes, props, background, logos or text from the person and actor photos. "
-    "Change only the clothes and the place. "
-    "A location photo is only the place."
+    "Keep the face and the body build exactly as in the reference images. No new tattoos. "
+    "Each person keeps their own two arms and two legs. Five separate fingers, hands on the wrists. "
+    "Do not move one person's arms onto another. Her limbs do not fuse with the man. "
+    "Do not copy clothes, props, background, logos or text from the photos. "
+    "Change only the clothes and the place. A location photo is only the place."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
     "true-to-life proportions, tack-sharp high-resolution DSLR photograph, not a render and not a soft preview. "
-    "Anatomically correct bodies: each person has exactly two arms, two hands and five fingers on each hand, "
-    "no extra limbs, no fused or duplicated body parts."
+    "Correct joints: elbows, wrists, knees and ankles bend the normal way. "
+    "Bodies do not merge or share a limb."
 )
 
 # bytedance:seedream@4.5 отклоняет positivePrompt длиннее этого и кристалл возвращается.
@@ -30,7 +28,9 @@ SDXL_LEAD = (
 NEGATIVE_PROMPT = (
     "cartoon, anime, illustration, painting, 3d render, cgi, plastic skin, doll, "
     "different face, changed face, another person, "
-    "extra arms, extra hands, extra fingers, fused fingers, mutated hands, "
+    "extra arm, third arm, extra hand, extra finger, six fingers, missing finger, "
+    "fused fingers, melted hand, disconnected limb, floating hand, "
+    "broken elbow, broken wrist, broken knee, merged bodies, duplicate torso, "
     "deformed, blurry, watermark, text, logo, collage, duplicate person"
 )
 # Сцена без актёра в кадре. Префикс снимается и в промпт модели не попадает.
@@ -467,7 +467,11 @@ def _source_lead(people: int) -> str:
         opening = "Image 1 is the source photograph."
     else:
         opening = "The first images are the source photographs."
-    return f"{opening} Exact face and body from this photo. No new tattoos."
+    return (
+        f"{opening} Exact face and body from this photo. No new tattoos. "
+        "Copy this skeleton: same pose, shoulders, elbows, wrists, hands, hips and knees. "
+        "Two arms, two legs, five fingers. Bodies do not fuse."
+    )
 
 
 def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple[str, list[str]]:
