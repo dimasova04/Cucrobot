@@ -117,7 +117,9 @@ def test_guide_photo_becomes_a_small_jpeg():
     import cv2
     import numpy as np
 
-    from services.generation.runware_client import jpeg_data_uri, kling_reference_fields, sdxl_retry_fields
+    from services.generation.runware_client import (
+        jpeg_data_uri, klein_identity_fields, kling_reference_fields, sdxl_retry_fields,
+    )
 
     big = cv2.imencode(".png", np.full((1800, 1200, 3), 40, dtype=np.uint8))[1].tobytes()
     uri = "data:image/jpeg;base64," + base64.b64encode(big).decode()
@@ -156,6 +158,10 @@ def test_guide_photo_becomes_a_small_jpeg():
     assert kling["inputs"]["referenceImages"] == ["data:image/jpeg;base64,abc"]
     other = {"model": "google:4@3", "width": 1696, "height": 2528}
     assert kling_reference_fields(other) is other
+    klein = klein_identity_fields({"model": "runware:400@2", "positivePrompt": "keep her"})
+    assert klein["steps"] == 4 and klein["CFGScale"] == 2 and klein["acceleration"] == "none"
+    assert "tattoo" in klein["negativePrompt"]
+    assert klein_identity_fields(other) is other
 
 
 async def test_face_detector_returns_false_on_blank():
@@ -301,7 +307,8 @@ async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
     assert out.status == "done" and out.image_bytes == b"IMG"
     prompt = provider.calls[0]["prompt"]
     assert prompt.startswith("Image 1 is the source photograph.")
-    assert "Keep frame, face, figure and appearance." in prompt
+    assert "Exact face and body from this photo." in prompt
+    assert "No new tattoos." in prompt
     assert "on a yacht, he holds her hand" in prompt
     assert "together with" not in prompt
     assert provider.calls[0].get("family") is None

@@ -34,7 +34,8 @@ def test_prompt_one_person_one_actor():
     prompt, refs = build(_inp(), max_refs=4)
     assert refs == ["p0", "a0_0", "a0_1"]
     assert prompt.startswith("Image 1 is the source photograph.")
-    assert "Keep frame, face, figure and appearance." in prompt
+    assert "Exact face and body from this photo." in prompt
+    assert "No new tattoos." in prompt
     assert "A together with Actor0." in prompt
     assert "on a yacht" in prompt
     assert "Exactly 2 people in the frame, no other people in focus." in prompt

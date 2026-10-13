@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
     "Keep the face and the body build exactly as in the person and actor reference images: "
-    "proportions, shoulders, torso, muscles and tattoos. "
+    "proportions, shoulders, torso and muscles. No new tattoos. "
     "Do not move one person's arms, shoulders or muscles onto another person. "
     "The woman's arms stay as in her own photo. "
     "Do not copy clothes, props, background, logos or text from the person and actor photos. "
-    "Change only the clothes and the place. Keep the source frame, face, figure and appearance. "
-    "A location photo is the place only, not a new body."
+    "Change only the clothes and the place. "
+    "A location photo is only the place."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
@@ -467,7 +467,7 @@ def _source_lead(people: int) -> str:
         opening = "Image 1 is the source photograph."
     else:
         opening = "The first images are the source photographs."
-    return f"{opening} Keep frame, face, figure and appearance."
+    return f"{opening} Exact face and body from this photo. No new tattoos."
 
 
 def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple[str, list[str]]:

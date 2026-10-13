@@ -43,6 +43,27 @@ def clean_scheduler(value: str | None) -> str | None:
     return cleaned or None
 
 
+# FLUX.2 klein — дистиллят на 4 шага. acceleration=high по умолчанию смазывает лицо,
+# а CFG 3.5 тянет текст сильнее фото и дорисовывает татуировки.
+KLEIN_AIR = "runware:400@2"
+KLEIN_NEGATIVE = (
+    "new tattoo, extra tattoo, tattoo on clear skin, different face, different body, "
+    "changed figure, extra limbs, plastic skin"
+)
+
+
+def klein_identity_fields(fields: dict) -> dict:
+    """Обычное фото: без ускорения и с низким CFG, чтобы кадр держал лицо и фигуру."""
+    if fields.get("model") != KLEIN_AIR:
+        return fields
+    tuned = dict(fields)
+    tuned["steps"] = 4
+    tuned["CFGScale"] = 2
+    tuned["acceleration"] = "none"
+    tuned["negativePrompt"] = KLEIN_NEGATIVE
+    return tuned
+
+
 def kling_reference_fields(fields: dict) -> dict:
     """Kling IMAGE O1 с референсом берёт resolution, а не width и height.
 
@@ -167,10 +188,15 @@ class RunwareClient:
                 fields["strength"] = strength
         else:
             fields["inputs"] = {"referenceImages": refs}
+            fields = klein_identity_fields(fields)
             fields = kling_reference_fields(fields)
         try:
             return await self._infer(client, fields)
         except RunwareGenerationError as first:
+            if fields.get("acceleration") == "none":
+                retry = {key: value for key, value in fields.items() if key != "acceleration"}
+                logger.warning("klein request failed ({}), retrying with default acceleration", first)
+                return await self._infer(client, retry)
             if family != "sdxl":
                 raise
             plain = sdxl_retry_fields(fields)
