@@ -14,6 +14,7 @@ from bot.channel_strikes import strike_router
 from bot.channel_watch import start_channel_watch
 from bot.handlers.admin.router import build_admin_router
 from bot.handlers.balance import profile_router
+from bot.handlers.earn import earn_router
 from bot.handlers.generate import generate_router
 from bot.handlers.video import video_router
 from bot.handlers.menu import menu_router
@@ -116,6 +117,7 @@ def build_dispatcher(settings, session_factory, generator: Generator | None) -> 
     dp.include_router(start_router)
     dp.include_router(menu_router)
     dp.include_router(profile_router)
+    dp.include_router(earn_router)
     dp.include_router(shop_router)
     dp.include_router(payments_router)
     dp.include_router(partner_router)

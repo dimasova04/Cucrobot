@@ -21,7 +21,7 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 
 def intro_kb(webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
-    earn = InlineKeyboardButton(text=texts.BTN_EARN, callback_data="invite:open")
+    earn = InlineKeyboardButton(text=texts.BTN_EARN, callback_data="earn:open")
     if channel_url:
         first = [earn, InlineKeyboardButton(text=texts.BTN_START_CHANNEL, url=channel_url)]
     else:

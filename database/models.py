@@ -40,6 +40,20 @@ class ReferralCode(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
 
+class ReferralPayout(Base):
+    """Заявка на вывод партнёрских процентов. paid — сумма уже снята с баланса."""
+
+    __tablename__ = "referral_payouts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    amount_kop: Mapped[int] = mapped_column(Integer)
+    tg_username: Mapped[str] = mapped_column(String(32))
+    wallet: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending / paid
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class CrystalTransaction(Base):
     __tablename__ = "crystal_transactions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

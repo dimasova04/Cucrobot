@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     start_crystals: int = 3
     # Кристаллы пригласившему, когда новый человек жмёт «Принимаю» по его ссылке.
     invite_crystals: int = 3
+    # Партнёрка «Зарабатывай»: процент с рублёвых оплат приглашённых и порог вывода.
+    earn_rate_percent: int = 25
+    earn_min_rub: int = 2000
+    referral_chat_url: str = ""
     bonus_free_amount: int = 3
     bonus_free_hours: int = 48
     bonus_sub_amount: int = 10

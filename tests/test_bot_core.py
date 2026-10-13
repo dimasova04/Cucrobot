@@ -276,7 +276,7 @@ def test_admin_help_lists_every_admin_command():
 def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert cbs == ["invite:open", "menu:profile", "menu:help", "menu:rules", "menu:support", "menu:generate"]
+    assert cbs == ["earn:open", "menu:profile", "menu:help", "menu:rules", "menu:support", "menu:generate"]
     assert kb.inline_keyboard[-1][0].text == texts.BTN_GENERATION
     assert len(kb.inline_keyboard[-1]) == 1
     assert "{link}" in texts.INTRO and "конфиденциально" in texts.INTRO
