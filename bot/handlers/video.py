@@ -60,6 +60,79 @@ async def _frame_bytes(bot, gen: Generation) -> bytes:
     return buf.getvalue()
 
 
+async def animate_frame(
+    target: Message,
+    session,
+    user,
+    settings,
+    frame: bytes,
+    prompt: str,
+    *,
+    caption: str,
+    client=None,
+) -> bool:
+    """Списывает ролик и присылает видео. False — пейвол, нехватка кристаллов или сбой."""
+    if user.id in _running:
+        await target.answer(texts.ALREADY_RUNNING)
+        return False
+    if not (settings.replicate_api_token or "").strip():
+        await target.answer(texts.VIDEO_NOT_READY)
+        return False
+    if not video_allowed(user, settings):
+        await _send_paywall(target, settings)
+        return False
+    cost = settings.cost_video
+    if user.crystals < cost:
+        await _answer_not_enough(target, user, settings, cost)
+        return False
+    if not frame:
+        await target.answer(texts.VIDEO_NO_FRAME)
+        return False
+    ref = f"scene:{uuid4().hex[:8]}"
+    _running.add(user.id)
+    try:
+        try:
+            await wallet.charge_video(session, user.id, cost, ref)
+            await session.commit()
+        except wallet.InsufficientCrystals as e:
+            await _answer_not_enough(target, user, settings, e.needed)
+            return False
+        wait = await target.answer(texts.VIDEO_WAIT)
+        animator = client or ReplicateVideo(
+            settings.replicate_api_token, settings.video_model, settings.video_timeout_sec,
+        )
+        try:
+            video = await animator.animate(
+                frame, prompt, seconds=settings.video_seconds, resolution=settings.video_resolution,
+            )
+        except (VideoError, Exception) as e:
+            logger.warning("scene video failed for user {}: {}", user.id, type(e).__name__)
+            await wallet.refund_video(session, user.id, ref)
+            await session.commit()
+            await wait.edit_text(texts.VIDEO_FAILED)
+            return False
+        if not subscriptions.is_active(user):
+            video = await asyncio.to_thread(watermark.apply_free_mark_video, video)
+        await session.refresh(user)
+        notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
+        try:
+            await target.answer_video(
+                BufferedInputFile(video, "video.mp4"),
+                caption=caption,
+                reply_markup=keyboards.scene_video_kb(),
+            )
+            await wait.edit_text(notice)
+        except Exception as e:
+            logger.warning("scene video send failed for {}: {}", user.id, e)
+            await wallet.refund_video(session, user.id, ref)
+            await session.commit()
+            await wait.edit_text(texts.VIDEO_FAILED)
+            return False
+        return True
+    finally:
+        _running.discard(user.id)
+
+
 async def _run(
     target: Message,
     session,

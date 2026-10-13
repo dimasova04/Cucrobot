@@ -297,20 +297,18 @@ async def test_send_intro_caches_file_id(monkeypatch):
 
 
 
-async def test_build_help_lists_actors_and_scenes(session_factory):
+async def test_build_help_lists_scenes(session_factory):
     from bot.handlers.menu import build_help
     from services import catalog
 
     async with session_factory() as s:
         await catalog.seed_scenes_if_empty(s)
-        for i in range(8):
-            await catalog.create_actor(s, f"Star{i}", "desc", ["f1", "f2"], 1)
         await s.commit()
     async with session_factory() as s:
         text = await build_help(s)
-    assert "Star0, Star1, Star2, Star3, Star4, Star5 и ещё 2" in text
+    assert "Кидаешь фото девушки" in text
     assert "Яхта" in text and "и ещё 4" in text
-    assert "Позы" in text and "Своя деталь" in text
+    assert "Своя сцена" in text
 
 
 def test_intro_keyboard_gets_webapp_button_when_url_is_set():

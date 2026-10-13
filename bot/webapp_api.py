@@ -154,6 +154,7 @@ def make_routes(session_factory, settings, bot) -> list[tuple[str, str, object]]
             "daily_bonus": settings.bonus_sub_amount,
             "cost_base": settings.cost_base,
             "cost_premium": settings.cost_premium,
+            "cost_video": settings.cost_video,
             "buy_stars_url": settings.tribute_buy_stars_url,
         }
 

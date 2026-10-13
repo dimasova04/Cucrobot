@@ -169,7 +169,7 @@ async def open_invite(cb: CallbackQuery, user, settings):
 async def open_packs(cb: CallbackQuery, settings):
     await cb.answer()
     await cb.message.answer(
-        texts.SHOP_PACKS.format(premium=settings.cost_premium), parse_mode="HTML", reply_markup=packs_kb(settings)
+        texts.SHOP_PACKS.format(video=settings.cost_video), parse_mode="HTML", reply_markup=packs_kb(settings)
     )
 
 

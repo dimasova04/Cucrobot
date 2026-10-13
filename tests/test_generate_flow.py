@@ -101,8 +101,116 @@ async def test_show_scenes_pages_by_twelve(session_factory):
         # ровно одна страница: стрелок нет, «Своя сцена» на месте
         assert not [c for c in cbs if ":page:" in c]
         assert "scene:custom" in cbs
-        # сессия не собрана — «Назад» ведёт к списку актёров
-        assert "nav:back:actors" in cbs
+        # фото уже есть, актёра нет — «Назад» возвращает к фото
+        assert "nav:back:photo" in cbs
+
+
+class _CapMessage:
+    def __init__(self):
+        self.answers = []
+        self.edits = []
+
+    async def answer(self, text, reply_markup=None, **kw):
+        self.answers.append((text, reply_markup))
+        parent = self
+
+        class _Sent:
+            async def edit_text(self, text, **kw):
+                parent.edits.append(text)
+
+            async def delete(self):
+                pass
+
+        return _Sent()
+
+
+async def test_scene_choice_builds_a_still_then_animates(session_factory, monkeypatch):
+    from datetime import timedelta
+
+    from database.base import utcnow
+
+    async with session_factory() as s:
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht, he holds her hand", "landscape", None, None)
+        user = await repo.get_or_create_user(s, 90, "u")
+        user.crystals = 10
+        user.sub_until = utcnow() + timedelta(days=3)
+        await s.commit()
+        state = _FakeState(data={
+            "people": ["p1"], "actors": [], "named": [],
+            "scene_id": scene.id, "custom_text": None, "custom_file_id": None, "detail": None,
+        })
+        message = _CapMessage()
+        settings = Settings(
+            _env_file=None, bot_token="x", admin_ids=[], replicate_api_token="token", cost_video=3,
+        )
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=7, image_bytes=b"IMG", cost_usd=0.04, error=None)
+        )
+        animated = []
+
+        async def fake_animate(target, session, user, settings, frame, prompt, *, caption, client=None):
+            animated.append((frame, prompt, caption))
+            return True
+
+        monkeypatch.setattr("bot.handlers.video.animate_frame", fake_animate)
+        await generate_mod._run_scene_video(message, state, s, user, settings, generator)
+
+    assert generator.calls[0].bill is False
+    assert animated[0][0] == b"IMG"
+    assert "on a yacht" in animated[0][1]
+    assert "Яхта" in animated[0][2]
+    assert state._state == GenStates.result
+
+
+async def test_scene_video_without_subscription_is_a_paywall(session_factory):
+    async with session_factory() as s:
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)
+        user = await repo.get_or_create_user(s, 91, "u")
+        user.crystals = 10
+        user.sub_until = None
+        await s.commit()
+        state = _FakeState(data={
+            "people": ["p1"], "actors": [], "scene_id": scene.id,
+            "custom_text": None, "custom_file_id": None, "detail": None,
+        })
+        message = _CapMessage()
+        settings = Settings(
+            _env_file=None, bot_token="x", admin_ids=[], replicate_api_token="token", cost_video=3,
+        )
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+        )
+        await generate_mod._run_scene_video(message, state, s, user, settings, generator)
+
+    assert generator.calls == []
+    assert "подпиской" in message.answers[-1][0]
+
+
+async def test_scene_still_failure_does_not_claim_a_refund(session_factory):
+    from datetime import timedelta
+
+    from database.base import utcnow
+
+    async with session_factory() as s:
+        scene = await catalog.create_scene(s, "Яхта", "on a yacht", "landscape", None, None)
+        user = await repo.get_or_create_user(s, 92, "u")
+        user.crystals = 10
+        user.sub_until = utcnow() + timedelta(days=3)
+        await s.commit()
+        state = _FakeState(data={
+            "people": ["p1"], "actors": [], "scene_id": scene.id,
+            "custom_text": None, "custom_file_id": None, "detail": None,
+        })
+        message = _CapMessage()
+        settings = Settings(
+            _env_file=None, bot_token="x", admin_ids=[], replicate_api_token="token", cost_video=3,
+        )
+        generator = _FakeGenerator(
+            GenerationOutcome(status="failed", generation_id=1, image_bytes=None, cost_usd=None, error="boom")
+        )
+        await generate_mod._run_scene_video(message, state, s, user, settings, generator)
+
+    assert message.edits == [texts.STILL_FAILED]
 
 
 class _FakeGenerator:

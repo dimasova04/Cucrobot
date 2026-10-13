@@ -46,6 +46,18 @@ ACTIONS = {
 }
 
 
+def scene_motion(scene_prompt: str) -> str:
+    """Движение готового кадра. Сцена уже нарисована, новых людей не добавляем."""
+    from services.generation.prompt_builder import scene_text
+
+    body = scene_text(scene_prompt).strip().rstrip(".")
+    return (
+        "Animate this exact photo for a few seconds. "
+        f"The people already in the frame act out this moment: {body}. "
+        "Keep every face recognizable. Natural movement. Do not add anyone new."
+    )
+
+
 def video_prompt(action: str, custom: str | None = None) -> str:
     if action == "custom":
         text = (custom or "").strip()

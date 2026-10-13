@@ -124,7 +124,7 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     extra = _nav_row("scene", page, has_prev, has_next)
     extra.append([(texts.BTN_CUSTOM_SCENE, "scene:custom")])
     st = await state.get_data()
-    extra.append(keyboards.back_row("result" if is_complete(st) else "actors"))
+    extra.append(keyboards.back_row("result" if is_complete(st) else "photo"))
     extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.scene)
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
@@ -165,7 +165,7 @@ async def got_person1_photo(message: Message, state: FSMContext, session, bot: B
     st = await state.get_data()
     st["people"].append(file_id)
     await state.set_data(st)
-    await _show_actors(message, state, session)
+    await _show_scenes(message, state, session)
 
 
 async def _ask_actor_name(target: Message, state: FSMContext):
@@ -358,7 +358,7 @@ async def scene_chosen(cb: CallbackQuery, state: FSMContext, session, user, sett
     st = apply_catalog_scene(await state.get_data(), int(cb.data.split(":")[1]))
     await state.set_data(st)
     await cb.answer()
-    await _run_generation(cb.message, state, session, user, settings, generator)
+    await _run_scene_video(cb.message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.custom_scene, F.photo | F.document)
@@ -369,7 +369,7 @@ async def custom_scene_photo(message: Message, state: FSMContext, session, user,
         return
     st = apply_custom_scene(await state.get_data(), file_id=file_id)
     await state.set_data(st)
-    await _run_generation(message, state, session, user, settings, generator)
+    await _run_scene_video(message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.custom_scene, F.text)
@@ -380,7 +380,7 @@ async def custom_scene_text(message: Message, state: FSMContext, session, user, 
         return
     st = apply_custom_scene(await state.get_data(), text=message.text.strip())
     await state.set_data(st)
-    await _run_generation(message, state, session, user, settings, generator)
+    await _run_scene_video(message, state, session, user, settings, generator)
 
 
 @generate_router.message(GenStates.detail, F.text)
@@ -456,6 +456,56 @@ async def _answer_not_enough(target: Message, user, settings, cost: int) -> None
         texts.NOT_ENOUGH.format(cost=cost, balance=user.crystals), user, settings
     )
     await target.answer(text, reply_markup=markup)
+
+
+async def _run_scene_video(target: Message, state: FSMContext, session, user, settings, generator):
+    """Фото девушки и сцена: сначала кадр, потом ролик по тексту сцены."""
+    from bot.handlers.video import animate_frame, video_allowed, _send_paywall
+    from services.video.prompts import scene_motion
+
+    st = await state.get_data()
+    if not st.get("people"):
+        await target.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
+        return
+    if not (settings.replicate_api_token or "").strip():
+        await target.answer(texts.VIDEO_NOT_READY)
+        return
+    if not video_allowed(user, settings):
+        await _send_paywall(target, settings)
+        return
+    if user.crystals < settings.cost_video:
+        await _answer_not_enough(target, user, settings, settings.cost_video)
+        return
+    req = request_from_state(user.id, st, "base")
+    req.bill = False
+    await session.commit()
+    wait_msg = await target.answer(texts.GENERATING)
+    try:
+        outcome = await generator.run(req)
+    except AlreadyRunning:
+        await wait_msg.edit_text(texts.ALREADY_RUNNING)
+        return
+    if outcome.status != "done" or not outcome.image_bytes:
+        await wait_msg.edit_text(texts.STILL_FAILED)
+        return
+    scene = await catalog.get_scene(session, st.get("scene_id")) if st.get("scene_id") else None
+    if scene:
+        source, label = scene.prompt, scene.name
+    elif st.get("custom_text"):
+        source, label = st["custom_text"], texts.CUSTOM_SCENE_LABEL_TEXT
+    else:
+        source, label = "in the setting shown", texts.CUSTOM_SCENE_LABEL_PHOTO
+    await state.set_state(GenStates.result)
+    st["last_generation_id"] = outcome.generation_id
+    await state.set_data(st)
+    try:
+        await wait_msg.delete()
+    except Exception:
+        pass
+    caption = texts.VIDEO_SCENE_CAPTION.format(scene=label, seconds=settings.video_seconds)
+    await animate_frame(
+        target, session, user, settings, outcome.image_bytes, scene_motion(source), caption=caption,
+    )
 
 
 async def _run_generation(target: Message, state: FSMContext, session, user, settings, generator):
@@ -549,8 +599,9 @@ async def gen_more(cb: CallbackQuery, state: FSMContext, session, user, settings
 
 @generate_router.callback_query(F.data == "gen:change_scene")
 async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
-    st = await _check_result_session(cb, state)
-    if st is None:
+    st = await state.get_data()
+    if not st.get("people"):
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
         return
     # Сцена меняется — править прежний кадр бессмысленно.
     await _drop_edit(state, st)

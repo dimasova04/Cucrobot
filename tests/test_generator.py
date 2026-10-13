@@ -176,12 +176,12 @@ async def test_named_actor_photo_replaces_catalog_actor(session_factory, monkeyp
         assert row.result_url == "http://x/img.jpg"
 
 
-async def test_request_without_actor_or_hero_raises_before_charge(session_factory):
+async def test_request_without_photo_or_actor_raises_before_charge(session_factory):
     await _seed(session_factory)
     provider = FakeProvider([])
     gen = Generator(session_factory, provider, FakeFetcher(), _settings())
     req = GenerationRequest(
-        user_id=1, people_file_ids=["fp1"], actor_ids=[], scene_id=None,
+        user_id=1, people_file_ids=[], actor_ids=[], scene_id=None,
         custom_scene_text="on mars", custom_scene_file_id=None, detail=None, tier="base",
     )
     with pytest.raises(ValueError):
@@ -190,6 +190,33 @@ async def test_request_without_actor_or_hero_raises_before_charge(session_factor
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         assert (await s.execute(select(func.count()).select_from(Generation))).scalar_one() == 0
+
+
+async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
+    await _seed(session_factory)
+    provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.04, nsfw=False)])
+    from services.generation import generator as g
+
+    async def fake_download(url):
+        return b"IMG"
+
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    gen = Generator(session_factory, provider, FakeFetcher(), _settings())
+    req = GenerationRequest(
+        user_id=1, people_file_ids=["fp1"], actor_ids=[], scene_id=None,
+        custom_scene_text="on a yacht, he holds her hand", custom_scene_file_id=None,
+        detail=None, tier="base", bill=False,
+    )
+    out = await gen.run(req)
+    assert out.status == "done" and out.image_bytes == b"IMG"
+    prompt = provider.calls[0]["prompt"]
+    assert "Person A is the woman" in prompt
+    assert "together with" not in prompt
+    assert "Exactly" not in prompt
+    async with session_factory() as s:
+        assert await wallet.get_balance(s, 1) == 5
+        row = await s.get(Generation, out.generation_id)
+        assert row.crystals_charged == 0
 
 
 async def test_failure_after_retry_refunds(session_factory):

@@ -52,10 +52,8 @@ async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
 
 
 async def build_help(session) -> str:
-    actors = [a.name for a in await catalog.list_actors(session)]
     scenes = [s.name for s in await catalog.list_scenes(session)]
     return texts.HELP.format(
-        actors=_sample_list(actors, 6, texts.HELP_ACTORS_MORE, texts.HELP_ACTORS_NONE),
         scenes=_sample_list(scenes, 8, texts.HELP_SCENES_MORE, texts.HELP_ACTORS_NONE),
     )
 

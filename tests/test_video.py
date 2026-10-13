@@ -32,6 +32,19 @@ def test_custom_video_prompt_allows_adult_words_and_blocks_minors():
     assert "«Авто»" in texts.VIDEO_MENU
 
 
+def test_scene_motion_follows_the_chosen_scene():
+    from services.video.prompts import scene_motion
+
+    text = scene_motion("[solo] outdoors in daylight. Она одна.")
+    assert "outdoors in daylight" in text
+    assert "[solo]" not in text
+    assert "Do not add anyone new" in text
+    kb = keyboards.scene_video_kb()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert cbs == ["gen:change_scene", "gen:new"]
+    assert kb.inline_keyboard[1][0].text == texts.BTN_NEW_PHOTO
+
+
 def test_seedance_keeps_the_photo_and_asks_for_five_seconds():
     payload = seedance_input("https://example/frame.jpg", "wave", 5, "720p")
     assert payload["image"] == "https://example/frame.jpg"

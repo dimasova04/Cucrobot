@@ -77,6 +77,18 @@ def result_kb(data: dict, *, publish: bool = False, video_cost: int | None = Non
     return grid(buttons[:-1], cols=2, extra_rows=extra)
 
 
+def scene_video_kb() -> InlineKeyboardMarkup:
+    """После ролика: та же девушка и другая сцена, либо фото заново."""
+    return grid(
+        [],
+        1,
+        [
+            [(texts.BTN_CHANGE_SCENE, "gen:change_scene")],
+            [(texts.BTN_NEW_PHOTO, "gen:new")],
+        ],
+    )
+
+
 def video_menu_kb(generation_id: int) -> InlineKeyboardMarkup:
     gid = str(generation_id)
     return grid(

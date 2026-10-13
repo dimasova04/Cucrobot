@@ -121,8 +121,7 @@ def _validate(inp: GenerationInput, budget: int) -> None:
     """`budget` — сколько слотов референсов доступно под людей и актёров."""
     if not 1 <= len(inp.people) <= len(PERSON_LABELS):
         raise ValueError(f"people must be 1..{len(PERSON_LABELS)}, got {len(inp.people)}")
-    if not inp.actors:
-        raise ValueError("at least one actor is required")
+    # Пустой список актёров — кадр только с девушкой с фото. Сцена сама решает, есть ли в ней мужчина.
     # Имя без фото слот не занимает: лицо тогда держится только на тексте.
     needed = len(inp.people) + sum(1 for a in inp.actors if a.refs)
     if budget < needed:
@@ -238,14 +237,22 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     if solo:
         lines = [f"A candid photorealistic photo of {people} alone. {scene}."]
         count = len(inp.people)
+    elif not inp.actors:
+        lines = [
+            f"A candid photorealistic photo of {people}. {scene}.",
+            "Person A is the woman from the reference photo. Keep her face.",
+            "If the scene mentions a man, he is a new person in this scene, not a second copy of her.",
+        ]
+        count = None
     else:
         actors = " and ".join(a.name for a in inp.actors)
         lines = [f"A candid photorealistic photo of {people} together with {actors} {scene}."]
         count = len(inp.people) + len(inp.actors)
     if inp.cast_note:
         lines.append(inp.cast_note.strip().rstrip(".") + ".")
-    word = "person" if count == 1 else "people"
-    lines.append(f"Exactly {count} {word} in the frame, no other people in focus.")
+    if count is not None:
+        word = "person" if count == 1 else "people"
+        lines.append(f"Exactly {count} {word} in the frame, no other people in focus.")
     if not solo:
         lines.extend(_cast_lines(inp))
     if inp.detail:

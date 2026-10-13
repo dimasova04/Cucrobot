@@ -226,7 +226,7 @@
     var link = state.me.invite && state.me.invite.link;
     if (!link) return;
     var url = "https://t.me/share/url?url=" + encodeURIComponent(link) +
-      "&text=" + encodeURIComponent("Сними кадр со звездой. 18+");
+      "&text=" + encodeURIComponent("Кинь фото девушки и оживи сцену. 18+");
     if (tg && tg.openTelegramLink) {
       tg.openTelegramLink(url);
       return;
@@ -268,24 +268,23 @@
   function renderShop() {
     var shop = state.shop;
     var html = "<h2>💎 Кристаллики</h2>" +
-      '<div class="card"><div class="muted">1 кристаллик = 1 фото со звездой. Премиум-качество — ' +
-      shop.cost_premium + " 💎 за фото. Кристаллики не сгорают.</div></div>";
+      '<div class="card"><div class="muted">Ролик — ' + (shop.cost_video || 3) +
+      " 💎. Кристаллики не сгорают.</div></div>";
 
     shop.packs.forEach(function (p) {
       html += '<div class="product">' +
         '<div class="product-head"><span class="product-title">' + num(p.crystals) + " 💎</span></div>" +
-        '<div class="product-sub">' + num(p.crystals) + " " +
-          plural(p.crystals, "фото", "фото", "фото") + " со звёздами</div>" +
+        '<div class="product-sub">' + num(p.crystals) + " 💎 на ролики</div>" +
         priceRow(p) +
       "</div>";
     });
 
-    html += "<h2>⭐ Звёздная подписка</h2>" +
+    html += "<h2>⭐ Подписка</h2>" +
       '<div class="card"><ul class="benefits">' +
         "<li><span>🎁</span><span>" + shop.daily_bonus + " кристалликов каждый день</span></li>" +
-        "<li><span>🖼</span><span>Премиум-качество: лица как живые</span></li>" +
-        "<li><span>🎬</span><span>Все сцены и звёзды без ограничений</span></li>" +
-        "<li><span>⚡</span><span>Это до " + shop.daily_bonus + " фото в день и до " + (shop.daily_bonus * 30) + " в месяц</span></li>" +
+        "<li><span>🎞</span><span>Видео по выбранной сцене</span></li>" +
+        "<li><span>🎬</span><span>Все сцены</span></li>" +
+        "<li><span>⚡</span><span>Кристаллики на ролики: до " + shop.daily_bonus + " в день</span></li>" +
         "<li><span>🎉</span><span>И подарок сразу при покупке</span></li>" +
       "</ul></div>";
 

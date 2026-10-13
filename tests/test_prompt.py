@@ -168,8 +168,12 @@ def test_build_validates_cardinality():
         build(inp, max_refs=14)
     inp = _inp()
     inp.actors = []
-    with pytest.raises(ValueError):
-        build(inp, max_refs=14)
+    prompt, refs = build(inp, max_refs=14)
+    assert refs == ["p0"]
+    assert "Person A is the woman from the reference photo." in prompt
+    assert "If the scene mentions a man" in prompt
+    assert "together with" not in prompt
+    assert "Exactly" not in prompt
     inp = _inp()
     inp.actors[0].refs = []
     prompt, refs = build(inp, max_refs=14)

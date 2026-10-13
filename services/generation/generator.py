@@ -51,6 +51,8 @@ class GenerationRequest:
     insert_target: str | None = None
     base_generation_id: int | None = None
     edit_mode: bool = False
+    # False — кадр для ролика: кристаллики списывает оживление, не эта картинка.
+    bill: bool = True
 
 
 @dataclass
@@ -124,9 +126,11 @@ class Generator:
 
     async def _run(self, req: GenerationRequest) -> GenerationOutcome:
         named = list(req.named_actors or [])
-        if not req.actor_ids and not named:
+        if not req.actor_ids and not named and not req.people_file_ids:
             raise ValueError("request needs at least one actor")
         model_air, max_refs, cost = self._model(req.tier)
+        if not req.bill:
+            cost = 0
 
         async with self._sf() as s:
             # Выключенный актёр — то же самое, что несуществующий: его могли
@@ -147,9 +151,10 @@ class Generator:
 
             base = await self._edit_base(s, req)
 
-            balance = await wallet.get_balance(s, req.user_id)
-            if balance < cost:
-                raise wallet.InsufficientCrystals(needed=cost, balance=balance)
+            if cost:
+                balance = await wallet.get_balance(s, req.user_id)
+                if balance < cost:
+                    raise wallet.InsufficientCrystals(needed=cost, balance=balance)
             actors_json = [{"id": a.id, "name": a.name} for a in actors]
             actors_json += [{"id": None, "name": name} for name, _files in named]
             gen = Generation(
@@ -159,7 +164,8 @@ class Generator:
             )
             s.add(gen)
             await s.flush()
-            await wallet.charge_generation(s, req.user_id, cost, gen.id)
+            if cost:
+                await wallet.charge_generation(s, req.user_id, cost, gen.id)
             await s.commit()
             gen_id = gen.id
             actor_inputs = [
@@ -256,7 +262,7 @@ class Generator:
                 gen.result_url = url
                 # Сид нужен «Своей детали»: правка держится того же кадра.
                 gen.seed = seed
-            else:
+            elif gen.crystals_charged:
                 await wallet.refund_generation(s, user_id, gen_id)
             await s.commit()
         return GenerationOutcome(status, gen_id, image, cost, error, seed if status == "done" else None)
