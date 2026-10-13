@@ -40,7 +40,7 @@ def test_mark_fits_a_portrait_frame():
     corner = out[10:90, -240:-10]
     assert int(corner.max()) > 230
     assert int(out[-80:-10, -240:-10].max()) < 230
-    assert MARK == "cucro_bot"
+    assert MARK == "@goodcucbot"
 
 
 def _mp4(width: int = 640, height: int = 480) -> bytes:

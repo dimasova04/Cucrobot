@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from loguru import logger
 
-MARK = "cucro_bot"
+MARK = "@goodcucbot"
 
 
 def apply_free_mark(image_bytes: bytes) -> bytes:
