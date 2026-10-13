@@ -7,37 +7,41 @@ from bot.looks import LOOKS, free_looks, get_look, locked_looks
 from config.settings import Settings
 from database import repo
 from database.base import utcnow
-from services.generation.content_filter import is_allowed
+from services.generation.content_filter import is_allowed, mentions_minor
 from services.generation.generator import GenerationOutcome
 from services.generation.prompt_builder import GenerationInput, build
 from tests.test_generate_flow import _CapMessage, _FakeCb, _FakeGenerator, _FakeState, _FakeTarget, _callbacks
 
 
-def test_classic_buttons_split_into_an_open_block_and_a_locked_block():
+def test_photo_looks_match_the_example_and_skip_a_schoolgirl():
     ids = [item.id for item in LOOKS]
     assert len(ids) == len(set(ids))
-    free_names = [item.name for item in free_looks()]
-    locked_names = [item.name for item in locked_looks()]
-    assert "В бикини" in free_names
-    assert "В мини-юбке" in free_names
-    assert "В обтягивающих шортах" in free_names
-    assert "Полностью без всего" in locked_names
-    assert "Ню на кровати" in locked_names
-    assert "В кресле с раздвинутыми ногами" in locked_names
-    for item in free_looks():
+    names = [item.name for item in LOOKS]
+    assert names[0] == "Снять всё 😭"
+    assert "Примерить бикини 👙" in names
+    assert "Секретарша 👩‍💼" in names
+    assert "Училка 👩‍🏫" in names
+    assert "Зайка 🐰" in names
+    assert get_look("strip").locked and get_look("stockings").locked and get_look("bdsm").locked
+    assert not get_look("bikini").locked and not get_look("teacher").locked
+    for item in LOOKS:
         assert item.prompt.startswith("[solo]")
-        assert is_allowed(item.prompt)
+        assert not mentions_minor(item.prompt)
+        assert not mentions_minor(item.name)
+        assert "школьн" not in item.name.lower() and "школьн" not in item.prompt.lower()
         assert len(f"look:{item.id}".encode()) <= 64
         assert len(item.name) <= 64
+    for item in free_looks():
+        assert is_allowed(item.prompt)
     for item in locked_looks():
-        assert item.locked
-        assert item.prompt.startswith("[solo]")
-        assert "без одежды" in item.prompt
-        assert len(item.name) <= 64
+        if item.id == "bdsm":
+            assert "портупе" in item.prompt
+        else:
+            assert "без одежды" in item.prompt
 
 
 def test_locked_look_stays_one_adult_woman():
-    look = get_look("chair")
+    look = get_look("stockings")
     prompt, refs = build(
         GenerationInput(
             people=["p"], actors=[], scene_prompt=look.prompt, scene_ref=None,
@@ -47,14 +51,14 @@ def test_locked_look_stays_one_adult_woman():
     )
     assert refs == ["p"]
     assert "Exactly 1 person in the frame" in prompt
-    assert "кресле" in prompt
+    assert "чулк" in prompt
 
 
 def test_catalog_scene_clears_the_look():
     data = empty_data()
     data["people"] = ["p"]
-    apply_look(data, "bed", get_look("bed").prompt)
-    assert data["look_id"] == "bed"
+    apply_look(data, "strip", get_look("strip").prompt)
+    assert data["look_id"] == "strip"
     apply_catalog_scene(data, 3)
     assert "look_id" not in data
     assert data["scene_id"] == 3
@@ -66,20 +70,56 @@ async def test_both_look_blocks_are_visible(session_factory):
     await generate_mod._show_looks(target, state)
     assert len(target.answers) == 1
     assert target.answers[0][0] == texts.CHOOSE_LOOKS
+    rows = target.answers[0][1].inline_keyboard
+    assert [b.callback_data for b in rows[0]] == ["look:prompt", "look:strip"]
+    assert len(rows[0]) == 2
     cbs = _callbacks(target.answers[0][1])
-    assert cbs[0] == "nav:noop"
-    free_at = cbs.index("look:bikini")
-    split_at = cbs.index("nav:noop", 1)
-    locked_at = cbs.index("look:nude")
-    assert free_at < split_at < locked_at
-    assert "look:shorts" in cbs and "look:bed" in cbs and "look:chair" in cbs
+    assert "look:bunny" in cbs and "look:bikini" in cbs and "look:stockings" in cbs
     assert "look:places" not in cbs and "scene:custom" not in cbs
     assert "shop:subs" not in cbs
-    assert cbs[-2:] == ["nav:back:menu", "gen:cancel"]
-    rows = target.answers[0][1].inline_keyboard
-    headers = [i for i, row in enumerate(rows) if len(row) == 1 and row[0].callback_data == "nav:noop"]
-    assert [rows[i][0].text for i in headers] == [texts.LOOK_SECTION_FREE, texts.LOOK_SECTION_SUB]
+    assert not any(item.startswith("look:page:") for item in cbs)
+    assert rows[-1][0].text == texts.BTN_LOOKS_BACK
+    assert rows[-1][0].callback_data == "nav:back:menu"
     assert state._state == GenStates.scene
+
+
+def test_looks_pager_puts_the_number_opposite_the_arrow():
+    items = [(str(i), f"look:{i}") for i in range(15)]
+    first = generate_mod.looks_markup(items, 0, per_page=14).inline_keyboard
+    assert [b.text for b in first[-2]] == ["1/2", texts.BTN_LOOKS_NEXT]
+    assert [b.callback_data for b in first[-2]] == ["nav:noop", "look:page:1"]
+    second = generate_mod.looks_markup(items, 1, per_page=14).inline_keyboard
+    assert [b.text for b in second[-2]] == [texts.BTN_LOOKS_PREV, "2/2"]
+    assert [b.callback_data for b in second[-2]] == ["look:page:0", "nav:noop"]
+    assert second[-1][0].callback_data == "nav:back:menu"
+
+
+async def test_looks_page_edits_the_same_message():
+    class _Edit(_FakeTarget):
+        def __init__(self):
+            super().__init__()
+            self.edits = []
+
+        async def edit_text(self, text, reply_markup=None, **kw):
+            self.edits.append((text, reply_markup))
+
+    target = _Edit()
+    state = _FakeState({"people": ["p"]}, GenStates.scene)
+    cb = _FakeCb("look:page:1", target)
+    await generate_mod.looks_page(cb, state)
+    assert cb.answered == [(None, False)]
+    assert target.edits[0][0] == texts.CHOOSE_LOOKS
+    assert target.answers == []
+
+
+async def test_free_prompt_asks_for_text():
+    message = _CapMessage()
+    state = _FakeState({"people": ["p"]}, GenStates.scene)
+    cb = _FakeCb("look:prompt", message)
+    await generate_mod.look_prompt(cb, state)
+    assert message.answers[-1][0] == texts.LOOK_PROMPT
+    assert state._state == GenStates.custom_scene
+    assert cb.answered == [(None, False)]
 
 
 async def test_section_label_does_nothing():
@@ -101,7 +141,7 @@ async def test_locked_look_without_subscription_opens_paywall(session_factory):
             GenStates.scene,
         )
         message = _CapMessage()
-        cb = _FakeCb("look:bed", message)
+        cb = _FakeCb("look:strip", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
@@ -135,7 +175,7 @@ async def test_admin_without_subscription_opens_a_locked_look(session_factory, m
                 self.photos.append(caption)
 
         message = _Photo()
-        cb = _FakeCb("look:nude", message)
+        cb = _FakeCb("look:strip", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[95], cost_base=1, cost_premium=3)
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=4, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=1)
@@ -144,7 +184,7 @@ async def test_admin_without_subscription_opens_a_locked_look(session_factory, m
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
     assert generator.calls[0].custom_scene_text.startswith("[solo]")
     assert "без одежды" in generator.calls[0].custom_scene_text
-    assert message.photos == [texts.PHOTO_SCENE_CAPTION.format(scene="Полностью без всего")]
+    assert message.photos == [texts.PHOTO_SCENE_CAPTION.format(scene="Снять всё 😭")]
 
 
 async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
@@ -164,14 +204,14 @@ async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
                 return None
 
         message = _Photo()
-        cb = _FakeCb("look:chair", message)
+        cb = _FakeCb("look:stockings", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[], cost_base=1, cost_premium=3)
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=5, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=1)
         )
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
-    assert "кресле" in generator.calls[0].custom_scene_text
-    assert state._data["look_id"] == "chair"
+    assert "чулк" in generator.calls[0].custom_scene_text
+    assert state._data["look_id"] == "stockings"
 
 
 def test_video_refs_are_optional_until_a_file_is_added():

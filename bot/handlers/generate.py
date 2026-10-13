@@ -37,7 +37,7 @@ from services.channel_rank import level_title, published_count
 from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
 from bot.clips import get_clip, hard_clips, light_clips
-from bot.looks import free_looks, get_look, locked_looks
+from bot.looks import LOOKS, LOOKS_PER_PAGE, get_look
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
 from services.generation import faces
@@ -192,14 +192,43 @@ def _split_kb(top_label: str, top: list[tuple[str, str]], bottom_label: str, bot
     )
 
 
-async def _show_looks(target: Message, state: FSMContext):
+def _look_items() -> list[tuple[str, str]]:
+    return [(texts.BTN_LOOK_PROMPT, "look:prompt"), *[(item.name, f"look:{item.id}") for item in LOOKS]]
+
+
+def looks_markup(items: list[tuple[str, str]], page: int = 0, per_page: int = LOOKS_PER_PAGE):
+    """Две колонки и строка страниц: на первой номер слева и стрелка вперёд, на последней наоборот."""
+    last = max(0, (len(items) - 1) // per_page) if items else 0
+    page = max(0, min(page, last))
+    chunk, has_prev, has_next = paginate(items, page, per_page)
+    extra: list[list[tuple[str, str]]] = []
+    if last:
+        label = (f"{page + 1}/{last + 1}", "nav:noop")
+        if has_prev and has_next:
+            row = [
+                (texts.BTN_LOOKS_PREV, f"look:page:{page - 1}"),
+                label,
+                (texts.BTN_LOOKS_NEXT, f"look:page:{page + 1}"),
+            ]
+        elif has_next:
+            row = [label, (texts.BTN_LOOKS_NEXT, f"look:page:{page + 1}")]
+        else:
+            row = [(texts.BTN_LOOKS_PREV, f"look:page:{page - 1}"), label]
+        extra.append(row)
+    extra.append([(texts.BTN_LOOKS_BACK, "nav:back:menu")])
+    return keyboards.grid(chunk, 2, extra)
+
+
+async def _show_looks(target: Message, state: FSMContext, page: int = 0, edit: bool = False):
     await state.set_state(GenStates.scene)
-    free = [(item.name, f"look:{item.id}") for item in free_looks()]
-    locked = [(item.name, f"look:{item.id}") for item in locked_looks()]
-    await target.answer(
-        texts.CHOOSE_LOOKS,
-        reply_markup=_split_kb(texts.LOOK_SECTION_FREE, free, texts.LOOK_SECTION_SUB, locked),
-    )
+    markup = looks_markup(_look_items(), page)
+    if edit:
+        try:
+            await target.edit_text(texts.CHOOSE_LOOKS, reply_markup=markup)
+            return
+        except TelegramAPIError:
+            pass
+    await target.answer(texts.CHOOSE_LOOKS, reply_markup=markup)
 
 
 async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0, back: str | None = None):
@@ -487,6 +516,22 @@ async def clip_chosen(cb: CallbackQuery, state: FSMContext, session, user, setti
         await cb.message.answer(texts.SEND_PERSON_VIDEO, reply_markup=_ask_photo_markup())
         return
     await _deliver_scene(cb.message, state, session, user, settings, generator)
+
+
+@generate_router.callback_query(GenStates.scene, F.data.startswith("look:page:"))
+async def looks_page(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _show_looks(cb.message, state, page=int(cb.data.rsplit(":", 1)[1]), edit=True)
+
+
+@generate_router.callback_query(GenStates.scene, F.data == "look:prompt")
+async def look_prompt(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(GenStates.custom_scene)
+    await cb.answer()
+    await cb.message.answer(
+        texts.LOOK_PROMPT,
+        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("looks"), keyboards.cancel_row()]),
+    )
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("look:"))
