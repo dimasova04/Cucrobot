@@ -36,9 +36,9 @@ def video_allowed(user, settings) -> bool:
     return bool(settings.is_admin(user.id) or subscriptions.is_active(user))
 
 
-async def _send_paywall(target, settings) -> None:
+async def _send_paywall(target, settings, lead: str | None = None) -> None:
     daily = settings.bonus_sub_amount
-    text = texts.VIDEO_PAYWALL.format(seconds=settings.video_seconds, n=settings.cost_video)
+    text = lead or texts.VIDEO_PAYWALL.format(seconds=settings.video_seconds, n=settings.cost_video)
     text += "\n\n" + texts.SHOP_SUBS.format(daily=daily, monthly=daily * 30)
     await target.answer(text, parse_mode="HTML", reply_markup=subs_kb(settings))
 

@@ -15,6 +15,7 @@ from bot.flow import (
     add_person_buttons,
     apply_catalog_scene,
     apply_custom_scene,
+    apply_look,
     commit_pending,
     effective_tier,
     empty_data,
@@ -35,6 +36,7 @@ from services import aliases
 from services.channel_rank import level_title, published_count
 from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
+from bot.looks import free_looks, get_look, locked_looks
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
 from services.generation import faces
@@ -130,7 +132,7 @@ async def _show_sections(target: Message, state: FSMContext):
 
 
 @generate_router.callback_query(GenStates.section, F.data.startswith("sec:"))
-async def section_chosen(cb: CallbackQuery, state: FSMContext, session):
+async def section_chosen(cb: CallbackQuery, state: FSMContext):
     mode = cb.data.split(":", 1)[1]
     if mode not in ("photo", "video"):
         await cb.answer()
@@ -139,17 +141,44 @@ async def section_chosen(cb: CallbackQuery, state: FSMContext, session):
     st["mode"] = mode
     await state.set_data(st)
     await cb.answer()
-    await _show_scenes(cb.message, state, session)
+    await _show_looks(cb.message, state)
 
 
-async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0):
+async def _show_looks(target: Message, state: FSMContext):
+    await state.set_state(GenStates.scene)
+    free = [(item.name, f"look:{item.id}") for item in free_looks()]
+    locked = [(item.name, f"look:{item.id}") for item in locked_looks()]
+    await target.answer(texts.CHOOSE_LOOKS_FREE, reply_markup=keyboards.grid(free, 2))
+    await target.answer(
+        texts.CHOOSE_LOOKS_SUB,
+        reply_markup=keyboards.grid(
+            locked,
+            2,
+            [
+                [(texts.BTN_PLACES, "look:places")],
+                [(texts.BTN_CUSTOM_SCENE, "scene:custom")],
+                keyboards.back_row("section"),
+                keyboards.cancel_row(),
+            ],
+        ),
+    )
+
+
+async def _show_scenes(target: Message, state: FSMContext, session, page: int = 0, back: str | None = None):
     scenes = await catalog.list_scenes(session)
     chunk, has_prev, has_next = paginate(scenes, page, SCENES_PER_PAGE)
     items = [(s.name, f"scene:{s.id}") for s in chunk]
     extra = _nav_row("scene", page, has_prev, has_next)
     extra.append([(texts.BTN_CUSTOM_SCENE, "scene:custom")])
     st = await state.get_data()
-    extra.append(keyboards.back_row("result" if is_complete(st) else "section"))
+    if back is not None:
+        st["_places_back"] = back
+        await state.set_data(st)
+    if is_complete(st):
+        back_to = "result"
+    else:
+        back_to = st.get("_places_back") or "section"
+    extra.append(keyboards.back_row(back_to))
     extra.append(keyboards.cancel_row())
     await state.set_state(GenStates.scene)
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
@@ -374,8 +403,31 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     await cb.message.answer(
         texts.CUSTOM_SCENE_PROMPT,
-        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("scenes"), keyboards.cancel_row()]),
+        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("looks"), keyboards.cancel_row()]),
     )
+
+
+@generate_router.callback_query(GenStates.scene, F.data.startswith("look:"))
+async def look_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+    code = cb.data.split(":", 1)[1]
+    if code == "places":
+        await cb.answer()
+        await _show_scenes(cb.message, state, session, back="looks")
+        return
+    look = get_look(code)
+    if look is None:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    if look.locked:
+        from bot.handlers.video import _send_paywall, video_allowed
+        if not video_allowed(user, settings):
+            await cb.answer()
+            await _send_paywall(cb.message, settings, texts.LOOK_PAYWALL)
+            return
+    st = apply_look(await state.get_data(), look.id, look.prompt)
+    await state.set_data(st)
+    await cb.answer()
+    await _deliver_scene(cb.message, state, session, user, settings, generator)
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("scene:"))
@@ -484,6 +536,9 @@ async def _answer_not_enough(target: Message, user, settings, cost: int) -> None
 
 
 def _scene_source(st: dict, scene) -> tuple[str, str]:
+    look = get_look(st.get("look_id"))
+    if look:
+        return look.prompt, look.name
     if scene:
         return scene.prompt, scene.name
     if st.get("custom_text"):
@@ -697,7 +752,7 @@ async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
     # Сцена меняется — править прежний кадр бессмысленно.
     await _drop_edit(state, st)
     await cb.answer()
-    await _show_scenes(cb.message, state, session)
+    await _show_looks(cb.message, state)
 
 
 async def _show_add_person(target: Message, state: FSMContext):
@@ -893,6 +948,9 @@ async def nav_back(cb: CallbackQuery, state: FSMContext, session, user, settings
         return
     if target == "section":
         await _show_sections(cb.message, state)
+        return
+    if target == "looks":
+        await _show_looks(cb.message, state)
         return
     if target == "scenes":
         await _show_scenes(cb.message, state, session)

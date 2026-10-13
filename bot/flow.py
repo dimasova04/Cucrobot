@@ -209,6 +209,18 @@ def apply_catalog_scene(data: dict, scene_id: int) -> dict:
     data["custom_text"] = None
     data["custom_file_id"] = None
     data["detail"] = None
+    data.pop("look_id", None)
+    return data
+
+
+def apply_look(data: dict, look_id: str, prompt: str) -> dict:
+    """Классический образ вместо места из каталога."""
+    drop_added_people(data)
+    data["look_id"] = look_id
+    data["scene_id"] = None
+    data["custom_text"] = prompt
+    data["custom_file_id"] = None
+    data["detail"] = None
     return data
 
 
@@ -219,6 +231,7 @@ def apply_custom_scene(data: dict, *, text: str | None = None, file_id: str | No
     data["custom_text"] = text
     data["custom_file_id"] = file_id
     data["detail"] = None
+    data.pop("look_id", None)
     return data
 
 

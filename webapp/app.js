@@ -284,6 +284,7 @@
       '<div class="card"><ul class="benefits">' +
         "<li><span>🎁</span><span>" + shop.daily_bonus + " кристалликов каждый день</span></li>" +
         "<li><span>✨</span><span>Снять блюр с видео</span></li>" +
+        "<li><span>🔥</span><span>Второй раздел образов</span></li>" +
         "<li><span>🎬</span><span>Все сцены</span></li>" +
         "<li><span>⚡</span><span>Кристаллики на ролики: до " + shop.daily_bonus + " в день</span></li>" +
         "<li><span>🎉</span><span>И подарок сразу при покупке</span></li>" +
