@@ -17,8 +17,8 @@ from services.billing import wallet
 from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import (
-    NEGATIVE_PROMPT, ActorInput, GenerationInput, build, build_edit, build_insert, is_quality_request,
-    sdxl_adapter_groups,
+    NEGATIVE_PROMPT, QWEN_MAX_REFS, ActorInput, GenerationInput, build, build_edit, build_insert,
+    is_quality_request, sdxl_adapter_groups,
 )
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
@@ -116,17 +116,20 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        # SDXL с IP-Adapter Runware отклоняет: кадра нет, кристалл возвращается.
-        # Обычное фото снова Seedream 4.5 с референсами. Переменные sdxl на сервере это не перебивают.
-        return "bytedance:seedream@4.5", s.model_base_max_refs, s.cost_base
+        # Обычное фото — Qwen-Image-Edit-Plus: правит загруженный кадр.
+        # Старые MODEL_BASE_AIR / кадр Seedream на сервере это не перебивают.
+        return "runware:108@22", QWEN_MAX_REFS, s.cost_base
 
-    def _seedream_frame(self, width: int, height: int) -> tuple[int, int]:
-        """Seedream 4.5 берёт кадр от 3.69 Мпикс. 832×1216 для него слишком мал, генерация не стартует."""
-        if width * height >= 3_690_000 and width % 8 == 0 and height % 8 == 0:
+    def _qwen_frame(self, width: int, height: int) -> tuple[int, int]:
+        """Qwen берёт сторону от 512 до 2048. Кадр Seedream 1664×2496 он отклоняет."""
+        if (
+            512 <= width <= 2048 and 512 <= height <= 2048
+            and width % 8 == 0 and height % 8 == 0
+        ):
             return width, height
         if height >= width:
-            return 1664, 2496
-        return 2496, 1664
+            return 1024, 1536
+        return 1536, 1024
 
     def _uses_sdxl(self, tier: str) -> bool:
         return False
@@ -246,7 +249,7 @@ class Generator:
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
             if req.tier != "premium":
-                width, height = self._seedream_frame(width, height)
+                width, height = self._qwen_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None
@@ -263,7 +266,10 @@ class Generator:
             )
             previous_image, seed = await self._load_base_image(base)
             sdxl = self._uses_sdxl(req.tier)
-            style = "sdxl" if sdxl else "instruct"
+            if req.tier == "premium":
+                style = "instruct"
+            else:
+                style = "qwen"
             if previous_image and req.insert_prompt:
                 mode = "insert"
                 prompt, refs = build_insert(

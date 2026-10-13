@@ -14,17 +14,17 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    # Обычное фото — Seedream 4.5. SDXL с IP-Adapter этот аккаунт сейчас отклоняет.
-    # family=sdxl оставляет короткий промпт и IP-Adapter, если его снова включат в коде.
-    model_base_air: str = "bytedance:seedream@4.5"
-    model_base_family: str = "reference"
+    # Обычное фото — Qwen-Image-Edit-Plus (runware:108@22): правит загруженный кадр.
+    # Код всё равно шлёт именно эту модель: старый AIR Seedream или SDXL на сервере не перебивает.
+    model_base_air: str = "runware:108@22"
+    model_base_family: str = "qwen"
     model_premium_air: str = "google:4@3"
-    model_base_max_refs: int = 14
+    model_base_max_refs: int = 3
     model_premium_max_refs: int = 14
-    # Seedream 4.5: площадь 3.69–16.78 Мпикс. Рекомендованный 2K 2:3 — 1664×2496.
-    # Премиум — официальный 2K 2:3 Nano Banana 2.
-    model_base_portrait: str = "1664x2496"
-    model_base_landscape: str = "2496x1664"
+    # Qwen: сторона 512–2048. 1024×1536 и 1536×1024 — портрет и альбом.
+    # Премиум — официальный 2K 2:3 Nano Banana 2, его этим лимитом не режем.
+    model_base_portrait: str = "1024x1536"
+    model_base_landscape: str = "1536x1024"
     model_premium_portrait: str = "1696x2528"
     model_premium_landscape: str = "2528x1696"
     model_base_steps: int = 28

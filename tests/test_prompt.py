@@ -381,3 +381,53 @@ def test_build_edit_validates_inputs():
     with pytest.raises(ValueError):
         # один слот уходит под предыдущий кадр: людям и актёрам места не остаётся
         build_edit(_inp(people=2, actors=2), "prev", "в пальто", max_refs=4)
+
+
+def test_qwen_edits_image_one_and_keeps_at_most_three_refs():
+    prompt, refs = build(_inp(scene_ref="s"), max_refs=14, style="qwen")
+    assert refs == ["p0", "a0_0", "s"]
+    assert prompt.startswith("Edit reference image 1. It is the photograph to change.")
+    assert "Keep this person's face, identity, body and pose." in prompt
+    assert "Make only this change: on a yacht." in prompt
+    assert "Exactly 2 people." in prompt
+    assert "Reference image 2 is Actor0." in prompt
+    assert "not the clothes or the background" in prompt
+    assert "Reference image 3 is the place." in prompt
+    assert "do not copy the people" in prompt
+    assert "a0_1" not in refs
+    assert "A candid photorealistic photo" not in prompt
+
+
+def test_qwen_drops_extra_people_instead_of_refusing():
+    prompt, refs = build(_inp(people=2, actors=2, scene_ref="s"), max_refs=3, style="qwen")
+    assert refs == ["p0", "p1", "a0_0"]
+    assert "Each actor appears exactly once: Actor0 and Actor1." in prompt
+    assert "is the place" not in prompt
+
+
+def test_qwen_edit_insert_and_solo_stay_on_the_source_photo():
+    prompt, refs = build_edit(_inp(scene_ref="s"), "prev", "в пальто", max_refs=3, style="qwen")
+    assert refs == ["prev", "p0", "a0_0"]
+    assert "Image 1 is the finished photo" in prompt
+    assert "в пальто" in prompt
+    assert "on a yacht" not in prompt
+    quality, qrefs = build_edit(_inp(scene_ref="s"), "prev", "Улучши качество", max_refs=3, style="qwen")
+    assert qrefs == ["prev"]
+    assert "sharper" in quality and "on a yacht" not in quality
+    solo = _inp(scene_refs=["e1", "e2"])
+    solo.scene_prompt = "[solo] a red dress, studio light"
+    solo_prompt, solo_refs = build(solo, max_refs=3, style="qwen")
+    assert solo_refs == ["p0", "e1"]
+    assert "Actor0" not in solo_prompt and "[solo]" not in solo_prompt
+    assert "a red dress, studio light" in solo_prompt
+    solo_edit, solo_edit_refs = build_edit(solo, "prev", "улыбка шире", max_refs=3, style="qwen")
+    assert solo_edit_refs == ["prev", "p0"]
+    assert "Actor0" not in solo_edit
+    inp = _inp()
+    inp.actors[0].refs = ["a0_0", "a0_1", "a0_2"]
+    inp.insert_target = "actor"
+    inp.insert_actor_index = 0
+    inserted, irefs = build_insert(inp, "prev", "Add Actor0 into this photo.", max_refs=14, style="qwen")
+    assert irefs == ["prev", "a0_0"]
+    assert "Add exactly one new person" in inserted
+    assert "Reference image 2 is Actor0." in inserted

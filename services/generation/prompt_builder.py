@@ -328,7 +328,141 @@ def _without_actors(ordered: list[tuple[str, str, int]]) -> list[tuple[str, str,
     return [item for item in ordered if item[0] not in ("actor_primary", "actor_extra")]
 
 
+# Qwen-Image-Edit-Plus принимает 1–3 референса. Лишние ракурсы смешивают лица, поэтому их нет.
+QWEN_MAX_REFS = 3
+
+
+def _qwen_validate(inp: GenerationInput, slots: int) -> None:
+    """Не отказывать, если людей больше, чем слотов: лишние фото просто не уйдут."""
+    needed = len(inp.people) + sum(1 for a in inp.actors if a.refs)
+    _validate(inp, max(slots, needed, 1))
+
+
+def _location_refs(inp: GenerationInput) -> list[str]:
+    locs = list(inp.scene_refs or [])
+    if not locs and inp.scene_ref:
+        locs = [inp.scene_ref]
+    return locs
+
+
+def _qwen_fresh_ordered(inp: GenerationInput, max_refs: int) -> list[tuple[str, str, int]]:
+    """Фото пользователя, одно главное фото актёра, и место, если слот остался."""
+    cap = min(max_refs, QWEN_MAX_REFS)
+    ordered: list[tuple[str, str, int]] = [("person", photo, i) for i, photo in enumerate(inp.people)]
+    if not scene_is_solo(inp.scene_prompt):
+        for i, actor in enumerate(inp.actors):
+            if actor.refs:
+                ordered.append(("actor_primary", actor.refs[0], i))
+    locs = _location_refs(inp)
+    if locs and len(ordered) < cap:
+        ordered.append(("scene", locs[0], 0))
+    return ordered[:cap]
+
+
+def _qwen_ref_lines(inp: GenerationInput, ordered: list[tuple[str, str, int]], start: int) -> list[str]:
+    lines: list[str] = []
+    for n, (kind, _data, idx) in enumerate(ordered, start=start):
+        if kind == "person":
+            if n == 1:
+                continue
+            lines.append(
+                f"Reference image {n} is person {PERSON_LABELS[idx]}. "
+                "Use only this face and body, not the clothes or the background."
+            )
+        elif kind == "actor_primary":
+            lines.append(
+                f"Reference image {n} is {inp.actors[idx].name}. "
+                "Use only this face and body, not the clothes or the background."
+            )
+        elif kind == "scene":
+            lines.append(
+                f"Reference image {n} is the place. "
+                "Follow its room and framing, do not copy the people."
+            )
+    return lines
+
+
+def _qwen_lead(inp: GenerationInput) -> str:
+    if len(inp.people) <= 1:
+        return (
+            "Edit reference image 1. It is the photograph to change. "
+            "Keep this person's face, identity, body and pose."
+        )
+    return (
+        "Edit reference image 1. It is the photograph to change. "
+        "Keep these people's faces, identity, bodies and poses."
+    )
+
+
+def _qwen_fresh(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
+    solo = scene_is_solo(inp.scene_prompt)
+    ordered = _qwen_fresh_ordered(inp, max_refs)
+    scene = scene_text(inp.scene_prompt).rstrip(".").strip()
+    lines = [_qwen_lead(inp), f"Make only this change: {scene}."]
+    if inp.cast_note:
+        lines.append(inp.cast_note.strip().rstrip(".") + ".")
+    count = _people_count(inp, solo)
+    if count is not None:
+        word = "person" if count == 1 else "people"
+        lines.append(f"Exactly {count} {word}.")
+    elif not solo:
+        lines.append(
+            "If the scene mentions a man, he is a new person in this scene, not a second copy of her."
+        )
+    if not solo and len(inp.actors) >= 2:
+        names = " and ".join(actor.name for actor in inp.actors)
+        lines.append(f"Each actor appears exactly once: {names}. They are different people.")
+    if inp.detail:
+        lines.append("Also apply this change: " + inp.detail.strip().rstrip(".") + ".")
+    lines.extend(_qwen_ref_lines(inp, ordered, start=1))
+    return _join(lines), [data for _kind, data, _idx in ordered]
+
+
+def _qwen_edit(
+    inp: GenerationInput, previous_image: str, detail: str, max_refs: int,
+) -> tuple[str, list[str]]:
+    cap = min(max_refs, QWEN_MAX_REFS)
+    keep = ("person",) if scene_is_solo(inp.scene_prompt) else ("person", "actor_primary")
+    ordered = [item for item in _ordered_refs(inp) if item[0] in keep][: max(0, cap - 1)]
+    lines = [
+        "Edit reference image 1. Image 1 is the finished photo. "
+        "Make only this change: " + detail.strip().rstrip(".") + ". "
+        "Keep faces, clothes except the requested change, pose, place and framing.",
+    ]
+    lines.extend(_qwen_ref_lines(inp, ordered, start=2))
+    return _join(lines), [previous_image] + [data for _kind, data, _idx in ordered]
+
+
+def _qwen_insert(
+    inp: GenerationInput, previous_image: str, instruction: str, ordered: list[tuple[str, str, int]],
+) -> tuple[str, list[str]]:
+    lines = [
+        "Edit reference image 1. Image 1 is the finished photo. "
+        "Add exactly one new person. Keep everyone already in the photo.",
+        instruction.strip().rstrip(".") + ".",
+    ]
+    if ordered:
+        kind, _data, idx = ordered[0]
+        who = inp.actors[idx].name if kind == "actor_primary" else f"person {PERSON_LABELS[idx]}"
+        lines.append(
+            f"Reference image 2 is {who}. "
+            "Use only this face and body, not the clothes or the background. "
+            "Dress the new person to match the clothes already in image 1."
+        )
+    else:
+        name = _inserted_name(inp)
+        who = f"The new person is {name}. " if name else ""
+        lines.append(
+            who + "There is no reference photo of the new person. "
+            "Do not copy a face already in image 1."
+        )
+    return _join(lines), [previous_image] + [data for _kind, data, _idx in ordered]
+
+
 def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple[str, list[str]]:
+    if style == "qwen":
+        _qwen_validate(inp, max_refs)
+        return _qwen_fresh(inp, max_refs)
     _validate(inp, max_refs)
     ordered = _ordered_refs(inp)
     solo = scene_is_solo(inp.scene_prompt)
@@ -386,7 +520,10 @@ def build_edit(
         raise ValueError("previous_image is required for an edit")
     if not (detail or "").strip():
         raise ValueError("detail is required for an edit")
-    _validate(inp, max_refs - 1)
+    if style == "qwen":
+        _qwen_validate(inp, max(max_refs - 1, 0))
+    else:
+        _validate(inp, max_refs - 1)
     if style == "sdxl" and is_quality_request(detail):
         return _sdxl_edit(detail), [previous_image]
     if is_quality_request(detail):
@@ -397,6 +534,8 @@ def build_edit(
             REALISM_CLAUSE,
         ]
         return _join(lines), [previous_image]
+    if style == "qwen":
+        return _qwen_edit(inp, previous_image, detail, max_refs)
     # Первичное фото актёра — лицо и телосложение. Сцена и запасные ракурсы уводят кадр.
     # В сольной сцене актёра в кадре нет: его фото на правке вернуло бы его обратно.
     keep = ("person",) if scene_is_solo(inp.scene_prompt) else ("person", "actor_primary")
@@ -457,6 +596,11 @@ def build_insert(
         raise ValueError("previous_image is required for an insert")
     if not (instruction or "").strip():
         raise ValueError("instruction is required for an insert")
+    if style == "qwen":
+        _qwen_validate(inp, max(max_refs - 1, 0))
+        # Только первое фото нового человека. Запасные ракурсы Квен смешивает с теми, кто уже в кадре.
+        room = 1 if min(max_refs, QWEN_MAX_REFS) > 1 else 0
+        return _qwen_insert(inp, previous_image, instruction, _insert_face_refs(inp)[:room])
     _validate(inp, max_refs - 1)
     ordered = _insert_face_refs(inp)[: max_refs - 1]
     if style == "sdxl":
