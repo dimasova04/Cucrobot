@@ -18,7 +18,7 @@ from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import (
     NEGATIVE_PROMPT, ActorInput, GenerationInput, build, build_edit, build_insert, is_quality_request,
-    sdxl_adapter_groups,
+    scene_is_solo, sdxl_adapter_groups,
 )
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
@@ -121,32 +121,55 @@ class Generator:
     def _uses_sdxl(self, tier: str) -> bool:
         return tier != "premium" and self._settings.model_base_family == "sdxl"
 
+    def _face_guide(self, data_uri: str) -> str:
+        """В адаптер — кроп лица. Комната с исходного фото иначе становится новым кадром."""
+        if not data_uri.startswith("data:") or "," not in data_uri:
+            return data_uri
+        raw = base64.b64decode(data_uri.split(",", 1)[1])
+        cropped = faces.crop_largest_face(raw)
+        if cropped == raw:
+            return data_uri
+        return _data_uri(cropped)
+
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings
         quality = mode == "edit" and is_quality_request(detail)
         groups = [] if quality else sdxl_adapter_groups(inp, max_refs, mode)
         adapters = []
+        first_face = None
         for role, images in groups:
+            if not images:
+                continue
             if role == "place":
-                adapters.append({
-                    "model": s.sdxl_place_air,
-                    "guideImages": images,
-                    "weight": s.sdxl_place_weight,
-                    "weightType": "composition",
-                })
-            else:
-                adapters.append({
-                    "model": s.sdxl_face_air,
-                    "guideImages": images,
-                    "weight": s.sdxl_face_weight,
-                    "combineMethod": "average",
-                })
+                if s.sdxl_place_weight > 0:
+                    adapters.append({
+                        "model": s.sdxl_place_air,
+                        "guideImages": images[:1],
+                        "weight": s.sdxl_place_weight,
+                        "weightType": "composition",
+                    })
+                continue
+            guide = self._face_guide(images[0])
+            if first_face is None:
+                first_face = images[0]
+            adapters.append({
+                "model": s.sdxl_face_air,
+                "guideImages": [guide],
+                "weight": s.sdxl_face_weight,
+                "embedScaling": "k_mean_v_penalty_c",
+            })
         if mode == "insert":
             strength = s.sdxl_insert_strength
-        elif quality:
-            strength = s.sdxl_quality_strength
+            seed_image = previous
+        elif mode == "edit":
+            strength = s.sdxl_quality_strength if quality else s.sdxl_edit_strength
+            seed_image = previous
         else:
-            strength = s.sdxl_edit_strength
+            # Сольный кадр и кадр без актёра стартуют с её фото: лицо и фигура не рисуются с нуля.
+            # Двое в кадре так не собрать — там держим лица адаптером, место берёт промпт.
+            anchor = scene_is_solo(inp.scene_prompt) or not inp.actors
+            seed_image = first_face if anchor else None
+            strength = s.sdxl_fresh_strength if seed_image else None
         return {
             "family": "sdxl",
             "negative": NEGATIVE_PROMPT,
@@ -154,8 +177,8 @@ class Generator:
             "cfg": s.model_base_cfg,
             "scheduler": s.model_base_scheduler,
             "ip_adapters": adapters,
-            "seed_image": previous if mode != "fresh" else None,
-            "strength": strength if mode != "fresh" else None,
+            "seed_image": seed_image,
+            "strength": strength,
         }
 
     async def run(self, req: GenerationRequest) -> GenerationOutcome:

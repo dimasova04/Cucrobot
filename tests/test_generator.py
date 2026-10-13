@@ -109,6 +109,10 @@ def test_film_set_crew_is_blanked_and_the_empty_room_stays():
     assert faces.anonymize_faces(empty) == empty
 
 
+def test_face_crop_keeps_bytes_when_there_is_no_face():
+    assert faces.crop_largest_face(b"not an image") == b"not an image"
+
+
 async def test_face_detector_returns_false_on_blank():
     import cv2, numpy as np
     blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()
@@ -142,7 +146,10 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
     assert len(call["refs"]) == 3 and all(r.startswith("data:image/jpeg;base64,") for r in call["refs"])
     assert (call["width"], call["height"]) == (832, 1216)
     assert call["family"] == "sdxl"
-    assert call["steps"] == 28 and call["cfg"] == 6.5
+    assert call["steps"] == 28 and call["cfg"] == 5.0
+    assert call.get("seed_image") is None
+    assert call["ip_adapters"][0]["weight"] == 1.2
+    assert call["ip_adapters"][0]["guideImages"] == [call["refs"][0]]
     assert call["ip_adapters"][0]["model"] == "runware:55@3"
     assert call["prompt"].startswith("raw photo")
     assert "Image 1 is" not in call["prompt"]
@@ -219,6 +226,8 @@ async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
     assert "on a yacht, he holds her hand" in prompt
     assert "together with" not in prompt
     assert "exactly" not in prompt
+    assert provider.calls[0]["seed_image"] == provider.calls[0]["refs"][0]
+    assert provider.calls[0]["strength"] == 0.72
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         row = await s.get(Generation, out.generation_id)
@@ -366,7 +375,7 @@ async def test_detail_edit_reuses_previous_image_and_seed(session_factory, monke
     assert call["seed"] == 4242
     assert call["refs"][0] == "data:image/jpeg;base64," + base64.b64encode(b"PREV").decode()
     assert call["seed_image"] == call["refs"][0]
-    assert call["strength"] == 0.55
+    assert call["strength"] == 0.32
     assert call["prompt"].startswith("raw photo, the same photograph")
     assert "в пальто" in call["prompt"]
     assert "on a yacht" not in call["prompt"] and "night club" not in call["prompt"]
@@ -425,8 +434,8 @@ async def test_insert_actor_attaches_only_the_new_face(session_factory, monkeypa
     assert "Видаль" in call["prompt"]
     assert "Stat" not in call["prompt"] and "Рокко" not in call["prompt"]
     assert call["seed_image"] == call["refs"][0]
-    assert call["strength"] == 0.72
-    assert [item["guideImages"] for item in call["ip_adapters"]] == [call["refs"][1:]]
+    assert call["strength"] == 0.42
+    assert [item["guideImages"] for item in call["ip_adapters"]] == [[call["refs"][1]]]
     async with session_factory() as s:
         row = await s.get(Generation, second.generation_id)
         assert [a["name"] for a in row.actors] == ["Stat", "Видаль", "Рокко"]

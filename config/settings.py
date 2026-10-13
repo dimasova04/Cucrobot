@@ -28,16 +28,20 @@ class Settings(BaseSettings):
     model_premium_portrait: str = "1696x2528"
     model_premium_landscape: str = "2528x1696"
     model_base_steps: int = 28
-    model_base_cfg: float = 6.5
+    # Ниже CFG — текст меньше перебивает лицо с фото.
+    model_base_cfg: float = 5.0
     model_base_scheduler: str = "DPM++ 2M Karras"
-    # Plus Face держит личность. Plus с weightType=composition держит ракурс места, не лицо.
+    # Plus Face, одно фото. Вес выше 1 держит личность. Место из текста: кадр локации
+    # забирал композицию и подменял людей, поэтому вес места по умолчанию 0.
     sdxl_face_air: str = "runware:55@3"
     sdxl_place_air: str = "runware:55@2"
-    sdxl_face_weight: float = 0.7
-    sdxl_place_weight: float = 0.35
-    sdxl_edit_strength: float = 0.55
-    sdxl_insert_strength: float = 0.72
-    sdxl_quality_strength: float = 0.22
+    sdxl_face_weight: float = 1.2
+    sdxl_place_weight: float = 0.0
+    # Правка чуть двигает кадр. Новый сольный кадр стартует с её фото, чтобы лицо не рисовалось заново.
+    sdxl_fresh_strength: float = 0.72
+    sdxl_edit_strength: float = 0.32
+    sdxl_insert_strength: float = 0.42
+    sdxl_quality_strength: float = 0.18
 
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"

@@ -351,7 +351,7 @@ def test_sdxl_prompt_leads_with_the_scene_and_skips_image_labels():
     assert SAFETY_CLAUSE not in prompt
     assert len(prompt) <= SDXL_PROMPT_MAX_CHARS
     groups = sdxl_adapter_groups(_inp(scene_ref="s"), max_refs=4, mode="fresh")
-    assert groups == [("face", ["p0"]), ("face", ["a0_0", "a0_1"]), ("place", ["s"])]
+    assert groups == [("face", ["p0"]), ("face", ["a0_0"]), ("place", ["s"])]
     edit_groups = sdxl_adapter_groups(_inp(scene_ref="s"), max_refs=4, mode="edit")
     assert edit_groups == [("face", ["p0"]), ("face", ["a0_0"])]
 

@@ -31,7 +31,9 @@ def test_economy_defaults(monkeypatch):
     assert s.replicate_api_token == ""
     assert s.model_base_air == "civitai:101055@128078"
     assert s.model_base_family == "sdxl"
-    assert s.model_base_steps == 28 and s.model_base_cfg == 6.5
+    assert s.model_base_steps == 28 and s.model_base_cfg == 5.0
+    assert s.sdxl_face_weight == 1.2 and s.sdxl_place_weight == 0.0
+    assert s.sdxl_edit_strength == 0.32
     assert s.model_premium_air == "google:4@3"
     assert s.model_base_max_refs == 14 and s.model_premium_max_refs == 14
 

@@ -148,6 +148,57 @@ def _cover_standing_people(img) -> None:
         )
 
 
+def crop_largest_face(image_bytes: bytes) -> bytes:
+    """Квадрат вокруг самого крупного лица. Адаптеру не отдаём комнату и одежду с фото.
+
+    Нет лица или детектор молчит — возвращаем исходные байты.
+    """
+    img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return image_bytes
+    try:
+        detected = _detect_faces(img)
+    except Exception:
+        logger.exception("face crop failed")
+        return image_bytes
+    if not detected:
+        return image_bytes
+    _count, found = detected
+    if found is None or len(found) == 0:
+        return image_bytes
+    height, width = img.shape[:2]
+    best = max(found, key=lambda face: float(face[2]) * float(face[3]))
+    x, y, fw, fh = (int(best[0]), int(best[1]), int(best[2]), int(best[3]))
+    if min(fw, fh) < 24:
+        return image_bytes
+    side = int(max(fw, fh) * 2.4)
+    cx, cy = x + fw / 2, y + fh * 0.42
+    x0 = int(cx - side / 2)
+    y0 = int(cy - side / 2)
+    x1, y1 = x0 + side, y0 + side
+    # Не уезжаем за край: сдвигаем квадрат, а не обрезаем его в полоску.
+    if x0 < 0:
+        x1 -= x0
+        x0 = 0
+    if y0 < 0:
+        y1 -= y0
+        y0 = 0
+    if x1 > width:
+        x0 -= x1 - width
+        x1 = width
+    if y1 > height:
+        y0 -= y1 - height
+        y1 = height
+    x0, y0 = max(0, x0), max(0, y0)
+    crop = img[y0:y1, x0:x1]
+    if crop.size == 0 or min(crop.shape[:2]) < 32:
+        return image_bytes
+    ok, encoded = cv2.imencode(".jpg", crop, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+    if not ok:
+        return image_bytes
+    return encoded.tobytes()
+
+
 def anonymize_faces(image_bytes: bytes) -> bytes:
     """Закрывает чужих людей на кадре локации. Комната, свет и реквизит остаются.
 

@@ -23,9 +23,13 @@ PROMPT_MAX_CHARS = 3000
 # SDXL смотрит только в начало промпта: оба текстовых энкодера держат около 75 токенов.
 # Хвост с «Image 1 is…» модель просто не читает, поэтому для неё сцена стоит первой и коротко.
 SDXL_PROMPT_MAX_CHARS = 420
-SDXL_LEAD = "raw photo, candid photograph, natural skin pores, sharp focus"
+SDXL_LEAD = (
+    "raw photo, candid photograph, identical face, same person, "
+    "do not change the face, natural skin pores, sharp focus"
+)
 NEGATIVE_PROMPT = (
     "cartoon, anime, illustration, painting, 3d render, cgi, plastic skin, doll, "
+    "different face, changed face, another person, "
     "extra arms, extra hands, extra fingers, fused fingers, mutated hands, "
     "deformed, blurry, watermark, text, logo, collage, duplicate person"
 )
@@ -95,7 +99,8 @@ def _sdxl_edit(detail: str) -> str:
             "same faces, same clothes, same pose, same place",
         ])
     return _clip_sdxl([
-        "raw photo, the same photograph, same faces, same place, same framing",
+        "raw photo, the same photograph, identical face, do not change the face",
+        "same people, same clothes except the requested change, same place, same framing",
         detail,
     ])
 
@@ -111,8 +116,8 @@ def _sdxl_insert(instruction: str) -> str:
 def sdxl_adapter_groups(inp: GenerationInput, max_refs: int, mode: str) -> list[tuple[str, list[str]]]:
     """Группы для IP-Adapter: одно лицо на человека, место отдельно.
 
-    Несколько фото одного актёра уходят в один адаптер, иначе лица смешиваются.
-    Кадр локации один: восемь разных комнат SDXL склеивает в коллаж.
+    В адаптер уходит одно главное фото лица. Усреднение ракурсов размывает личность.
+    Кадр локации в этот список не кладём в запрос: он перетягивает людей.
     """
     if mode == "insert":
         ordered = _insert_face_refs(inp)[: max_refs - 1]
@@ -137,9 +142,7 @@ def sdxl_adapter_groups(inp: GenerationInput, max_refs: int, mode: str) -> list[
         key = ("person", idx) if kind == "person" else ("actor", idx)
         if key not in faces:
             order.append(key)
-            faces[key] = []
-        if len(faces[key]) < 4:
-            faces[key].append(data)
+            faces[key] = [data]
     groups = [("face", faces[key]) for key in order]
     if include_place and places:
         groups.append(("place", places[:1]))
