@@ -51,8 +51,6 @@ class RunwareClient:
         cfg: float | None = None, scheduler: str | None = None, ip_adapters: list | None = None,
         seed_image: str | None = None, strength: float | None = None,
     ) -> ImageResult:
-        from runware import IImageInference
-
         client = await self._get()
         fields = dict(
             model=model,
@@ -68,18 +66,47 @@ class RunwareClient:
             safety={"checkContent": False},
         )
         if family == "sdxl":
-            # SDXL не понимает referenceImages. Лица — IP-Adapter, правка — seedImage.
+            # SDXL не понимает referenceImages. Лица — IP-Adapter.
+            # Правка кладёт прошлый кадр в inputs.seedImage: поле на верхнем уровне API отвергает.
             fields["negativePrompt"] = negative
             fields["steps"] = steps
             fields["CFGScale"] = cfg
             fields["scheduler"] = scheduler
             if ip_adapters:
                 fields["ipAdapters"] = ip_adapters
-            if seed_image:
-                fields["seedImage"] = seed_image
+            if seed_image and strength is not None:
+                fields["inputs"] = {"seedImage": seed_image}
                 fields["strength"] = strength
         else:
             fields["inputs"] = {"referenceImages": refs}
+        try:
+            return await self._infer(client, fields)
+        except RunwareGenerationError as first:
+            if family != "sdxl":
+                raise
+            # Кроп, embedScaling или стартовое фото роняют весь запрос. Повтор — только лица и промпт.
+            logger.warning("sdxl request failed ({}), retrying with the face adapter only", first)
+            plain = dict(fields)
+            plain.pop("strength", None)
+            inputs = dict(plain.get("inputs") or {})
+            inputs.pop("seedImage", None)
+            if inputs:
+                plain["inputs"] = inputs
+            else:
+                plain.pop("inputs", None)
+            adapters = [
+                {k: v for k, v in item.items() if k != "embedScaling"}
+                for item in (plain.get("ipAdapters") or [])
+            ]
+            if adapters:
+                plain["ipAdapters"] = adapters
+            if plain == fields:
+                raise
+            return await self._infer(client, plain)
+
+    async def _infer(self, client, fields: dict) -> ImageResult:
+        from runware import IImageInference
+
         req = IImageInference(**fields)
         try:
             images = await asyncio.wait_for(client.imageInference(requestImage=req), timeout=self._timeout)
@@ -96,7 +123,8 @@ class RunwareClient:
             raise RunwareGenerationError("no imageURL in result")
         result_seed = getattr(img, "seed", None)
         logger.info(
-            "runware ok model={} cost={} nsfw={} seed={}", model, img.cost, img.NSFWContent, result_seed
+            "runware ok model={} cost={} nsfw={} seed={}",
+            fields.get("model"), img.cost, img.NSFWContent, result_seed,
         )
         return ImageResult(
             url=url, cost=img.cost, nsfw=bool(img.NSFWContent),

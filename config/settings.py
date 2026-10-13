@@ -37,8 +37,7 @@ class Settings(BaseSettings):
     sdxl_place_air: str = "runware:55@2"
     sdxl_face_weight: float = 1.2
     sdxl_place_weight: float = 0.0
-    # Правка чуть двигает кадр. Новый сольный кадр стартует с её фото, чтобы лицо не рисовалось заново.
-    sdxl_fresh_strength: float = 0.72
+    # Правка чуть двигает уже готовый кадр. Новый кадр со стартового фото Runware не принимает.
     sdxl_edit_strength: float = 0.32
     sdxl_insert_strength: float = 0.42
     sdxl_quality_strength: float = 0.18

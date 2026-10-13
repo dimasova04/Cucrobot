@@ -18,7 +18,7 @@ from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
 from services.generation.prompt_builder import (
     NEGATIVE_PROMPT, ActorInput, GenerationInput, build, build_edit, build_insert, is_quality_request,
-    scene_is_solo, sdxl_adapter_groups,
+    sdxl_adapter_groups,
 )
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
@@ -104,6 +104,11 @@ def _data_uri(data: bytes) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(data).decode()
 
 
+def _is_sdxl_air(air: str) -> bool:
+    low = (air or "").lower()
+    return low.startswith("civitai:") or "sdxl" in low
+
+
 class Generator:
     def __init__(self, session_factory, provider: ImageProvider, fetcher: FileFetcher, settings: Settings):
         self._sf = session_factory
@@ -116,27 +121,29 @@ class Generator:
         s = self._settings
         if tier == "premium":
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
-        return s.model_base_air, s.model_base_max_refs, s.cost_base
+        air = s.model_base_air
+        # На сервере может остаться старый AIR Сидрима. С семейством sdxl он не умеет
+        # IP-Adapter и запрос падает, поэтому подставляем чекпоинт SDXL.
+        if s.model_base_family == "sdxl" and not _is_sdxl_air(air):
+            air = "civitai:101055@128078"
+        return air, s.model_base_max_refs, s.cost_base
+
+    def _sdxl_frame(self, width: int, height: int) -> tuple[int, int]:
+        """Сидрим просил 1664×2496. У SDXL сторона не больше 2048, иначе генерация не стартует."""
+        if width <= 2048 and height <= 2048 and width % 8 == 0 and height % 8 == 0 and width * height <= 1_572_864:
+            return width, height
+        if height >= width:
+            return 832, 1216
+        return 1216, 832
 
     def _uses_sdxl(self, tier: str) -> bool:
         return tier != "premium" and self._settings.model_base_family == "sdxl"
-
-    def _face_guide(self, data_uri: str) -> str:
-        """В адаптер — кроп лица. Комната с исходного фото иначе становится новым кадром."""
-        if not data_uri.startswith("data:") or "," not in data_uri:
-            return data_uri
-        raw = base64.b64decode(data_uri.split(",", 1)[1])
-        cropped = faces.crop_largest_face(raw)
-        if cropped == raw:
-            return data_uri
-        return _data_uri(cropped)
 
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings
         quality = mode == "edit" and is_quality_request(detail)
         groups = [] if quality else sdxl_adapter_groups(inp, max_refs, mode)
         adapters = []
-        first_face = None
         for role, images in groups:
             if not images:
                 continue
@@ -149,14 +156,11 @@ class Generator:
                         "weightType": "composition",
                     })
                 continue
-            guide = self._face_guide(images[0])
-            if first_face is None:
-                first_face = images[0]
+            # Целое фото, не кроп: обрезанный кадр Runware отклоняет, и генерация падает.
             adapters.append({
                 "model": s.sdxl_face_air,
-                "guideImages": [guide],
+                "guideImages": [images[0]],
                 "weight": s.sdxl_face_weight,
-                "embedScaling": "k_mean_v_penalty_c",
             })
         if mode == "insert":
             strength = s.sdxl_insert_strength
@@ -165,11 +169,9 @@ class Generator:
             strength = s.sdxl_quality_strength if quality else s.sdxl_edit_strength
             seed_image = previous
         else:
-            # Сольный кадр и кадр без актёра стартуют с её фото: лицо и фигура не рисуются с нуля.
-            # Двое в кадре так не собрать — там держим лица адаптером, место берёт промпт.
-            anchor = scene_is_solo(inp.scene_prompt) or not inp.actors
-            seed_image = first_face if anchor else None
-            strength = s.sdxl_fresh_strength if seed_image else None
+            # Новый кадр не стартует с фото: вместе с адаптером Runware такой запрос не принимает.
+            seed_image = None
+            strength = None
         return {
             "family": "sdxl",
             "negative": NEGATIVE_PROMPT,
@@ -251,6 +253,8 @@ class Generator:
                 for fid in scene_ref_ids
             ]
             width, height = self._settings.frame_size(req.tier, orientation)
+            if self._uses_sdxl(req.tier):
+                width, height = self._sdxl_frame(width, height)
             # Каталожные идут первыми, названные — следом. Новый каталожный поэтому
             # не последний в общем списке, если в кадре уже есть названный.
             insert_index = None

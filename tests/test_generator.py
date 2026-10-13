@@ -160,6 +160,28 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
         assert row.result_url == "http://x/img.jpg"
 
 
+async def test_stale_seedream_env_still_calls_sdxl(session_factory, monkeypatch):
+    """Старые переменные Railway: Сидрим и кадр 1664×2496. Такой запрос SDXL не принимает."""
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
+
+    async def fake_download(url):
+        return b"IMG"
+
+    from services.generation import generator as g
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    settings = _settings()
+    settings.model_base_air = "bytedance:seedream@4.5"
+    settings.model_base_portrait = "1664x2496"
+    gen = Generator(session_factory, provider, FakeFetcher(), settings)
+    out = await gen.run(_req(actor_id, scene_id))
+    assert out.status == "done"
+    call = provider.calls[0]
+    assert call["model"] == "civitai:101055@128078"
+    assert (call["width"], call["height"]) == (832, 1216)
+    assert call["family"] == "sdxl"
+
+
 async def test_named_actor_photo_replaces_catalog_actor(session_factory, monkeypatch):
     await _seed(session_factory)
     provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
@@ -226,8 +248,7 @@ async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
     assert "on a yacht, he holds her hand" in prompt
     assert "together with" not in prompt
     assert "exactly" not in prompt
-    assert provider.calls[0]["seed_image"] == provider.calls[0]["refs"][0]
-    assert provider.calls[0]["strength"] == 0.72
+    assert provider.calls[0].get("seed_image") is None
     async with session_factory() as s:
         assert await wallet.get_balance(s, 1) == 5
         row = await s.get(Generation, out.generation_id)
