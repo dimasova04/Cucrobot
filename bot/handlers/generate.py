@@ -36,7 +36,7 @@ from services import aliases
 from services.channel_rank import level_title, published_count
 from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
-from bot.clips import get_clip, hard_clips, light_clips
+from bot.clips import CLIPS, CLIPS_PER_PAGE, get_clip
 from bot.looks import LOOKS, LOOKS_PER_PAGE, get_look
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
@@ -72,7 +72,7 @@ async def start_create_flow(message: Message, state: FSMContext):
 
 
 async def start_video_flow(message: Message, state: FSMContext):
-    """Сделать видео: сразу каталог лайт и жёстких сцен."""
+    """Сделать видео: сразу каталог сцен по страницам."""
     await state.clear()
     data = empty_data()
     data["mode"] = "video"
@@ -172,32 +172,17 @@ async def section_chosen(cb: CallbackQuery, state: FSMContext):
         await _show_looks(cb.message, state)
 
 
-def _pairs(items: list[tuple[str, str]], cols: int = 2) -> list[list[tuple[str, str]]]:
-    return [items[i : i + cols] for i in range(0, len(items), cols)]
-
-
-def _split_kb(top_label: str, top: list[tuple[str, str]], bottom_label: str, bottom: list[tuple[str, str]]):
-    """Одно сообщение: два блока и широкая подпись между ними. Подпись не ведёт никуда."""
-    return keyboards.grid(
-        [],
-        2,
-        [
-            [(top_label, "nav:noop")],
-            *_pairs(top),
-            [(bottom_label, "nav:noop")],
-            *_pairs(bottom),
-            keyboards.back_row("menu"),
-            keyboards.cancel_row(),
-        ],
-    )
-
-
 def _look_items() -> list[tuple[str, str]]:
     return [(texts.BTN_LOOK_PROMPT, "look:prompt"), *[(item.name, f"look:{item.id}") for item in LOOKS]]
 
 
-def looks_markup(items: list[tuple[str, str]], page: int = 0, per_page: int = LOOKS_PER_PAGE):
-    """Две колонки и строка страниц: на первой номер слева и стрелка вперёд, на последней наоборот."""
+def looks_markup(
+    items: list[tuple[str, str]],
+    page: int = 0,
+    per_page: int = LOOKS_PER_PAGE,
+    page_prefix: str = "look:page",
+):
+    """Две колонки и строка страниц: на первой номер слева и стрелка вперёд, в середине обе, на последней наоборот."""
     last = max(0, (len(items) - 1) // per_page) if items else 0
     page = max(0, min(page, last))
     chunk, has_prev, has_next = paginate(items, page, per_page)
@@ -206,14 +191,14 @@ def looks_markup(items: list[tuple[str, str]], page: int = 0, per_page: int = LO
         label = (f"{page + 1}/{last + 1}", "nav:noop")
         if has_prev and has_next:
             row = [
-                (texts.BTN_LOOKS_PREV, f"look:page:{page - 1}"),
+                (texts.BTN_LOOKS_PREV, f"{page_prefix}:{page - 1}"),
                 label,
-                (texts.BTN_LOOKS_NEXT, f"look:page:{page + 1}"),
+                (texts.BTN_LOOKS_NEXT, f"{page_prefix}:{page + 1}"),
             ]
         elif has_next:
-            row = [label, (texts.BTN_LOOKS_NEXT, f"look:page:{page + 1}")]
+            row = [label, (texts.BTN_LOOKS_NEXT, f"{page_prefix}:{page + 1}")]
         else:
-            row = [(texts.BTN_LOOKS_PREV, f"look:page:{page - 1}"), label]
+            row = [(texts.BTN_LOOKS_PREV, f"{page_prefix}:{page - 1}"), label]
         extra.append(row)
     extra.append([(texts.BTN_LOOKS_BACK, "nav:back:menu")])
     return keyboards.grid(chunk, 2, extra)
@@ -251,14 +236,17 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
-async def _show_clips(target: Message, state: FSMContext):
+async def _show_clips(target: Message, state: FSMContext, page: int = 0, edit: bool = False):
     await state.set_state(GenStates.scene)
-    light = [(item.name, f"clip:{item.id}") for item in light_clips()]
-    hard = [(item.name, f"clip:{item.id}") for item in hard_clips()]
-    await target.answer(
-        texts.CHOOSE_CLIPS,
-        reply_markup=_split_kb(texts.CLIP_SECTION_LIGHT, light, texts.CLIP_SECTION_HARD, hard),
-    )
+    items = [(item.name, f"clip:{item.id}") for item in CLIPS]
+    markup = looks_markup(items, page, CLIPS_PER_PAGE, page_prefix="clip:page")
+    if edit:
+        try:
+            await target.edit_text(texts.CHOOSE_CLIPS, reply_markup=markup)
+            return
+        except TelegramAPIError:
+            pass
+    await target.answer(texts.CHOOSE_CLIPS, reply_markup=markup)
 
 
 async def _drop_edit(state: FSMContext, st: dict) -> dict:
@@ -488,6 +476,12 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
         texts.CUSTOM_SCENE_PROMPT,
         reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("looks"), keyboards.cancel_row()]),
     )
+
+
+@generate_router.callback_query(GenStates.scene, F.data.startswith("clip:page:"))
+async def clips_page(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _show_clips(cb.message, state, page=int(cb.data.rsplit(":", 1)[1]), edit=True)
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("clip:"))

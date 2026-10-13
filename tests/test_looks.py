@@ -215,33 +215,76 @@ async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
 
 
 def test_video_refs_are_optional_until_a_file_is_added():
-    from bot.clips import get_clip, hard_clips, light_clips, ref_file
-    from services.generation.content_filter import is_allowed as allowed
+    from bot.clips import CLIPS, CLIPS_PER_PAGE, get_clip, ref_file
 
-    assert [item.name for item in light_clips()]
-    assert "Снимает всё" in [item.name for item in hard_clips()]
-    assert "В кресле" in [item.name for item in hard_clips()]
-    for item in light_clips():
-        assert allowed(item.prompt)
-        assert ref_file(item) is None
-    for item in hard_clips():
-        assert item.locked
-        assert "без одежды" in item.prompt
+    ids = [item.id for item in CLIPS]
+    assert len(ids) == len(set(ids))
+    assert len(CLIPS) == 122
+    assert CLIPS_PER_PAGE == 14
+    assert CLIPS[0].name == "Камшот 2 ракурса"
+    assert CLIPS[-1].name == "Быстрый секс"
     assert get_clip("nope") is None
+    for item in CLIPS:
+        assert item.locked
+        assert not mentions_minor(item.prompt)
+        assert not mentions_minor(item.name)
+        assert "школьн" not in item.prompt.lower()
+        assert len(item.name) <= 64
+        assert len(f"clip:{item.id}".encode()) <= 64
+        assert ref_file(item) is None
 
 
-async def test_video_catalog_shows_light_and_hard():
+async def test_video_catalog_pages_like_the_example():
+    from bot.clips import CLIPS
+
     target, state = _FakeTarget(), _FakeState({"mode": "video"}, GenStates.section)
     await generate_mod._show_clips(target, state)
     assert len(target.answers) == 1
     assert target.answers[0][0] == texts.CHOOSE_CLIPS
-    cbs = _callbacks(target.answers[0][1])
-    assert cbs.index("clip:dance") < cbs.index("nav:noop", 1) < cbs.index("clip:undress")
-    assert "clip:walk" in cbs and "clip:chair" in cbs
-    assert "shop:subs" not in cbs
     rows = target.answers[0][1].inline_keyboard
-    headers = [row[0].text for row in rows if len(row) == 1 and row[0].callback_data == "nav:noop"]
-    assert headers == [texts.CLIP_SECTION_LIGHT, texts.CLIP_SECTION_HARD]
+    assert [b.callback_data for b in rows[0]] == ["clip:cum2", "clip:cum_sweet"]
+    assert len(rows[0]) == 2
+    clip_rows = [row for row in rows if row[0].callback_data.startswith("clip:") and "page" not in row[0].callback_data]
+    assert len(clip_rows) == 7
+    assert [b.text for b in rows[-2]] == ["1/9", texts.BTN_LOOKS_NEXT]
+    assert [b.callback_data for b in rows[-2]] == ["nav:noop", "clip:page:1"]
+    assert rows[-1][0].text == texts.BTN_LOOKS_BACK
+    middle = generate_mod.looks_markup(
+        [(c.name, f"clip:{c.id}") for c in CLIPS],
+        3,
+        14,
+        page_prefix="clip:page",
+    ).inline_keyboard
+    assert [b.text for b in middle[-2]] == [texts.BTN_LOOKS_PREV, "4/9", texts.BTN_LOOKS_NEXT]
+    last = generate_mod.looks_markup(
+        [(str(i), f"clip:{i}") for i in range(122)],
+        8,
+        14,
+        page_prefix="clip:page",
+    ).inline_keyboard
+    assert [b.text for b in last[-2]] == [texts.BTN_LOOKS_PREV, "9/9"]
+    assert [b.callback_data for b in last[-2]] == ["clip:page:7", "nav:noop"]
+
+
+async def test_clips_page_edits_the_same_message():
+    class _Edit(_FakeTarget):
+        def __init__(self):
+            super().__init__()
+            self.edits = []
+
+        async def edit_text(self, text, reply_markup=None, **kw):
+            self.edits.append((text, reply_markup))
+
+    target = _Edit()
+    state = _FakeState({"mode": "video"}, GenStates.scene)
+    cb = _FakeCb("clip:page:3", target)
+    await generate_mod.clips_page(cb, state)
+    assert cb.answered == [(None, False)]
+    assert target.edits[0][0] == texts.CHOOSE_CLIPS
+    assert target.answers == []
+    assert [b.text for b in target.edits[0][1].inline_keyboard[-2]] == [
+        texts.BTN_LOOKS_PREV, "4/9", texts.BTN_LOOKS_NEXT,
+    ]
 
 
 async def test_hard_clip_without_subscription_opens_paywall(session_factory):
@@ -252,7 +295,7 @@ async def test_hard_clip_without_subscription_opens_paywall(session_factory):
         await s.commit()
         state = _FakeState({"people": [], "mode": "video"}, GenStates.scene)
         message = _CapMessage()
-        cb = _FakeCb("clip:bed", message)
+        cb = _FakeCb("clip:cum2", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
@@ -263,14 +306,15 @@ async def test_hard_clip_without_subscription_opens_paywall(session_factory):
     assert any(item.startswith("buy:sub_") for item in _callbacks(message.answers[-1][1]))
 
 
-async def test_light_clip_asks_for_the_girl_photo(session_factory):
+async def test_subscriber_clip_asks_for_the_girl_photo(session_factory):
     async with session_factory() as s:
         user = await repo.get_or_create_user(s, 98, "u")
         user.crystals = 10
+        user.sub_until = utcnow() + timedelta(days=3)
         await s.commit()
         state = _FakeState({"people": [], "mode": "video"}, GenStates.scene)
         message = _CapMessage()
-        cb = _FakeCb("clip:dance", message)
+        cb = _FakeCb("clip:cowgirl", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
@@ -278,5 +322,5 @@ async def test_light_clip_asks_for_the_girl_photo(session_factory):
         await generate_mod.clip_chosen(cb, state, s, user, settings, generator)
     assert generator.calls == []
     assert message.answers[-1][0] == texts.SEND_PERSON_VIDEO
-    assert state._data["clip_id"] == "dance"
+    assert state._data["clip_id"] == "cowgirl"
     assert state._state == GenStates.person1

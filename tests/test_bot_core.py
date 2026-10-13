@@ -304,8 +304,8 @@ async def test_build_help_lists_the_catalog(session_factory):
     async with session_factory() as s:
         text = await build_help(s)
     assert "Сделать фото" in text
-    assert "Лайт" in text or "лайт" in text
-    assert "жёсткие" in text
+    assert "страниц" in text
+    assert "подписк" in text
 
 
 def test_intro_keyboard_gets_webapp_button_when_url_is_set():
