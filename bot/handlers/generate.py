@@ -172,21 +172,33 @@ async def section_chosen(cb: CallbackQuery, state: FSMContext):
         await _show_looks(cb.message, state)
 
 
+def _pairs(items: list[tuple[str, str]], cols: int = 2) -> list[list[tuple[str, str]]]:
+    return [items[i : i + cols] for i in range(0, len(items), cols)]
+
+
+def _split_kb(top_label: str, top: list[tuple[str, str]], bottom_label: str, bottom: list[tuple[str, str]]):
+    """Одно сообщение: два блока и широкая подпись между ними. Подпись не ведёт никуда."""
+    return keyboards.grid(
+        [],
+        2,
+        [
+            [(top_label, "nav:noop")],
+            *_pairs(top),
+            [(bottom_label, "nav:noop")],
+            *_pairs(bottom),
+            keyboards.back_row("menu"),
+            keyboards.cancel_row(),
+        ],
+    )
+
+
 async def _show_looks(target: Message, state: FSMContext):
     await state.set_state(GenStates.scene)
     free = [(item.name, f"look:{item.id}") for item in free_looks()]
     locked = [(item.name, f"look:{item.id}") for item in locked_looks()]
-    await target.answer(texts.CHOOSE_LOOKS_FREE, reply_markup=keyboards.grid(free, 2))
     await target.answer(
-        texts.CHOOSE_LOOKS_SUB,
-        reply_markup=keyboards.grid(
-            locked,
-            2,
-            [
-                keyboards.back_row("menu"),
-                keyboards.cancel_row(),
-            ],
-        ),
+        texts.CHOOSE_LOOKS,
+        reply_markup=_split_kb(texts.LOOK_SECTION_FREE, free, texts.LOOK_SECTION_SUB, locked),
     )
 
 
@@ -214,14 +226,9 @@ async def _show_clips(target: Message, state: FSMContext):
     await state.set_state(GenStates.scene)
     light = [(item.name, f"clip:{item.id}") for item in light_clips()]
     hard = [(item.name, f"clip:{item.id}") for item in hard_clips()]
-    await target.answer(texts.CHOOSE_CLIPS_LIGHT, reply_markup=keyboards.grid(light, 2))
     await target.answer(
-        texts.CHOOSE_CLIPS_HARD,
-        reply_markup=keyboards.grid(
-            hard,
-            2,
-            [keyboards.back_row("menu"), keyboards.cancel_row()],
-        ),
+        texts.CHOOSE_CLIPS,
+        reply_markup=_split_kb(texts.CLIP_SECTION_LIGHT, light, texts.CLIP_SECTION_HARD, hard),
     )
 
 
@@ -1013,6 +1020,12 @@ async def gen_ask_detail(cb: CallbackQuery, state: FSMContext):
 async def gen_new(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     await start_create_flow(cb.message, state)
+
+
+@generate_router.callback_query(F.data == "nav:noop")
+async def nav_noop(cb: CallbackQuery):
+    """Широкая подпись раздела. Нажатие только гасит спиннер."""
+    await cb.answer()
 
 
 @generate_router.callback_query(F.data.startswith("nav:back:"))

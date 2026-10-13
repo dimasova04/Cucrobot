@@ -64,14 +64,30 @@ def test_catalog_scene_clears_the_look():
 async def test_both_look_blocks_are_visible(session_factory):
     target, state = _FakeTarget(), _FakeState({"people": ["p"]}, GenStates.section)
     await generate_mod._show_looks(target, state)
-    assert target.answers[0][0] == texts.CHOOSE_LOOKS_FREE
-    free_cbs = _callbacks(target.answers[0][1])
-    sub_cbs = _callbacks(target.answers[1][1])
-    assert "look:bikini" in free_cbs and "look:shorts" in free_cbs
-    assert "look:nude" in sub_cbs and "look:bed" in sub_cbs and "look:chair" in sub_cbs
-    assert "look:places" not in sub_cbs and "scene:custom" not in sub_cbs
-    assert "shop:subs" not in free_cbs and "shop:subs" not in sub_cbs
+    assert len(target.answers) == 1
+    assert target.answers[0][0] == texts.CHOOSE_LOOKS
+    cbs = _callbacks(target.answers[0][1])
+    assert cbs[0] == "nav:noop"
+    free_at = cbs.index("look:bikini")
+    split_at = cbs.index("nav:noop", 1)
+    locked_at = cbs.index("look:nude")
+    assert free_at < split_at < locked_at
+    assert "look:shorts" in cbs and "look:bed" in cbs and "look:chair" in cbs
+    assert "look:places" not in cbs and "scene:custom" not in cbs
+    assert "shop:subs" not in cbs
+    assert cbs[-2:] == ["nav:back:menu", "gen:cancel"]
+    rows = target.answers[0][1].inline_keyboard
+    headers = [i for i, row in enumerate(rows) if len(row) == 1 and row[0].callback_data == "nav:noop"]
+    assert [rows[i][0].text for i in headers] == [texts.LOOK_SECTION_FREE, texts.LOOK_SECTION_SUB]
     assert state._state == GenStates.scene
+
+
+async def test_section_label_does_nothing():
+    message = _CapMessage()
+    cb = _FakeCb("nav:noop", message)
+    await generate_mod.nav_noop(cb)
+    assert cb.answered == [(None, False)]
+    assert message.answers == []
 
 
 async def test_locked_look_without_subscription_opens_paywall(session_factory):
@@ -177,12 +193,15 @@ def test_video_refs_are_optional_until_a_file_is_added():
 async def test_video_catalog_shows_light_and_hard():
     target, state = _FakeTarget(), _FakeState({"mode": "video"}, GenStates.section)
     await generate_mod._show_clips(target, state)
-    assert target.answers[0][0] == texts.CHOOSE_CLIPS_LIGHT
-    light = _callbacks(target.answers[0][1])
-    hard = _callbacks(target.answers[1][1])
-    assert "clip:dance" in light and "clip:walk" in light
-    assert "clip:undress" in hard and "clip:chair" in hard
-    assert "shop:subs" not in hard
+    assert len(target.answers) == 1
+    assert target.answers[0][0] == texts.CHOOSE_CLIPS
+    cbs = _callbacks(target.answers[0][1])
+    assert cbs.index("clip:dance") < cbs.index("nav:noop", 1) < cbs.index("clip:undress")
+    assert "clip:walk" in cbs and "clip:chair" in cbs
+    assert "shop:subs" not in cbs
+    rows = target.answers[0][1].inline_keyboard
+    headers = [row[0].text for row in rows if len(row) == 1 and row[0].callback_data == "nav:noop"]
+    assert headers == [texts.CLIP_SECTION_LIGHT, texts.CLIP_SECTION_HARD]
 
 
 async def test_hard_clip_without_subscription_opens_paywall(session_factory):
