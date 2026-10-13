@@ -19,41 +19,39 @@ async def test_seed_scenes_once(session_factory):
         assert "Утро после" in names and "Велкам-студия" in names and "На кастинге" in names
         assert "Гримёрка" not in names and "Лифт отеля" not in names and "Его кухня" not in names
         hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
-        assert "Она держит руками ручку двери и улыбается" in hotel.prompt
-        assert "на нее и держит ее за талию" in hotel.prompt
+        assert "holding the door handle, smiling" in hotel.prompt
+        assert "holding her waist and elbow" in hotel.prompt
         assert "holding key cards" not in hotel.prompt
         by_name = {sc.name: sc.prompt for sc in scenes}
-        assert by_name["Яхта"].endswith("Она в темном бикини. Она улыбается")
+        assert by_name["Яхта"].endswith("woman in a dark bikini, smiling, man beside her")
         assert "summer clothes" not in by_name["Яхта"]
-        assert "Она в платье гоу-гоу, он одет в клубном стиле, держит ее за руку и смотрит на неё. Их видно в полный рост. Она улыбается." in by_name["Ночной клуб"]
+        assert "woman in a short go-go dress, smiling, man in club clothes holding her hand" in by_name["Ночной клуб"]
         assert "party outfits" not in by_name["Ночной клуб"]
-        assert "Он в деловом костюме, сидит у стола. Она секретарша, улыбается. Она  одета только в черное мини и белую блузку, опирается руками на стол. Смотрят друг на друга" in by_name["Офис"]
+        assert "woman secretary in a black mini skirt and white blouse leaning on the desk" in by_name["Офис"]
         assert "business attire" not in by_name["Офис"]
-        assert "Он одет только в гавайские шорты. Она в черном нижнем белье. Он смотрит на неё, она улыбается. Стоят у кровати" in by_name["Съёмочная площадка"]
+        assert "man in hawaiian shorts, woman in black lingerie, he looks at her, she smiles" in by_name["Съёмочная площадка"]
         assert "clapperboard" not in by_name["Съёмочная площадка"]
         film = next(sc for sc in scenes if sc.name == "Съёмочная площадка")
         assert catalog.scene_ref_ids(film) == [f"asset:scenes/set/{i:02d}.jpg" for i in range(1, 9)]
         assert film.orientation == "landscape"
         mascara_prompt = by_name["Селфи с размазанной тушью"]
-        assert "Она в черном нижнем белье и смеётся." in mascara_prompt
-        assert "широкими чёрными потёками по обеим щекам" in mascara_prompt
-        assert "не две маленькие точки" in mascara_prompt
+        assert "woman in black lingerie laughing" in mascara_prompt
+        assert "wide black streaks down both cheeks" in mascara_prompt
         assert "looking at the phone" not in mascara_prompt
         mascara = next(sc for sc in scenes if sc.name == "Селфи с размазанной тушью")
         assert mascara.orientation == "portrait"
         assert catalog.scene_ref_ids(mascara) == [f"asset:scenes/mascara/{i:02d}.jpg" for i in range(1, 4)]
-        assert "вытянув ноги вдоль сиденья ему на колени" in by_name["Лимузин"]
-        assert "его рука лежит на ее лодыжке" in by_name["Лимузин"]
+        assert "legs stretched across his lap" in by_name["Лимузин"]
+        assert "his hand on her ankle" in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]
         euro_prompt = by_name["За 1000 евро"]
         assert euro_prompt.startswith("[solo] ")
-        assert "Она одна в кадре и смотрит в камеру, на фотографа." in euro_prompt
-        assert "Из переднего плана протянута рука с купюрами евро" in euro_prompt
-        assert "это не человек в кадре" in euro_prompt
-        assert "Она в черной кожаной куртке и черном бюстгалтере. Она улыбается." in euro_prompt
-        assert "не накачанные" in euro_prompt
-        assert "No other person stands in the frame." in euro_prompt
-        assert "Do not add a man from the location photos" in euro_prompt
+        assert "one woman alone looking at the camera" in euro_prompt
+        assert "cropped hand at the frame edge holding euro banknotes" in euro_prompt
+        assert "no face on that hand" in euro_prompt
+        assert "black leather jacket and black bra" in euro_prompt
+        assert "ordinary arms" in euro_prompt
+        assert "no extra person" in euro_prompt
         assert "выбранный актёр" not in euro_prompt
         assert "casting room" not in euro_prompt
         limo = next(sc for sc in scenes if sc.name == "Лимузин")
@@ -67,15 +65,13 @@ async def test_seed_scenes_once(session_factory):
         assert len(catalog.scene_ref_ids(euro)) == 4
         assert euro.orientation == "landscape"
         morning = next(sc for sc in scenes if sc.name == "Утро после")
-        assert "a morning-after selfie with a white bathrobe" in morning.prompt
-        assert "Белый халат на плечах" in morning.prompt
-        assert "лёгкими следами" in morning.prompt
-        assert "a close phone selfie" not in morning.prompt
+        assert "morning-after selfie, one bedroom, white bathrobe over lingerie" in morning.prompt
+        assert "light mascara traces only" in morning.prompt
+        assert "close phone selfie" not in morning.prompt
         assert morning.prompt != by_name["Селфи с размазанной тушью"]
         assert "oversized shirt" not in morning.prompt
         assert morning.orientation == "portrait"
-        assert "Одна комната" in morning.prompt
-        assert "без софитов" in morning.prompt
+        assert "no studio lights and no pool" in morning.prompt
         assert catalog.scene_ref_ids(morning) == [
             "asset:scenes/morning/02.jpg",
             "asset:scenes/morning/05.jpg",

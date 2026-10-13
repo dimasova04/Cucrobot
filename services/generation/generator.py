@@ -16,7 +16,10 @@ from services import catalog
 from services.billing import wallet
 from services.generation import faces
 from services.generation.local_assets import is_asset_ref, resolve_asset
-from services.generation.prompt_builder import ActorInput, GenerationInput, build, build_edit, build_insert
+from services.generation.prompt_builder import (
+    NEGATIVE_PROMPT, ActorInput, GenerationInput, build, build_edit, build_insert, is_quality_request,
+    sdxl_adapter_groups,
+)
 from services.generation.runware_client import ImageProvider, ImageResult, RunwareGenerationError
 
 
@@ -115,6 +118,46 @@ class Generator:
             return s.model_premium_air, s.model_premium_max_refs, s.cost_premium
         return s.model_base_air, s.model_base_max_refs, s.cost_base
 
+    def _uses_sdxl(self, tier: str) -> bool:
+        return tier != "premium" and self._settings.model_base_family == "sdxl"
+
+    def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
+        s = self._settings
+        quality = mode == "edit" and is_quality_request(detail)
+        groups = [] if quality else sdxl_adapter_groups(inp, max_refs, mode)
+        adapters = []
+        for role, images in groups:
+            if role == "place":
+                adapters.append({
+                    "model": s.sdxl_place_air,
+                    "guideImages": images,
+                    "weight": s.sdxl_place_weight,
+                    "weightType": "composition",
+                })
+            else:
+                adapters.append({
+                    "model": s.sdxl_face_air,
+                    "guideImages": images,
+                    "weight": s.sdxl_face_weight,
+                    "combineMethod": "average",
+                })
+        if mode == "insert":
+            strength = s.sdxl_insert_strength
+        elif quality:
+            strength = s.sdxl_quality_strength
+        else:
+            strength = s.sdxl_edit_strength
+        return {
+            "family": "sdxl",
+            "negative": NEGATIVE_PROMPT,
+            "steps": s.model_base_steps,
+            "cfg": s.model_base_cfg,
+            "scheduler": s.model_base_scheduler,
+            "ip_adapters": adapters,
+            "seed_image": previous if mode != "fresh" else None,
+            "strength": strength if mode != "fresh" else None,
+        }
+
     async def run(self, req: GenerationRequest) -> GenerationOutcome:
         if req.user_id in self._running:
             raise AlreadyRunning()
@@ -200,14 +243,24 @@ class Generator:
                 insert_actor_index=insert_index,
             )
             previous_image, seed = await self._load_base_image(base)
+            sdxl = self._uses_sdxl(req.tier)
+            style = "sdxl" if sdxl else "instruct"
             if previous_image and req.insert_prompt:
-                prompt, refs = build_insert(inp, previous_image, req.insert_prompt, max_refs=max_refs)
+                mode = "insert"
+                prompt, refs = build_insert(
+                    inp, previous_image, req.insert_prompt, max_refs=max_refs, style=style,
+                )
             elif previous_image:
-                prompt, refs = build_edit(inp, previous_image, req.detail or "", max_refs=max_refs)
+                mode = "edit"
+                prompt, refs = build_edit(
+                    inp, previous_image, req.detail or "", max_refs=max_refs, style=style,
+                )
             else:
+                mode = "fresh"
                 seed = None  # обычная генерация: каждый кадр со своим сидом
-                prompt, refs = build(inp, max_refs=max_refs)
-            result = await self._generate_with_retry(model_air, prompt, refs, width, height, seed)
+                prompt, refs = build(inp, max_refs=max_refs, style=style)
+            extra = self._sdxl_call(inp, max_refs, mode, previous_image, req.detail or "") if sdxl else {}
+            result = await self._generate_with_retry(model_air, prompt, refs, width, height, seed, extra)
             if result.nsfw:
                 # Купальник и откровенная одежда сцены часто помечаются как nsfw.
                 # Картинку всё равно отдаём: это и есть запрошенный кадр.
@@ -246,12 +299,13 @@ class Generator:
             logger.warning("edit base download failed ({}): falling back to a fresh generation", e)
             return None, None
 
-    async def _generate_with_retry(self, model, prompt, refs, width, height, seed=None) -> ImageResult:
+    async def _generate_with_retry(self, model, prompt, refs, width, height, seed=None, extra=None) -> ImageResult:
+        options = extra or {}
         try:
-            return await self._provider.generate(model, prompt, refs, width, height, seed)
+            return await self._provider.generate(model, prompt, refs, width, height, seed, **options)
         except (RunwareGenerationError, asyncio.TimeoutError) as e:
             logger.warning("runware first attempt failed: {}", e)
-            return await self._provider.generate(model, prompt, refs, width, height, seed)
+            return await self._provider.generate(model, prompt, refs, width, height, seed, **options)
 
     async def _finish(self, gen_id, user_id, status, image, cost, error, url=None, seed=None) -> GenerationOutcome:
         async with self._sf() as s:

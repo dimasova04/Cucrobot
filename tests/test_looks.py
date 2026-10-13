@@ -35,9 +35,9 @@ def test_photo_looks_match_the_example_and_skip_a_schoolgirl():
         assert is_allowed(item.prompt)
     for item in locked_looks():
         if item.id == "bdsm":
-            assert "портупе" in item.prompt
+            assert "harness" in item.prompt
         else:
-            assert "без одежды" in item.prompt
+            assert "nude" in item.prompt
 
 
 def test_locked_look_stays_one_adult_woman():
@@ -51,7 +51,7 @@ def test_locked_look_stays_one_adult_woman():
     )
     assert refs == ["p"]
     assert "Exactly 1 person in the frame" in prompt
-    assert "чулк" in prompt
+    assert "stocking" in prompt
 
 
 def test_catalog_scene_clears_the_look():
@@ -186,7 +186,7 @@ async def test_admin_without_subscription_opens_a_locked_look(session_factory, m
         monkeypatch.setattr("bot.handlers.generate.watermark.apply_free_mark", lambda data: data)
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
     assert generator.calls[0].custom_scene_text.startswith("[solo]")
-    assert "без одежды" in generator.calls[0].custom_scene_text
+    assert "nude" in generator.calls[0].custom_scene_text
     assert message.photos == [texts.PHOTO_SCENE_CAPTION.format(scene="Снять всё 😭")]
 
 
@@ -213,7 +213,7 @@ async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
             GenerationOutcome(status="done", generation_id=5, image_bytes=b"IMG", cost_usd=0.04, error=None, seed=1)
         )
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
-    assert "чулк" in generator.calls[0].custom_scene_text
+    assert "stocking" in generator.calls[0].custom_scene_text
     assert state._data["look_id"] == "stockings"
 
 

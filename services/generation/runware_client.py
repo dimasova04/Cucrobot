@@ -20,7 +20,8 @@ class ImageResult:
 
 class ImageProvider(Protocol):
     async def generate(
-        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None
+        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None,
+        **options,
     ) -> ImageResult: ...
 
 
@@ -45,12 +46,15 @@ class RunwareClient:
             return self._client
 
     async def generate(
-        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None
+        self, model: str, prompt: str, refs: list[str], width: int, height: int, seed: int | None = None,
+        *, family: str = "reference", negative: str | None = None, steps: int | None = None,
+        cfg: float | None = None, scheduler: str | None = None, ip_adapters: list | None = None,
+        seed_image: str | None = None, strength: float | None = None,
     ) -> ImageResult:
         from runware import IImageInference
 
         client = await self._get()
-        req = IImageInference(
+        fields = dict(
             model=model,
             seed=seed,
             positivePrompt=prompt,
@@ -62,8 +66,21 @@ class RunwareClient:
             outputFormat="JPG",
             outputQuality=95,
             safety={"checkContent": False},
-            inputs={"referenceImages": refs},
         )
+        if family == "sdxl":
+            # SDXL не понимает referenceImages. Лица — IP-Adapter, правка — seedImage.
+            fields["negativePrompt"] = negative
+            fields["steps"] = steps
+            fields["CFGScale"] = cfg
+            fields["scheduler"] = scheduler
+            if ip_adapters:
+                fields["ipAdapters"] = ip_adapters
+            if seed_image:
+                fields["seedImage"] = seed_image
+                fields["strength"] = strength
+        else:
+            fields["inputs"] = {"referenceImages": refs}
+        req = IImageInference(**fields)
         try:
             images = await asyncio.wait_for(client.imageInference(requestImage=req), timeout=self._timeout)
         except asyncio.TimeoutError:

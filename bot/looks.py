@@ -17,67 +17,67 @@ LOOKS_PER_PAGE = 14
 LOOKS: tuple[Look, ...] = (
     Look(
         "strip", "Снять всё 😭",
-        "[solo] indoors, soft daylight, full body. Взрослая женщина одна, полностью без одежды, стоит и смотрит в камеру.",
+        "[solo] indoors, soft daylight, full body, one adult woman standing, completely nude, looking at the camera",
         True,
     ),
     Look(
         "lingerie", "⚡ В сексуальном белье 👙",
-        "[solo] indoors, soft light, full body. Взрослая женщина в кружевном комплекте белья, стоит и смотрит в камеру.",
+        "[solo] indoors, soft light, full body, one adult woman standing in a lace lingerie set, looking at the camera",
         False,
     ),
     Look(
         "stockings", "⚡ Голая в чулках 🖤",
-        "[solo] indoors, soft light, full body. Взрослая женщина одна, без одежды, в чёрных чулках, стоит и смотрит в камеру.",
+        "[solo] indoors, soft light, full body, one adult woman standing, nude, wearing black stockings, looking at the camera",
         True,
     ),
     Look(
         "latex", "Переодеть в латекс 💄",
-        "[solo] indoors, full body. Взрослая женщина в закрытом чёрном латексном комбинезоне, стоит и смотрит в камеру.",
+        "[solo] indoors, full body, one adult woman standing in a closed black latex catsuit, looking at the camera",
         False,
     ),
     Look(
         "bikini", "Примерить бикини 👙",
-        "[solo] outdoors in daylight, full body. Она в тёмном бикини, улыбается и смотрит в камеру.",
+        "[solo] outdoors, daylight, full body, one adult woman in a dark bikini, smiling, looking at the camera",
         False,
     ),
     Look(
         "secretary", "Секретарша 👩‍💼",
-        "[solo] in an office, full body. Взрослая женщина в белой блузке, тёмной юбке-карандаш и на каблуках, смотрит в камеру.",
+        "[solo] in an office, full body, one adult woman in a white blouse, dark pencil skirt and heels, looking at the camera",
         False,
     ),
     Look(
         "wet", "⚡ Вся в 💧",
-        "[solo] outdoors in the rain, full body. Взрослая женщина в мокрой белой рубашке и юбке, стоит и смотрит в камеру.",
+        "[solo] outdoors in the rain, full body, one adult woman in a wet white shirt and skirt, standing, looking at the camera",
         False,
     ),
     Look(
         "teacher", "Училка 👩‍🏫",
-        "[solo] indoors in her office, full body. Взрослая женщина в белой блузке, тёмной юбке и очках, стоит и смотрит в камеру.",
+        "[solo] indoors in her office, full body, one adult woman in a white blouse, dark skirt and glasses, looking at the camera",
         False,
     ),
     Look(
         "pregnant", "Беременная 🤰",
-        "[solo] indoors, full body. Взрослая беременная женщина в облегающем платье, стоит и смотрит в камеру.",
+        "[solo] indoors, full body, one adult pregnant woman in a fitted dress, standing, looking at the camera",
         False,
     ),
     Look(
         "bdsm", "БДСМ 👮‍♀️",
-        "[solo] indoors, full body. Взрослая женщина одна, в чёрной кожаной портупее и наручниках, стоит и смотрит в камеру.",
+        "[solo] indoors, full body, one adult woman standing in a black leather harness and metal cuffs, looking at the camera",
         True,
     ),
     Look(
         "micro", "Мини-бикини 🔥",
-        "[solo] on a beach, daylight, full body. Она в очень маленьком тёмном бикини, улыбается и смотрит в камеру.",
+        "[solo] on a beach, daylight, full body, one adult woman in a tiny dark bikini, smiling, looking at the camera",
         False,
     ),
     Look(
         "towel", "⚡ В полотенце",
-        "[solo] in a bathroom, full body. Взрослая женщина завернута в белое банное полотенце, стоит и смотрит в камеру.",
+        "[solo] in a bathroom, full body, one adult woman wrapped in a white bath towel, standing, looking at the camera",
         False,
     ),
     Look(
         "bunny", "Зайка 🐰",
-        "[solo] indoors, full body. Взрослая женщина в закрытом чёрном костюме зайки, с ушками и бабочкой, стоит и смотрит в камеру.",
+        "[solo] indoors, full body, one adult woman in a closed black bunny costume with ears and a bow tie, looking at the camera",
         False,
     ),
 )

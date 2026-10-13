@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 SAFETY_CLAUSE = (
@@ -18,6 +20,15 @@ REALISM_CLAUSE = (
 
 # bytedance:seedream@4.5 отклоняет positivePrompt длиннее этого и кристалл возвращается.
 PROMPT_MAX_CHARS = 3000
+# SDXL смотрит только в начало промпта: оба текстовых энкодера держат около 75 токенов.
+# Хвост с «Image 1 is…» модель просто не читает, поэтому для неё сцена стоит первой и коротко.
+SDXL_PROMPT_MAX_CHARS = 420
+SDXL_LEAD = "raw photo, candid photograph, natural skin pores, sharp focus"
+NEGATIVE_PROMPT = (
+    "cartoon, anime, illustration, painting, 3d render, cgi, plastic skin, doll, "
+    "extra arms, extra hands, extra fingers, fused fingers, mutated hands, "
+    "deformed, blurry, watermark, text, logo, collage, duplicate person"
+)
 # Сцена без актёра в кадре. Префикс снимается и в промпт модели не попадает.
 _SOLO_MARK = "[solo]"
 
@@ -42,6 +53,97 @@ def scene_text(scene_prompt: str) -> str:
     if text.startswith(_SOLO_MARK):
         text = text[len(_SOLO_MARK):].strip()
     return text
+
+
+def _clip_sdxl(parts: list[str]) -> str:
+    """Короткий промпт: сцена в начале, лишнее обрезается с хвоста."""
+    text = ", ".join(part.strip().strip(".,") for part in parts if part and part.strip())
+    if len(text) <= SDXL_PROMPT_MAX_CHARS:
+        return text
+    cut = text[:SDXL_PROMPT_MAX_CHARS].rsplit(" ", 1)[0]
+    return cut or text[:SDXL_PROMPT_MAX_CHARS]
+
+
+def _people_count(inp: GenerationInput, solo: bool) -> int | None:
+    if solo:
+        return len(inp.people)
+    if inp.actors:
+        return len(inp.people) + len(inp.actors)
+    return None
+
+
+def _sdxl_fresh(inp: GenerationInput) -> str:
+    solo = scene_is_solo(inp.scene_prompt)
+    parts = [SDXL_LEAD, scene_text(inp.scene_prompt)]
+    if not solo and inp.actors:
+        parts.append("with " + " and ".join(a.name for a in inp.actors))
+    if inp.cast_note:
+        parts.append(inp.cast_note)
+    if inp.detail:
+        parts.append(inp.detail)
+    count = _people_count(inp, solo)
+    if count is not None:
+        word = "person" if count == 1 else "people"
+        parts.append(f"exactly {count} {word}")
+    return _clip_sdxl(parts)
+
+
+def _sdxl_edit(detail: str) -> str:
+    if is_quality_request(detail):
+        return _clip_sdxl([
+            "raw photo, the same photograph, sharper, more fine detail",
+            "same faces, same clothes, same pose, same place",
+        ])
+    return _clip_sdxl([
+        "raw photo, the same photograph, same faces, same place, same framing",
+        detail,
+    ])
+
+
+def _sdxl_insert(instruction: str) -> str:
+    return _clip_sdxl([
+        "raw photo, the same photograph, add exactly one new person",
+        instruction,
+        "keep everyone already in the photo, same clothes, same place",
+    ])
+
+
+def sdxl_adapter_groups(inp: GenerationInput, max_refs: int, mode: str) -> list[tuple[str, list[str]]]:
+    """Группы для IP-Adapter: одно лицо на человека, место отдельно.
+
+    Несколько фото одного актёра уходят в один адаптер, иначе лица смешиваются.
+    Кадр локации один: восемь разных комнат SDXL склеивает в коллаж.
+    """
+    if mode == "insert":
+        ordered = _insert_face_refs(inp)[: max_refs - 1]
+        include_place = False
+    elif mode == "edit":
+        keep = ("person",) if scene_is_solo(inp.scene_prompt) else ("person", "actor_primary")
+        ordered = [item for item in _ordered_refs(inp) if item[0] in keep][: max_refs - 1]
+        include_place = False
+    else:
+        ordered = _ordered_refs(inp)
+        if scene_is_solo(inp.scene_prompt):
+            ordered = _without_actors(ordered)
+        ordered = ordered[:max_refs]
+        include_place = True
+    faces: dict[tuple[str, int], list[str]] = {}
+    order: list[tuple[str, int]] = []
+    places: list[str] = []
+    for kind, data, idx in ordered:
+        if kind == "scene":
+            places.append(data)
+            continue
+        key = ("person", idx) if kind == "person" else ("actor", idx)
+        if key not in faces:
+            order.append(key)
+            faces[key] = []
+        if len(faces[key]) < 4:
+            faces[key].append(data)
+    groups = [("face", faces[key]) for key in order]
+    if include_place and places:
+        groups.append(("place", places[:1]))
+    return groups
 
 
 def _join(lines: list[str]) -> str:
@@ -223,7 +325,7 @@ def _without_actors(ordered: list[tuple[str, str, int]]) -> list[tuple[str, str,
     return [item for item in ordered if item[0] not in ("actor_primary", "actor_extra")]
 
 
-def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
+def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple[str, list[str]]:
     _validate(inp, max_refs)
     ordered = _ordered_refs(inp)
     solo = scene_is_solo(inp.scene_prompt)
@@ -231,6 +333,8 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
         # Актёр выбран в боте, но в эту сцену не встаёт и его фото модели не уходят.
         ordered = _without_actors(ordered)
     ordered = ordered[:max_refs]
+    if style == "sdxl":
+        return _sdxl_fresh(inp), [d for _k, d, _i in ordered]
     people = ", ".join(PERSON_LABELS[: len(inp.people)])
     scene = scene_text(inp.scene_prompt).rstrip(".").strip()
     # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
@@ -266,7 +370,9 @@ def build(inp: GenerationInput, max_refs: int) -> tuple[str, list[str]]:
     return _join(lines), [d for _k, d, _i in ordered]
 
 
-def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs: int) -> tuple[str, list[str]]:
+def build_edit(
+    inp: GenerationInput, previous_image: str, detail: str, max_refs: int, style: str = "instruct",
+) -> tuple[str, list[str]]:
     """Дорисовка на уже готовом кадре. Предыдущее фото всегда refs[0].
 
     Сцену и лишние референсы актёра сюда не кладём: из-за них модель
@@ -278,6 +384,8 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
     if not (detail or "").strip():
         raise ValueError("detail is required for an edit")
     _validate(inp, max_refs - 1)
+    if style == "sdxl" and is_quality_request(detail):
+        return _sdxl_edit(detail), [previous_image]
     if is_quality_request(detail):
         lines = [
             "Image 1 is the finished photo. Make this same photo sharper and more detailed. "
@@ -291,6 +399,8 @@ def build_edit(inp: GenerationInput, previous_image: str, detail: str, max_refs:
     keep = ("person",) if scene_is_solo(inp.scene_prompt) else ("person", "actor_primary")
     ordered = [item for item in _ordered_refs(inp) if item[0] in keep]
     ordered = ordered[: max_refs - 1]
+    if style == "sdxl":
+        return _sdxl_edit(detail), [previous_image] + [d for _k, d, _i in ordered]
     lines: list[str] = [
         "Image 1 is the finished photo. Edit that exact photo. "
         "Keep the same people, faces, body build, framing, background, lighting and sharpness. "
@@ -336,7 +446,9 @@ def _inserted_name(inp: GenerationInput) -> str:
     return inp.actors[idx].name
 
 
-def build_insert(inp: GenerationInput, previous_image: str, instruction: str, max_refs: int) -> tuple[str, list[str]]:
+def build_insert(
+    inp: GenerationInput, previous_image: str, instruction: str, max_refs: int, style: str = "instruct",
+) -> tuple[str, list[str]]:
     """Вписать ещё одного человека в готовый кадр, не собирая сцену заново."""
     if not previous_image:
         raise ValueError("previous_image is required for an insert")
@@ -344,6 +456,8 @@ def build_insert(inp: GenerationInput, previous_image: str, instruction: str, ma
         raise ValueError("instruction is required for an insert")
     _validate(inp, max_refs - 1)
     ordered = _insert_face_refs(inp)[: max_refs - 1]
+    if style == "sdxl":
+        return _sdxl_insert(instruction), [previous_image] + [d for _k, d, _i in ordered]
     lines = [
         "Image 1 is the finished photo. Edit that exact photo.",
         instruction.strip().rstrip(".") + ".",

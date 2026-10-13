@@ -2,7 +2,8 @@ import pytest
 
 from services.generation import content_filter
 from services.generation.prompt_builder import (
-    PROMPT_MAX_CHARS, REALISM_CLAUSE, SAFETY_CLAUSE, ActorInput, GenerationInput, build, build_edit, build_insert,
+    PROMPT_MAX_CHARS, REALISM_CLAUSE, SAFETY_CLAUSE, SDXL_PROMPT_MAX_CHARS, ActorInput, GenerationInput,
+    build, build_edit, build_insert, sdxl_adapter_groups,
 )
 
 
@@ -338,6 +339,38 @@ def test_insert_requires_a_target():
         build_insert(_inp(), "prev", "Add someone.", max_refs=14)
     with pytest.raises(ValueError):
         build_insert(_inp(), "", "Add someone.", max_refs=14)
+
+
+def test_sdxl_prompt_leads_with_the_scene_and_skips_image_labels():
+    prompt, refs = build(_inp(scene_ref="s"), max_refs=4, style="sdxl")
+    assert refs == ["p0", "a0_0", "a0_1", "s"]
+    assert prompt.startswith("raw photo, candid photograph")
+    assert "on a yacht" in prompt
+    assert "exactly 2 people" in prompt
+    assert "Image 1" not in prompt
+    assert SAFETY_CLAUSE not in prompt
+    assert len(prompt) <= SDXL_PROMPT_MAX_CHARS
+    groups = sdxl_adapter_groups(_inp(scene_ref="s"), max_refs=4, mode="fresh")
+    assert groups == [("face", ["p0"]), ("face", ["a0_0", "a0_1"]), ("place", ["s"])]
+    edit_groups = sdxl_adapter_groups(_inp(scene_ref="s"), max_refs=4, mode="edit")
+    assert edit_groups == [("face", ["p0"]), ("face", ["a0_0"])]
+
+
+def test_sdxl_edit_and_insert_stay_on_the_same_photo():
+    prompt, refs = build_edit(_inp(), "prev", "в пальто", max_refs=14, style="sdxl")
+    assert refs[0] == "prev"
+    assert prompt.startswith("raw photo, the same photograph")
+    assert "в пальто" in prompt
+    assert "on a yacht" not in prompt
+    quality, qrefs = build_edit(_inp(), "prev", "Улучши качество", max_refs=14, style="sdxl")
+    assert qrefs == ["prev"]
+    assert "sharper" in quality
+    inp = _inp()
+    inp.insert_target = "actor"
+    inp.insert_actor_index = 0
+    inserted, irefs = build_insert(inp, "prev", "Add Actor0.", max_refs=14, style="sdxl")
+    assert irefs[0] == "prev" and "a0_0" in irefs
+    assert "add exactly one new person" in inserted
 
 
 def test_build_edit_validates_inputs():

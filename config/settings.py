@@ -14,16 +14,30 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     runware_api_key: str = ""
-    model_base_air: str = "bytedance:seedream@4.5"
+    # Обычное фото — SDXL 1.0 с поправленным VAE. Лица идут через IP-Adapter, не referenceImages.
+    # family=reference вернёт длинный промпт и referenceImages (Сидрим, Nano Banana).
+    model_base_air: str = "civitai:101055@128078"
+    model_base_family: str = "sdxl"
     model_premium_air: str = "google:4@3"
     model_base_max_refs: int = 14
     model_premium_max_refs: int = 14
-    # Seedream 4.5: площадь 3.69–16.78 Мпикс. Рекомендованный 2K 2:3 — 1664×2496
-    # (4.15 Мпикс). Премиум — официальный 2K 2:3 Nano Banana 2, не мельче базы.
-    model_base_portrait: str = "1664x2496"
-    model_base_landscape: str = "2496x1664"
+    # SDXL: сторона кратна 8 и не больше 2048. 832×1216 — портрет около 1 Мпикс, родной масштаб модели.
+    # Премиум — официальный 2K 2:3 Nano Banana 2.
+    model_base_portrait: str = "832x1216"
+    model_base_landscape: str = "1216x832"
     model_premium_portrait: str = "1696x2528"
     model_premium_landscape: str = "2528x1696"
+    model_base_steps: int = 28
+    model_base_cfg: float = 6.5
+    model_base_scheduler: str = "DPM++ 2M Karras"
+    # Plus Face держит личность. Plus с weightType=composition держит ракурс места, не лицо.
+    sdxl_face_air: str = "runware:55@3"
+    sdxl_place_air: str = "runware:55@2"
+    sdxl_face_weight: float = 0.7
+    sdxl_place_weight: float = 0.35
+    sdxl_edit_strength: float = 0.55
+    sdxl_insert_strength: float = 0.72
+    sdxl_quality_strength: float = 0.22
 
     tribute_api_key: str = ""
     tribute_webhook_path: str = "/webhooks/tribute"
