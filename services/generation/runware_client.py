@@ -46,6 +46,9 @@ def clean_scheduler(value: str | None) -> str | None:
 # FLUX.2 klein — дистиллят на 4 шага. acceleration=high по умолчанию смазывает лицо,
 # а CFG 3.5 тянет текст сильнее фото и дорисовывает татуировки.
 KLEIN_AIR = "runware:400@2"
+# Klein Anatomy Fixer 9B v1.5: только суставы и конечности. Вес 2 держит тот же кадр.
+KLEIN_ANATOMY_LORA = "civitai:2324991@2615554"
+KLEIN_ANATOMY_WEIGHT = 2.0
 KLEIN_NEGATIVE = (
     "new tattoo, extra tattoo, tattoo on clear skin, different face, different body, "
     "changed figure, extra arm, third arm, extra hand, extra finger, six fingers, "
@@ -63,6 +66,7 @@ def klein_identity_fields(fields: dict) -> dict:
     tuned["CFGScale"] = 2
     tuned["acceleration"] = "none"
     tuned["negativePrompt"] = KLEIN_NEGATIVE
+    tuned["lora"] = [{"model": KLEIN_ANATOMY_LORA, "weight": KLEIN_ANATOMY_WEIGHT}]
     return tuned
 
 
@@ -198,7 +202,15 @@ class RunwareClient:
             if fields.get("acceleration") == "none":
                 retry = {key: value for key, value in fields.items() if key != "acceleration"}
                 logger.warning("klein request failed ({}), retrying with default acceleration", first)
-                return await self._infer(client, retry)
+                try:
+                    return await self._infer(client, retry)
+                except RunwareGenerationError as second:
+                    first = second
+                    fields = retry
+            if fields.get("lora"):
+                bare = {key: value for key, value in fields.items() if key != "lora"}
+                logger.warning("klein anatomy lora failed ({}), retrying without it", first)
+                return await self._infer(client, bare)
             if family != "sdxl":
                 raise
             plain = sdxl_retry_fields(fields)
@@ -208,11 +220,26 @@ class RunwareClient:
             return await self._infer(client, plain)
 
     async def _infer(self, client, fields: dict) -> ImageResult:
-        from runware import IImageInference
+        from runware import IImageInference, ILora
 
+        loras = fields.get("lora")
+        if loras:
+            fields = dict(fields)
+            fields["lora"] = [
+                item if not isinstance(item, dict) else ILora(model=item["model"], weight=item["weight"])
+                for item in loras
+            ]
         req = IImageInference(**fields)
         timeout = self._timeout
         model = str(fields.get("model") or "")
+        civitai_lora = any(
+            str(item.get("model", "")).startswith("civitai:")
+            for item in loras or []
+            if isinstance(item, dict)
+        )
+        if civitai_lora:
+            # Первый запрос скачивает LoRA с Civitai. Короткий таймаут обрывает кадр.
+            timeout = max(timeout, 180)
         if model.startswith("klingai:"):
             # Официальные примеры O1 — около 30–50 секунд. Короткий таймаут с сервера обрывает кадр.
             timeout = max(timeout, 120)
