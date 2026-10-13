@@ -118,7 +118,7 @@ async def test_me_returns_profile_fields(session_factory):
     assert body["level"] == "Новичок"
     assert body["sub"] == {"active": False, "plan": None, "until": None}
     assert body["bonus"]["ready"] is True and body["bonus"]["amount"] == 3
-    assert body["quality"] == {"tier": "base", "can_premium": False}
+    assert body["quality"] == {"tier": "base", "can_premium": True}
     assert body["costs"] == {"base": 1, "premium": 3}
     assert body["is_admin"] is False and body["bot_username"] == "CucroBot"
     assert body["invite"]["reward"] == 3
@@ -134,7 +134,7 @@ async def test_me_shows_active_subscription(session_factory):
     assert body["sub"]["plan"] == "sub_month"
     assert body["sub"]["until"] == until.strftime("%d.%m.%Y")
     assert body["quality"]["can_premium"] is True
-    assert body["bonus"]["amount"] == 10
+    assert body["bonus"]["amount"] == 3
 
 
 async def test_bonus_claim_happy_path_then_cooldown(session_factory):
@@ -151,13 +151,13 @@ async def test_bonus_claim_happy_path_then_cooldown(session_factory):
         assert (await repo.get_user(s, 5)).crystals == 3
 
 
-async def test_quality_premium_forbidden_without_subscription(session_factory):
+async def test_quality_premium_is_open_without_a_purchase(session_factory):
     await _accepted_user(session_factory)
     routes = _routes(session_factory)
     status, body = await _call(routes, "POST", "/api/quality", body={"tier": "premium"})
-    assert status == 403 and body == {"error": "premium_locked"}
+    assert status == 200 and body == {"tier": "premium"}
     async with session_factory() as s:
-        assert (await repo.get_user(s, 5)).preferred_tier == "base"
+        assert (await repo.get_user(s, 5)).preferred_tier == "premium"
 
 
 async def test_quality_switch_for_subscriber_and_bad_tier(session_factory):
@@ -181,15 +181,19 @@ async def test_shop_lists_six_products(session_factory):
     routes = _routes(session_factory, settings)
     status, body = await _call(routes, "GET", "/api/shop")
     assert status == 200
-    assert len(body["packs"]) == 3 and len(body["subs"]) == 3
-    codes = [p["code"] for p in body["packs"] + body["subs"]]
-    assert codes == ["pack_50", "pack_100", "pack_300", "sub_week", "sub_month", "sub_3month"]
+    assert len(body["packs"]) == 5 and len(body["subs"]) == 3
+    codes = [p["code"] for p in body["packs"]]
+    assert codes == ["pack_15", "pack_50", "pack_100", "pack_300", "pack_1000"]
     pack = body["packs"][0]
-    assert pack["crystals"] == 50 and pack["gift"] == 0 and pack["stars"] == 350
-    assert pack["tribute_url"] == "https://t.me/tribute/pack50"
+    assert pack["crystals"] == 15 and pack["gift"] == 0 and pack["stars"] == 120
+    assert pack["rub"] == 150 and pack["tribute_url"] == ""
+    card = body["packs"][1]
+    assert card["crystals"] == 50 and card["stars"] == 350
+    assert card["tribute_url"] == "https://t.me/tribute/pack50"
+    assert body["packs"][-1]["crystals"] == 1000 and body["packs"][-1]["stars"] == 4500
     sub = body["subs"][1]
     assert sub["days"] == 30 and sub["gift"] == 20 and sub["rub"] == 1290 and sub["tribute_url"] == ""
-    assert body["daily_bonus"] == 10
+    assert body["daily_bonus"] == 3
 
 
 async def test_buy_stars_returns_invoice_link(session_factory):

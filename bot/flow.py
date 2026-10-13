@@ -1,7 +1,6 @@
 from aiogram.fsm.state import State, StatesGroup
 
 from bot import texts
-from services.billing import subscriptions
 from services.generation.content_filter import is_allowed, mentions_minor
 from services.video.prompts import VIDEO_PROMPT_MAX
 from services.generation.generator import GenerationRequest
@@ -75,11 +74,9 @@ def insert_actor_prompt(name: str) -> str:
 
 
 def effective_tier(user) -> str:
-    """Качество пользователя из профиля, с даунгрейдом до base без активной подписки."""
+    """Качество из профиля. Премиум стоит кристаллики и открыт всем."""
     tier = getattr(user, "preferred_tier", None) or "base"
-    if tier == "premium" and not subscriptions.is_active(user):
-        return "base"
-    return tier
+    return tier if tier in ("base", "premium") else "base"
 
 
 DETAIL_MAX_LEN = 300

@@ -55,25 +55,22 @@ async def test_opening_profile_assigns_the_channel_name(session_factory):
     assert "Уровень: Новичок" in msg.texts[0]
 
 
-def test_cabinet_pitches_the_subscription():
-    text = texts.PROFILE.format(crystals=3, sub=texts.SUB_NONE, bonus=texts.BONUS_READY, quality="обычное", quality_costs="x")
-    assert text.startswith("🏠 Кабинет")
-    assert "получишь баланс и доступ ко всему" in text
+def test_cabinet_sells_crystals():
+    text = texts.PROFILE.format(crystals=3, bonus=texts.BONUS_READY, quality="обычное", quality_costs="x")
+    assert text.startswith("💎 Кабинет")
+    assert "48 часов" in text and "блюре" in text
     assert "Неделя · +5 💎 в подарок" == texts.SUB_BTN.format(name="Неделя", gift=5)
 
 
-def test_profile_kb_toggle_for_subscriber():
+def test_profile_kb_quality_is_open_for_everyone():
     subscriber = User(id=1, preferred_tier="base", sub_until=utcnow() + timedelta(days=1))
-    cbs = _callbacks(profile_kb(subscriber))
-    assert "profile:quality" in cbs
-    assert "profile:quality_locked" not in cbs
-
-
-def test_profile_kb_locked_for_non_subscriber():
-    non_subscriber = User(id=2, preferred_tier="base")
-    cbs = _callbacks(profile_kb(non_subscriber))
-    assert "profile:quality_locked" in cbs
-    assert "profile:quality" not in cbs
+    plain = User(id=2, preferred_tier="base")
+    for user in (subscriber, plain):
+        cbs = _callbacks(profile_kb(user))
+        assert "profile:quality" in cbs
+        assert "profile:quality_locked" not in cbs
+        assert "shop:subs" not in cbs
+        assert "shop:packs" in cbs
 
 
 async def test_quality_toggle_flips_for_subscriber(session_factory):
@@ -102,7 +99,7 @@ async def test_quality_toggle_flips_for_subscriber(session_factory):
         assert user.preferred_tier == "base"
 
 
-async def test_quality_toggle_refuses_for_non_subscriber(session_factory):
+async def test_quality_toggle_works_without_a_purchase(session_factory):
     async with session_factory() as s:
         user = await repo.get_or_create_user(s, 2, "u")
         await s.commit()
@@ -111,9 +108,9 @@ async def test_quality_toggle_refuses_for_non_subscriber(session_factory):
         user = await repo.get_user(s, 2)
         cb = _FakeCallback()
         await toggle_quality(cb, s, user, _settings())
-        assert user.preferred_tier == "base"
-        assert cb.alerts == [(texts.MODEL_PREMIUM_LOCKED, True)]
-        assert cb.edits == []
+        assert user.preferred_tier == "premium"
+        assert cb.alerts == [(None, False)]
+        assert cb.edits
 
 
 async def test_quality_locked_button_shows_alert():

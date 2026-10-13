@@ -131,9 +131,15 @@ async def test_scene_choice_builds_a_still_then_animates(session_factory, monkey
 
     async with session_factory() as s:
         scene = await catalog.create_scene(s, "Яхта", "on a yacht, he holds her hand", "landscape", None, None)
+        from database.models import Payment
+
         user = await repo.get_or_create_user(s, 90, "u")
         user.crystals = 10
         user.sub_until = utcnow() + timedelta(days=3)
+        s.add(Payment(
+            provider="stars", external_id="scene90", user_id=90, product="pack_50",
+            amount=350, currency="XTR", status="ok",
+        ))
         await s.commit()
         state = _FakeState(data={
             "people": ["p1"], "actors": [], "named": [],
@@ -473,9 +479,15 @@ async def test_free_user_gets_the_bot_mark_and_subscriber_does_not(session_facto
 
     async with session_factory() as s:
         user = await repo.get_user(s, 80)
+        from database.models import Payment
+
         user.sub_until = utcnow() + timedelta(days=7)
         user.sub_plan = "sub_week"
         user.crystals = 4
+        s.add(Payment(
+            provider="stars", external_id="hd80", user_id=80, product="pack_50",
+            amount=350, currency="XTR", status="ok",
+        ))
         gen = Generation(
             user_id=80, model_air="m", model_tier="base", actors=[], location="x",
             crystals_charged=1, status="done", result_url="http://x/orig.jpg",
@@ -689,7 +701,7 @@ async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
         + "\n"
         + texts.BALANCE_EMPTY_BUY.format(n=3)
     )
-    assert _callbacks(markup) == ["shop:packs", "bonus:claim", "invite:open", "shop:subs"]
+    assert _callbacks(markup) == ["shop:packs", "bonus:claim", "invite:open"]
 
     async with session_factory() as s:
         user = await repo.get_user(s, 81)
@@ -708,4 +720,4 @@ async def test_zero_balance_after_charge_offers_bonus_or_shop(session_factory):
     assert texts.GENERATING not in [a[0] for a in message.answers]
     text, markup = message.answers[0]
     assert texts.BALANCE_EMPTY_BUY.format(n=3) in text
-    assert _callbacks(markup) == ["shop:packs", "invite:open", "shop:subs"]
+    assert _callbacks(markup) == ["shop:packs", "invite:open"]

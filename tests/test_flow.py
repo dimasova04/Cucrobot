@@ -208,10 +208,10 @@ def test_effective_tier():
     assert effective_tier(subscribed_premium) == "premium"
 
     lapsed_premium = SimpleNamespace(preferred_tier="premium", sub_until=None)
-    assert effective_tier(lapsed_premium) == "base"
+    assert effective_tier(lapsed_premium) == "premium"
 
     expired_premium = SimpleNamespace(preferred_tier="premium", sub_until=utcnow() - timedelta(days=1))
-    assert effective_tier(expired_premium) == "base"
+    assert effective_tier(expired_premium) == "premium"
 
     subscribed_base = SimpleNamespace(preferred_tier="base", sub_until=utcnow() + timedelta(days=1))
     assert effective_tier(subscribed_base) == "base"

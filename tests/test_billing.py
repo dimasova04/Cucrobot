@@ -11,8 +11,8 @@ def _settings():
 
 
 def test_products_catalog():
-    assert [p.code for p in products.PACKS] == ["pack_50", "pack_100", "pack_300"]
-    assert [p.crystals for p in products.PACKS] == [50, 100, 300]
+    assert [p.code for p in products.PACKS] == ["pack_15", "pack_50", "pack_100", "pack_300", "pack_1000"]
+    assert [p.crystals for p in products.PACKS] == [15, 50, 100, 300, 1000]
     assert [p.days for p in products.SUBS] == [7, 30, 90]
     assert [p.crystals for p in products.SUBS] == [5, 20, 60]
     assert products.get_product("nope") is None
@@ -44,7 +44,7 @@ def test_bonus_status_free_and_sub():
     assert bonus.bonus_status(due, s, now).ready
     sub = User(id=2, sub_plan="sub_week", sub_until=now + timedelta(days=1), last_bonus_at=now - timedelta(hours=25))
     st = bonus.bonus_status(sub, s, now)
-    assert st.ready and st.amount == 10
+    assert not st.ready and st.amount == 3 and st.wait == timedelta(hours=23)
     never = User(id=3)
     assert bonus.bonus_status(never, s, now).ready
 

@@ -27,20 +27,17 @@ def _sub_text(user) -> str:
 
 
 def _quality_row(user) -> list[tuple[str, str]]:
-    if subscriptions.is_active(user):
-        other = "premium" if user.preferred_tier == "base" else "base"
-        return [(
-            texts.BTN_QUALITY_TOGGLE.format(quality=texts.MODEL_NAMES[user.preferred_tier], other=texts.MODEL_NAMES[other]),
-            "profile:quality",
-        )]
-    return [(texts.BTN_QUALITY_LOCKED, "profile:quality_locked")]
+    other = "premium" if user.preferred_tier == "base" else "base"
+    return [(
+        texts.BTN_QUALITY_TOGGLE.format(quality=texts.MODEL_NAMES[user.preferred_tier], other=texts.MODEL_NAMES[other]),
+        "profile:quality",
+    )]
 
 
 def profile_kb(user, channel_url: str = "") -> InlineKeyboardMarkup:
     kb = keyboards.grid(
         [],
         extra_rows=[
-            [(texts.BTN_BUY_SUB, "shop:subs")],
             _quality_row(user),
             [(texts.BTN_BUY_PACK, "shop:packs")],
             [(texts.BTN_INVITE, "invite:open")],
@@ -67,11 +64,12 @@ def _profile_text(user, settings, published: int = 0) -> str:
     quality_costs = texts.QUALITY_COSTS.format(base=settings.cost_base, premium=settings.cost_premium)
     text = texts.PROFILE.format(
         crystals=user.crystals,
-        sub=_sub_text(user),
         bonus=bonus_txt,
         quality=texts.MODEL_NAMES[user.preferred_tier],
         quality_costs=quality_costs,
     )
+    if subscriptions.is_active(user):
+        text += "\n⭐ Подписка уже куплена: " + _sub_text(user)
     if user.public_name:
         text += texts.PROFILE_ALIAS.format(name=user.public_name, level=level_title(published))
     return text
@@ -86,9 +84,22 @@ def price_label(code: str, settings) -> str:
     return texts.PRICE_STARS.format(stars=stars)
 
 
+def pack_price_text(code: str, settings) -> str:
+    """Рубли на кнопке только если есть ссылка Tribute. Иначе одни звёзды."""
+    stars = settings.stars_price(code)
+    if settings.tribute_url(code):
+        return price_label(code, settings)
+    if stars > 0:
+        return texts.PRICE_STARS.format(stars=stars)
+    return price_label(code, settings)
+
+
 def packs_kb(settings) -> InlineKeyboardMarkup:
-    items = [(texts.PACK_BTN.format(n=p.crystals), f"buy:{p.code}") for p in PACKS]
-    return keyboards.grid(items, cols=3, extra_rows=[[(texts.BTN_BACK, "menu:profile")]])
+    items = [
+        (texts.PACK_BTN.format(n=p.crystals, price=pack_price_text(p.code, settings)), f"buy:{p.code}")
+        for p in PACKS
+    ]
+    return keyboards.grid(items, cols=1, extra_rows=[[(texts.BTN_BACK, "menu:profile")]])
 
 
 def subs_kb(settings) -> InlineKeyboardMarkup:
@@ -130,9 +141,6 @@ async def cb_profile(cb: CallbackQuery, session, user, settings):
 
 @profile_router.callback_query(F.data == "profile:quality")
 async def toggle_quality(cb: CallbackQuery, session, user, settings):
-    if not subscriptions.is_active(user):
-        await cb.answer(texts.MODEL_PREMIUM_LOCKED, show_alert=True)
-        return
     user.preferred_tier = "premium" if user.preferred_tier == "base" else "base"
     await session.commit()
     await cb.answer()

@@ -13,9 +13,11 @@ class Product:
 
 
 PACKS = [
+    Product("pack_15", "pack", PRODUCT_TITLES["pack_15"], crystals=15),
     Product("pack_50", "pack", PRODUCT_TITLES["pack_50"], crystals=50),
     Product("pack_100", "pack", PRODUCT_TITLES["pack_100"], crystals=100),
     Product("pack_300", "pack", PRODUCT_TITLES["pack_300"], crystals=300),
+    Product("pack_1000", "pack", PRODUCT_TITLES["pack_1000"], crystals=1000),
 ]
 SUBS = [
     # crystals у подписки — разовый подарок при покупке/продлении, сверх ежедневного бонуса

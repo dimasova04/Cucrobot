@@ -15,10 +15,11 @@ def test_economy_defaults(monkeypatch):
     s = Settings(_env_file=None)
     assert (s.start_crystals, s.invite_crystals, s.bonus_free_amount, s.bonus_free_hours) == (3, 3, 3, 48)
     assert (s.bonus_sub_amount, s.bonus_sub_hours) == (10, 24)
-    assert (s.stars_pack_50, s.stars_pack_100, s.stars_pack_300) == (350, 650, 1800)
+    assert (s.stars_pack_15, s.stars_pack_50, s.stars_pack_100, s.stars_pack_300, s.stars_pack_1000) == (120, 350, 650, 1800, 4500)
     assert (s.stars_sub_week, s.stars_sub_month, s.stars_sub_3month) == (350, 990, 2490)
     assert (s.price_rub_sub_week, s.price_rub_sub_month, s.price_rub_sub_3month) == (450, 1290, 3290)
-    assert (s.price_rub_pack_50, s.price_rub_pack_100, s.price_rub_pack_300) == (450, 850, 1990)
+    assert (s.price_rub_pack_15, s.price_rub_pack_50, s.price_rub_pack_100, s.price_rub_pack_300, s.price_rub_pack_1000) == (150, 450, 850, 1990, 4990)
+    assert s.tribute_pack_15_url == "" and s.tribute_pack_1000_url == ""
     assert s.tribute_pack_50_url == "https://web.tribute.tg/p/FpD"
     assert s.tribute_pack_100_url == "https://web.tribute.tg/p/G6d"
     assert s.tribute_pack_300_url == "https://web.tribute.tg/p/G6e"

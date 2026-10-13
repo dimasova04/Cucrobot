@@ -77,7 +77,7 @@ def _me_payload(user, settings, username: str, published: int) -> dict:
             "amount": st.amount,
             "wait_seconds": int(st.wait.total_seconds()),
         },
-        "quality": {"tier": user.preferred_tier, "can_premium": active},
+        "quality": {"tier": user.preferred_tier, "can_premium": True},
         "costs": {"base": settings.cost_base, "premium": settings.cost_premium},
         "is_admin": settings.is_admin(user.id),
         "bot_username": username,
@@ -141,8 +141,6 @@ def make_routes(session_factory, settings, bot) -> list[tuple[str, str, object]]
         tier = (await _read_json(request)).get("tier")
         if tier not in ("base", "premium"):
             raise ApiError(400, "tier")
-        if tier == "premium" and not subscriptions.is_active(user):
-            raise ApiError(403, "premium_locked")
         locked = await repo.get_user_for_update(session, user.id)
         locked.preferred_tier = tier
         return {"tier": tier}
@@ -151,7 +149,7 @@ def make_routes(session_factory, settings, bot) -> list[tuple[str, str, object]]
         return {
             "packs": [_product_row(p, settings) for p in PACKS],
             "subs": [_product_row(p, settings) for p in SUBS],
-            "daily_bonus": settings.bonus_sub_amount,
+            "daily_bonus": settings.bonus_free_amount,
             "cost_base": settings.cost_base,
             "cost_premium": settings.cost_premium,
             "cost_video": settings.cost_video,

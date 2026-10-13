@@ -93,7 +93,7 @@ class _Msg:
         self.sent.append((text, reply_markup))
         return self
 
-    async def answer_video(self, file, caption=None):
+    async def answer_video(self, file, caption=None, reply_markup=None):
         assert isinstance(file, BufferedInputFile)
         self.videos.append((file.data, caption))
 
@@ -240,18 +240,16 @@ async def test_menu_explains_the_price(session_factory):
     assert msg.sent[-1][1].inline_keyboard[0][0].callback_data == f"gen:v:auto:{gen_id}"
 
 
-async def test_free_clip_gets_a_fixed_mark_and_subscriber_clip_stays_clean(session_factory, monkeypatch):
-    from datetime import timedelta
-
-    from database.base import utcnow
+async def test_unpaid_clip_is_blurred_and_a_purchase_stays_clean(session_factory, monkeypatch):
+    from database.models import Payment
 
     calls = []
 
-    def mark(data):
+    def blur(data):
         calls.append(data)
-        return b"marked-mp4"
+        return b"blurred-mp4"
 
-    monkeypatch.setattr("bot.handlers.video.watermark.apply_free_mark_video", mark)
+    monkeypatch.setattr("bot.handlers.video.watermark.apply_video_blur", blur)
     async with session_factory() as s:
         gen_id = await _ready(s, subscribed=False)
     animator = _Animator()
@@ -261,12 +259,12 @@ async def test_free_clip_gets_a_fixed_mark_and_subscriber_clip_stays_clean(sessi
         gen = await s.get(Generation, gen_id)
         await _run(msg, s, user, _settings(admin_ids=[5]), gen, "auto", None, client=animator)
     assert calls == [b"mp4"]
-    assert msg.videos == [(b"marked-mp4", texts.VIDEO_CAPTION.format(seconds=5))]
+    assert msg.videos == [(b"blurred-mp4", texts.VIDEO_CAPTION.format(seconds=5))]
 
     async with session_factory() as s:
         user = await repo.get_user(s, 5)
         user.crystals = 10
-        user.sub_until = utcnow() + timedelta(days=3)
+        s.add(Payment(provider="stars", external_id="buy-5", user_id=5, product="pack_50", amount=350, currency="XTR", status="ok"))
         await s.commit()
     calls.clear()
     msg = _Msg()
@@ -333,12 +331,13 @@ async def test_teaser_gif_is_blurred_and_unblur_opens_the_subscription(session_f
     assert msg.animations[0][0] == b"blurred"
     assert msg.animations[0][1] == "Яхта"
     buttons = [b.callback_data for row in msg.animations[0][2].inline_keyboard for b in row]
-    assert buttons[0] == "shop:subs"
+    assert buttons[0] == "shop:packs"
     async with session_factory() as s:
         assert (await repo.get_user(s, 8)).crystals == 7
 
 
-async def test_without_subscription_the_paywall_opens_and_nothing_is_charged(session_factory):
+async def test_without_a_purchase_the_menu_opens_and_the_clip_is_charged(session_factory, monkeypatch):
+    monkeypatch.setattr("bot.handlers.video.watermark.apply_video_blur", lambda data: b"blurred")
     async with session_factory() as s:
         gen_id = await _ready(s, subscribed=False)
     animator = _Animator()
@@ -348,17 +347,15 @@ async def test_without_subscription_the_paywall_opens_and_nothing_is_charged(ses
     async with session_factory() as s:
         user = await repo.get_user(s, 5)
         await open_video_menu(cb, _State(), s, user, _settings())
-    assert "подписк" in msg.sent[-1][0].lower()
-    assert msg.sent[-1][1] is not None
-    buttons = [b.callback_data for row in msg.sent[-1][1].inline_keyboard for b in row]
-    assert any(item.startswith("buy:sub_") for item in buttons)
+    assert msg.sent[-1][1].inline_keyboard[0][0].callback_data == f"gen:v:auto:{gen_id}"
     async with session_factory() as s:
         user = await repo.get_user(s, 5)
         gen = await s.get(Generation, gen_id)
         await _run(msg, s, user, _settings(), gen, "auto", None, client=animator)
-    assert animator.calls == []
+    assert animator.calls
+    assert msg.videos[0][0] == b"blurred"
     async with session_factory() as s:
-        assert (await repo.get_user(s, 5)).crystals == 10
+        assert (await repo.get_user(s, 5)).crystals == 7
 
 
 async def test_admin_without_subscription_can_animate(session_factory):

@@ -144,6 +144,8 @@ def test_pay_buttons_show_both_methods_clearly():
     assert pay_kb("pack_50", live).inline_keyboard[0][0].url == "https://web.tribute.tg/p/FpD"
     sub_btns = [b.text for row in subs_kb(s).inline_keyboard for b in row]
     assert sub_btns[0] == "Неделя · +5 💎 в подарок"
-    pack_btns = [b.text for row in packs_kb(s).inline_keyboard for b in row]
-    assert pack_btns[0] == "50 💎"
+    pack_btns = [b.text for row in packs_kb(live).inline_keyboard for b in row]
+    assert pack_btns[0] == "15 💎 · 120 ⭐"
+    assert pack_btns[1] == "50 💎 · 450 ₽ / 350 ⭐"
+    assert pack_btns[-2] == "1000 💎 · 4500 ⭐"
     assert "СБП, карта или Telegram Stars" in texts.SHOP_SUBS

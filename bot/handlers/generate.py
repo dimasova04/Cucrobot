@@ -39,7 +39,7 @@ from services.referrals import CHANNEL_CODE, link_for
 from bot.clips import CLIPS_PER_PAGE, clips_for, get_clip
 from bot.looks import LOOKS, LOOKS_PER_PAGE, get_look
 from services import catalog
-from services.billing import bonus, subscriptions, wallet
+from services.billing import bonus, purchases, wallet
 from services.generation import faces
 from services.generation import watermark
 from services.generation import generator as gen_service
@@ -563,12 +563,6 @@ async def clip_chosen(cb: CallbackQuery, state: FSMContext, session, user, setti
     if clip is None:
         await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
         return
-    if clip.locked:
-        from bot.handlers.video import _send_paywall, video_allowed
-        if not video_allowed(user, settings):
-            await cb.answer()
-            await _send_paywall(cb.message, settings, texts.LOOK_PAYWALL)
-            return
     st = await state.get_data()
     st["mode"] = "video"
     st["clip_id"] = clip.id
@@ -612,12 +606,6 @@ async def look_chosen(cb: CallbackQuery, state: FSMContext, session, user, setti
     if look is None:
         await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
         return
-    if look.locked:
-        from bot.handlers.video import _send_paywall, video_allowed
-        if not video_allowed(user, settings):
-            await cb.answer()
-            await _send_paywall(cb.message, settings, texts.LOOK_PAYWALL)
-            return
     st = apply_look(await state.get_data(), look.id, look.prompt)
     await state.set_data(st)
     await cb.answer()
@@ -666,9 +654,9 @@ async def detail_text(message: Message, state: FSMContext, session, user, settin
     await _run_generation(message, state, session, user, settings, generator)
 
 
-async def _photo_for_user(image: bytes, user) -> bytes:
-    """Без подписки на кадр ставится знак бота. Подписчик получает фото как есть."""
-    if image and not subscriptions.is_active(user):
+async def _photo_for_user(image: bytes, user, session) -> bytes:
+    """Пока не было покупки, на кадр ставится знак бота."""
+    if image and not await purchases.has_purchased(session, user.id):
         return await asyncio.to_thread(watermark.apply_free_mark, image)
     return image
 
@@ -711,7 +699,6 @@ def _empty_balance_offer(user, settings) -> tuple[str, object]:
     if ready:
         rows.append([(texts.BTN_BONUS_CLAIM, "bonus:claim")])
     rows.append([(texts.BTN_INVITE, "invite:open")])
-    rows.append([(texts.BTN_BUY_SUB, "shop:subs")])
     return "\n".join(lines), keyboards.grid([], 1, extra_rows=rows)
 
 
@@ -752,7 +739,7 @@ async def _deliver_scene(target: Message, state: FSMContext, session, user, sett
 
 
 async def _run_scene_photo(target: Message, state: FSMContext, session, user, settings, generator):
-    """Раздел «Фото»: кадр приходит сразу, без блюра и без подписки."""
+    """Раздел «Фото»: кадр приходит сразу. Пока не было покупки, на нём знак бота."""
     st = await state.get_data()
     if not st.get("people"):
         await target.answer(texts.SESSION_EXPIRED, reply_markup=keyboards.main_menu())
@@ -788,7 +775,7 @@ async def _run_scene_photo(target: Message, state: FSMContext, session, user, se
     st["last_seed"] = outcome.seed
     await state.set_data(st)
     await session.refresh(user)
-    photo = await _photo_for_user(outcome.image_bytes, user)
+    photo = await _photo_for_user(outcome.image_bytes, user, session)
     caption = texts.PHOTO_SCENE_CAPTION.format(scene=label)
     notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
     try:
@@ -804,8 +791,8 @@ async def _run_scene_photo(target: Message, state: FSMContext, session, user, se
 
 
 async def _run_scene_video(target: Message, state: FSMContext, session, user, settings, generator):
-    """Раздел «Видео»: гифка по сцене. Без подписки она уходит в блюре."""
-    from bot.handlers.video import animate_frame, video_allowed
+    """Раздел «Видео»: гифка по сцене. Без покупки она уходит в блюре."""
+    from bot.handlers.video import animate_frame
     from services.video.prompts import scene_motion
 
     st = await state.get_data()
@@ -839,7 +826,7 @@ async def _run_scene_video(target: Message, state: FSMContext, session, user, se
         await wait_msg.delete()
     except Exception:
         pass
-    teaser = not video_allowed(user, settings)
+    teaser = not await purchases.has_purchased(session, user.id)
     caption = (
         texts.VIDEO_BLUR_CAPTION.format(scene=label)
         if teaser
@@ -899,7 +886,7 @@ async def _run_generation(target: Message, state: FSMContext, session, user, set
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
         notice, markup = _with_empty_offer(notice, user, settings)
         await target.answer(notice, reply_markup=markup)
-        photo = await _photo_for_user(outcome.image_bytes, user)
+        photo = await _photo_for_user(outcome.image_bytes, user, session)
         sent = await send_result_photo(
             target, photo, caption, st,
             publish=settings.channel_chat() is not None,
@@ -1110,7 +1097,7 @@ async def gen_hd(cb: CallbackQuery, session, user):
         logger.warning("hd download failed for generation {}: {}", gen.id, e)
         await cb.message.answer(texts.HD_EXPIRED)
         return
-    data = await _photo_for_user(data, user)
+    data = await _photo_for_user(data, user, session)
     await cb.message.answer_document(BufferedInputFile(data, "photo_hd.jpg"))
 
 

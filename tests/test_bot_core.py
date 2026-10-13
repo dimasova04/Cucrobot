@@ -353,7 +353,7 @@ def test_help_tour_shows_animation_and_examples():
     assert [slide["kind"] for slide in SLIDES] == ["video", "photo", "video"]
     assert all(slide["path"].is_file() for slide in SLIDES)
     assert "далее" in SLIDES[0]["caption"]
-    assert "пример" in SLIDES[1]["caption"] and "подписк" in SLIDES[1]["caption"]
+    assert "пример" in SLIDES[1]["caption"] and "кристалл" in SLIDES[1]["caption"]
     assert "пример" in SLIDES[2]["caption"] and "баланс" in SLIDES[2]["caption"]
     assert [b.callback_data for b in help_kb(0).inline_keyboard[0]] == ["help:1"]
     assert help_kb(0).inline_keyboard[0][0].text == texts.BTN_HELP_NEXT

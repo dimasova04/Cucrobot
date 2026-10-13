@@ -10,10 +10,9 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.flow import GenStates, validate_video_prompt
-from bot.handlers.balance import subs_kb
 from bot.handlers.generate import _answer_not_enough
 from database.models import Generation
-from services.billing import subscriptions, wallet
+from services.billing import purchases, wallet
 from services.generation import watermark
 from services.generation import generator as gen_service
 from services.video.prompts import ACTIONS, video_prompt
@@ -29,18 +28,6 @@ def _parse_generation_id(data: str) -> int | None:
     if not raw.isdigit():
         return None
     return int(raw)
-
-
-def video_allowed(user, settings) -> bool:
-    """Ролик — подписчикам и админам. Остальным пейвол, кристаллики не списываем."""
-    return bool(settings.is_admin(user.id) or subscriptions.is_active(user))
-
-
-async def _send_paywall(target, settings, lead: str | None = None) -> None:
-    daily = settings.bonus_sub_amount
-    text = lead or texts.VIDEO_PAYWALL.format(seconds=settings.video_seconds, n=settings.cost_video)
-    text += "\n\n" + texts.SHOP_SUBS.format(daily=daily, monthly=daily * 30)
-    await target.answer(text, parse_mode="HTML", reply_markup=subs_kb(settings))
 
 
 async def _frame_bytes(bot, gen: Generation) -> bytes:
@@ -73,15 +60,12 @@ async def animate_frame(
     teaser: bool = False,
     as_gif: bool = False,
 ) -> bool:
-    """Списывает ролик и присылает гифку. Без подписки teaser уходит в блюре."""
+    """Списывает ролик и присылает гифку. Без покупки teaser уходит в блюре."""
     if user.id in _running:
         await target.answer(texts.ALREADY_RUNNING)
         return False
     if not (settings.replicate_api_token or "").strip():
         await target.answer(texts.VIDEO_NOT_READY)
-        return False
-    if not teaser and not video_allowed(user, settings):
-        await _send_paywall(target, settings)
         return False
     cost = settings.cost_video
     if user.crystals < cost:
@@ -116,9 +100,6 @@ async def animate_frame(
         if teaser:
             video = await asyncio.to_thread(watermark.apply_video_blur, video)
             markup = keyboards.blur_video_kb()
-        elif not subscriptions.is_active(user):
-            video = await asyncio.to_thread(watermark.apply_free_mark_video, video)
-            markup = keyboards.scene_video_kb()
         else:
             markup = keyboards.scene_video_kb()
         await session.refresh(user)
@@ -156,9 +137,7 @@ async def _run(
     if user.id in _running:
         await target.answer(texts.ALREADY_RUNNING)
         return
-    if not video_allowed(user, settings):
-        await _send_paywall(target, settings)
-        return
+    bought = await purchases.has_purchased(session, user.id)
     cost = settings.cost_video
     if user.crystals < cost:
         await _answer_not_enough(target, user, settings, cost)
@@ -198,13 +177,17 @@ async def _run(
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
             return
-        if not subscriptions.is_active(user):
-            video = await asyncio.to_thread(watermark.apply_free_mark_video, video)
+        markup = None
+        if not bought:
+            video = await asyncio.to_thread(watermark.apply_video_blur, video)
+            markup = keyboards.blur_video_kb()
         await session.refresh(user)
         caption = texts.VIDEO_CAPTION.format(seconds=settings.video_seconds)
         notice = texts.CHARGED.format(cost=cost, word=texts.crystals_word(cost), balance=user.crystals)
         try:
-            await target.answer_video(BufferedInputFile(video, "video.mp4"), caption=caption)
+            await target.answer_video(
+                BufferedInputFile(video, "video.mp4"), caption=caption, reply_markup=markup,
+            )
             await wait.edit_text(notice)
         except Exception as e:
             logger.warning("video send failed for {}: {}", user.id, e)
@@ -241,10 +224,6 @@ async def open_video_menu(cb: CallbackQuery, state: FSMContext, session, user, s
     if gen is None:
         await cb.answer(texts.VIDEO_NO_FRAME, show_alert=True)
         return
-    if not video_allowed(user, settings):
-        await cb.answer()
-        await _send_paywall(cb.message, settings)
-        return
     await state.set_state(GenStates.result)
     await state.update_data(video_generation_id=gen.id)
     await cb.answer()
@@ -266,10 +245,6 @@ async def pick_video_action(cb: CallbackQuery, state: FSMContext, session, user,
     if gen is None or (action != "custom" and action not in ACTIONS):
         await cb.answer(texts.VIDEO_NO_FRAME, show_alert=True)
         return
-    if not video_allowed(user, settings):
-        await cb.answer()
-        await _send_paywall(cb.message, settings)
-        return
     if action == "custom":
         await state.set_state(GenStates.video_prompt)
         await state.update_data(video_generation_id=gen.id)
@@ -282,10 +257,6 @@ async def pick_video_action(cb: CallbackQuery, state: FSMContext, session, user,
 
 @video_router.message(GenStates.video_prompt, F.text)
 async def video_custom_text(message: Message, state: FSMContext, session, user, settings):
-    if not video_allowed(user, settings):
-        await state.set_state(GenStates.result)
-        await _send_paywall(message, settings)
-        return
     err = validate_video_prompt(message.text)
     if err:
         await message.answer(err)

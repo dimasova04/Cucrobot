@@ -90,9 +90,9 @@
 
   function renderProfile() {
     var me = state.me;
-    var sub = me.sub.active
-      ? "активна до " + esc(me.sub.until)
-      : "нет — премиум-качество и ежедневные бонусы закрыты";
+    var subCard = me.sub.active
+      ? '<div class="card"><div class="card-title">⭐ Подписка</div><div>уже куплена, до ' + esc(me.sub.until) + "</div></div>"
+      : "";
     var bonusLine = me.bonus.ready
       ? "Бонус готов: +" + me.bonus.amount + " 💎"
       : "Следующий бонус " + waitText(me.bonus.wait_seconds);
@@ -114,13 +114,10 @@
           (me.level ? " · " + esc(me.level) : "") + "</div></div>"
         : "") +
 
-      '<div class="card">' +
-        '<div class="card-title">⭐ Подписка</div>' +
-        "<div>" + sub + "</div>" +
-      "</div>" +
+      subCard +
 
       '<div class="card">' +
-        '<div class="card-title">🎁 Ежедневный бонус</div>' +
+        '<div class="card-title">🎁 Бонус раз в 48 часов</div>' +
         '<div id="bonus-line" style="margin-bottom:12px">' + esc(bonusLine) + "</div>" +
         '<button class="btn btn-primary" id="bonus-btn"' + (me.bonus.ready ? "" : " disabled") + ">" +
           (me.bonus.ready ? "Забрать +" + me.bonus.amount + " 💎" : "Бонус ещё зреет 🌱") +
@@ -132,9 +129,8 @@
         '<div class="seg" id="quality-seg">' +
           '<button data-tier="base"' + (me.quality.tier === "base" ? ' class="is-active"' : "") + ">Обычное " + me.costs.base + " 💎</button>" +
           '<button data-tier="premium"' + (me.quality.tier === "premium" ? ' class="is-active"' : "") +
-            (me.quality.can_premium ? "" : " disabled") + ">Премиум " + me.costs.premium + " 💎</button>" +
+            ">Премиум " + me.costs.premium + " 💎</button>" +
         "</div>" +
-        (me.quality.can_premium ? "" : '<div class="muted" style="margin-top:10px">Премиум открывается с подпиской — она в «Магазине».</div>') +
       "</div>" +
 
       (low ? "" : inviteBlock(me, false)) +
@@ -201,7 +197,7 @@
       haptic("success");
       renderProfile();
     }).catch(function (e) {
-      toast(e.code === "premium_locked" ? "Премиум-качество — по подписке ⭐" : "Не получилось переключить");
+      toast("Не получилось переключить");
     });
   }
 
@@ -280,30 +276,13 @@
     var html = "<h2>💎 Кристаллики</h2>" +
       '<div class="card"><div class="muted">Фото — ' + (shop.cost_base || 1) +
       " 💎, приходит сразу. Видео — " + (shop.cost_video || 3) +
-      " 💎. Без подписки оно в блюре.</div></div>";
+      " 💎. Раз в 48 часов +" + (shop.daily_bonus || 3) +
+      " 💎: это 3 фото или 1 видео. Пока не было покупки, видео в блюре.</div></div>";
 
     shop.packs.forEach(function (p) {
       html += '<div class="product">' +
         '<div class="product-head"><span class="product-title">' + num(p.crystals) + " 💎</span></div>" +
         '<div class="product-sub">' + num(p.crystals) + " 💎 на фото и видео</div>" +
-        priceRow(p) +
-      "</div>";
-    });
-
-    html += "<h2>⭐ Подписка</h2>" +
-      '<div class="card"><ul class="benefits">' +
-        "<li><span>🎁</span><span>" + shop.daily_bonus + " кристалликов каждый день</span></li>" +
-        "<li><span>✨</span><span>Снять блюр с видео</span></li>" +
-        "<li><span>🔥</span><span>Откровенные образы</span></li>" +
-        "<li><span>🎬</span><span>Все сцены</span></li>" +
-        "<li><span>⚡</span><span>Кристаллики на ролики: до " + shop.daily_bonus + " в день</span></li>" +
-        "<li><span>🎉</span><span>И подарок сразу при покупке</span></li>" +
-      "</ul></div>";
-
-    shop.subs.forEach(function (p) {
-      html += '<div class="product">' +
-        '<div class="product-head"><span class="product-title">' + esc(p.title) + "</span></div>" +
-        '<div class="product-sub">🎉 Сразу в подарок: +' + num(p.gift) + " 💎</div>" +
         priceRow(p) +
       "</div>";
     });

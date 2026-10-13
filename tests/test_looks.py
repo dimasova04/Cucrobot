@@ -130,7 +130,7 @@ async def test_section_label_does_nothing():
     assert message.answers == []
 
 
-async def test_locked_look_without_subscription_opens_paywall(session_factory):
+async def test_locked_look_opens_without_a_purchase(session_factory, monkeypatch):
     async with session_factory() as s:
         user = await repo.get_or_create_user(s, 94, "u")
         user.crystals = 10
@@ -140,18 +140,21 @@ async def test_locked_look_without_subscription_opens_paywall(session_factory):
             {"people": ["p1"], "actors": [], "mode": "photo", "scene_id": None},
             GenStates.scene,
         )
-        message = _CapMessage()
+
+        class _Photo(_CapMessage):
+            async def answer_photo(self, photo, caption=None, reply_markup=None, **kw):
+                return None
+
+        message = _Photo()
         cb = _FakeCb("look:strip", message)
         settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
         generator = _FakeGenerator(
             GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
         )
+        monkeypatch.setattr("bot.handlers.generate.watermark.apply_free_mark", lambda data: data)
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
-    assert generator.calls == []
-    assert "подписк" in message.answers[-1][0].lower()
-    buttons = _callbacks(message.answers[-1][1])
-    assert any(item.startswith("buy:sub_") for item in buttons)
-    assert state._data.get("look_id") is None
+    assert generator.calls[0].custom_scene_text.startswith("[solo]")
+    assert state._data.get("look_id") == "strip"
 
 
 async def test_admin_without_subscription_opens_a_locked_look(session_factory, monkeypatch):
@@ -349,7 +352,7 @@ async def test_clips_page_edits_the_same_message():
     ]
 
 
-async def test_hard_clip_without_subscription_opens_paywall(session_factory):
+async def test_hard_clip_opens_without_a_purchase(session_factory):
     async with session_factory() as s:
         user = await repo.get_or_create_user(s, 97, "u")
         user.crystals = 10
@@ -364,8 +367,8 @@ async def test_hard_clip_without_subscription_opens_paywall(session_factory):
         )
         await generate_mod.clip_chosen(cb, state, s, user, settings, generator)
     assert generator.calls == []
-    assert "подписк" in message.answers[-1][0].lower()
-    assert any(item.startswith("buy:sub_") for item in _callbacks(message.answers[-1][1]))
+    assert message.answers[-1][0] == texts.SEND_PERSON_VIDEO
+    assert state._data["clip_id"] == "cum2"
 
 
 async def test_subscriber_clip_asks_for_the_girl_photo(session_factory):

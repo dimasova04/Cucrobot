@@ -96,12 +96,12 @@ def scene_video_kb() -> InlineKeyboardMarkup:
 
 
 def blur_video_kb() -> InlineKeyboardMarkup:
-    """Гифка в блюре: снять блюр открывает подписку."""
+    """Гифка в блюре: снять блюр открывает пакеты кристалликов."""
     return grid(
         [],
         1,
         [
-            [(texts.BTN_UNBLUR, "shop:subs")],
+            [(texts.BTN_UNBLUR, "shop:packs")],
             [(texts.BTN_CHANGE_SCENE, "gen:change_scene")],
             [(texts.BTN_NEW_PHOTO, "gen:new")],
         ],

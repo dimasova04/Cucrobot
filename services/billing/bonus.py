@@ -7,7 +7,7 @@ from config.settings import Settings
 from database.base import utcnow
 from database.models import User
 from database.repo import get_user_for_update
-from services.billing import subscriptions, wallet
+from services.billing import wallet
 
 
 @dataclass
@@ -19,10 +19,7 @@ class BonusStatus:
 
 def bonus_status(user: User, settings: Settings, now: datetime | None = None) -> BonusStatus:
     now = now or utcnow()
-    if subscriptions.is_active(user, now):
-        amount, hours = settings.bonus_sub_amount, settings.bonus_sub_hours
-    else:
-        amount, hours = settings.bonus_free_amount, settings.bonus_free_hours
+    amount, hours = settings.bonus_free_amount, settings.bonus_free_hours
     if user.last_bonus_at is None:
         return BonusStatus(True, amount, timedelta(0))
     ready_at = user.last_bonus_at + timedelta(hours=hours)
