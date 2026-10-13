@@ -19,11 +19,12 @@ def test_economy_defaults(monkeypatch):
     assert (s.stars_sub_week, s.stars_sub_month, s.stars_sub_3month) == (350, 990, 2490)
     assert (s.price_rub_sub_week, s.price_rub_sub_month, s.price_rub_sub_3month) == (450, 1290, 3290)
     assert (s.price_rub_pack_15, s.price_rub_pack_50, s.price_rub_pack_100, s.price_rub_pack_300, s.price_rub_pack_1000) == (150, 450, 850, 1990, 4990)
-    assert s.tribute_pack_15_url == "" and s.tribute_pack_1000_url == ""
+    assert s.tribute_pack_15_url == "https://web.tribute.tg/p/GVw"
     assert s.tribute_pack_50_url == "https://web.tribute.tg/p/FpD"
     assert s.tribute_pack_100_url == "https://web.tribute.tg/p/G6d"
     assert s.tribute_pack_300_url == "https://web.tribute.tg/p/G6e"
-    assert (s.tribute_pack_50_id, s.tribute_pack_100_id, s.tribute_pack_300_id) == ("FpD", "G6d", "G6e")
+    assert s.tribute_pack_1000_url == "https://web.tribute.tg/p/GVz"
+    assert (s.tribute_pack_15_id, s.tribute_pack_50_id, s.tribute_pack_100_id, s.tribute_pack_300_id, s.tribute_pack_1000_id) == ("GVw", "FpD", "G6d", "G6e", "GVz")
     assert (s.cost_base, s.cost_premium, s.cost_video) == (1, 3, 3)
     assert s.video_model == "bytedance/seedance-1-lite"
     assert s.video_seconds == 5 and s.video_resolution == "720p"

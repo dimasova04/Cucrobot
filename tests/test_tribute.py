@@ -76,9 +76,11 @@ def test_parse_pack_by_name_and_other():
 def test_live_tribute_pack_links_resolve():
     settings = Settings(_env_file=None, bot_token="x")
     titles = {
+        "GVw": ("15 кристалликов", "pack_15"),
         "FpD": ("50 кристалликов 💎", "pack_50"),
         "G6d": ("100 кристаллов", "pack_100"),
         "G6e": ("300 кристаллов", "pack_300"),
+        "GVz": ("1000 кристалликов", "pack_1000"),
     }
     for product_id, (name, code) in titles.items():
         by_id = tribute.parse_event(

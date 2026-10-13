@@ -186,7 +186,7 @@ async def test_shop_lists_six_products(session_factory):
     assert codes == ["pack_15", "pack_50", "pack_100", "pack_300", "pack_1000"]
     pack = body["packs"][0]
     assert pack["crystals"] == 15 and pack["gift"] == 0 and pack["stars"] == 120
-    assert pack["rub"] == 150 and pack["tribute_url"] == ""
+    assert pack["rub"] == 150 and pack["tribute_url"] == "https://web.tribute.tg/p/GVw"
     card = body["packs"][1]
     assert card["crystals"] == 50 and card["stars"] == 350
     assert card["tribute_url"] == "https://t.me/tribute/pack50"

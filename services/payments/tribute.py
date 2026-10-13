@@ -70,7 +70,7 @@ def parse_event(body: dict, settings) -> TributeEvent:
     if code is None and kind == "sub":
         code = PERIOD_MAP.get(str(payload.get("period", "")).lower())
     if code is None and kind == "pack":
-        m = re.search(r"\b(50|100|300)\b", str(payload.get("product_name", "")))
+        m = re.search(r"\b(1000|300|100|50|15)\b", str(payload.get("product_name", "")))
         code = f"pack_{m.group(1)}" if m else None
     # Только идентификаторы самого платежа: "id" и "subscription_id" указывают на
     # оффер/подписку и повторяются у каждого продления, что склеило бы разные платежи
