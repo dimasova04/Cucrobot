@@ -19,34 +19,38 @@ async def test_seed_scenes_once(session_factory):
         assert "Утро после" in names and "Велкам-студия" in names and "На кастинге" in names
         assert "Гримёрка" not in names and "Лифт отеля" not in names and "Его кухня" not in names
         hotel = next(sc for sc in scenes if sc.name == "Дверь номера")
-        assert "holding the door handle, smiling" in hotel.prompt
-        assert "holding her waist and elbow" in hotel.prompt
-        assert "holding key cards" not in hotel.prompt
+        assert "hotel corridor at a room door" in hotel.prompt
+        assert "black swimsuit" in hotel.prompt
+        assert "holding the door handle" not in hotel.prompt
+        assert "holding her waist" not in hotel.prompt
         by_name = {sc.name: sc.prompt for sc in scenes}
-        assert by_name["Яхта"].endswith("woman in a dark bikini, smiling, man beside her")
+        assert by_name["Яхта"].endswith("dark bikini, a different man beside her")
+        assert "source frame, face, figure and appearance" in by_name["Яхта"]
         assert "summer clothes" not in by_name["Яхта"]
-        assert "woman in a short go-go dress, smiling, man in club clothes holding her hand" in by_name["Ночной клуб"]
+        assert "short go-go dress, a different man in club clothes beside her" in by_name["Ночной клуб"]
         assert "party outfits" not in by_name["Ночной клуб"]
-        assert "woman secretary in a black mini skirt and white blouse leaning on the desk" in by_name["Офис"]
+        assert "black mini skirt and white blouse" in by_name["Офис"]
+        assert "leaning on the desk" not in by_name["Офис"]
         assert "business attire" not in by_name["Офис"]
-        assert "man in hawaiian shorts, woman in black lingerie, he looks at her, she smiles" in by_name["Съёмочная площадка"]
+        assert "hawaiian shorts on the man, black lingerie on her" in by_name["Съёмочная площадка"]
         assert "clapperboard" not in by_name["Съёмочная площадка"]
         film = next(sc for sc in scenes if sc.name == "Съёмочная площадка")
         assert catalog.scene_ref_ids(film) == [f"asset:scenes/set/{i:02d}.jpg" for i in range(1, 9)]
         assert film.orientation == "landscape"
         mascara_prompt = by_name["Селфи с размазанной тушью"]
-        assert "woman in black lingerie laughing" in mascara_prompt
+        assert "black lingerie" in mascara_prompt
         assert "wide black streaks down both cheeks" in mascara_prompt
         assert "looking at the phone" not in mascara_prompt
         mascara = next(sc for sc in scenes if sc.name == "Селфи с размазанной тушью")
         assert mascara.orientation == "portrait"
         assert catalog.scene_ref_ids(mascara) == [f"asset:scenes/mascara/{i:02d}.jpg" for i in range(1, 4)]
-        assert "legs stretched across his lap" in by_name["Лимузин"]
-        assert "his hand on her ankle" in by_name["Лимузин"]
+        assert "black limousine at night" in by_name["Лимузин"]
+        assert "short black dress and black heels" in by_name["Лимузин"]
+        assert "legs stretched across his lap" not in by_name["Лимузин"]
         assert "holding glasses" not in by_name["Лимузин"]
         euro_prompt = by_name["За 1000 евро"]
         assert euro_prompt.startswith("[solo] ")
-        assert "one woman alone looking at the camera" in euro_prompt
+        assert "source frame, face, figure and appearance" in euro_prompt
         assert "cropped hand at the frame edge holding euro banknotes" in euro_prompt
         assert "no face on that hand" in euro_prompt
         assert "black leather jacket and black bra" in euro_prompt
@@ -65,7 +69,7 @@ async def test_seed_scenes_once(session_factory):
         assert len(catalog.scene_ref_ids(euro)) == 4
         assert euro.orientation == "landscape"
         morning = next(sc for sc in scenes if sc.name == "Утро после")
-        assert "morning-after selfie, one bedroom, white bathrobe over lingerie" in morning.prompt
+        assert "morning bedroom, white bathrobe over lingerie" in morning.prompt
         assert "light mascara traces only" in morning.prompt
         assert "close phone selfie" not in morning.prompt
         assert morning.prompt != by_name["Селфи с размазанной тушью"]
@@ -76,6 +80,7 @@ async def test_seed_scenes_once(session_factory):
             "asset:scenes/morning/02.jpg",
             "asset:scenes/morning/05.jpg",
         ]
+        assert all("source frame, face, figure and appearance" in sc.prompt for sc in scenes)
         assert all(sc.orientation in catalog.SIZES for sc in scenes)
         assert all(sc.name and sc.prompt for sc in scenes)
         assert all(is_allowed(sc.prompt) for sc in scenes)

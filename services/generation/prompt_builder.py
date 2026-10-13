@@ -8,8 +8,8 @@ SAFETY_CLAUSE = (
     "Do not move one person's arms, shoulders or muscles onto another person. "
     "The woman's arms stay as in her own photo. "
     "Do not copy clothes, props, background, logos or text from the person and actor photos. "
-    "Clothing, pose and setting come from the scene description and the requested detail. "
-    "A location reference is the exception: follow its framing, pose and place, but not the faces in it."
+    "Change only the clothes and the place. Keep the source frame, face, figure and appearance. "
+    "A location photo is the place only, not a new body."
 )
 REALISM_CLAUSE = (
     "Natural skin texture with pores, realistic lighting and shadows, "
@@ -234,19 +234,19 @@ def _validate(inp: GenerationInput, budget: int) -> None:
 
 
 _FIRST_SCENE = (
-    "Image {n} is a location reference. Match its framing, place and props. "
+    "Image {n} is a location reference. Use its place and props only. "
     "Faces and bodies in it are blanked out. Do not copy the faces, bodies or clothes "
     "of any person who appears only in it, including a camera operator or crew. "
     "Do not replace an actor with a different man."
 )
 _NEXT_SCENE = (
-    "Image {n} is another reference for this scene. Follow its framing and place. "
+    "Image {n} is another reference for this scene. Use its place and props. "
     "One room only: do not collage different places into one photo. "
     "Do not copy faces, bodies or clothes from it. Do not replace an actor with a different man."
 )
 # Восемь отдельных строк про кадры площадки раздували промпт за 3000 символов.
 _MORE_SCENES = (
-    "Images {a}-{b} are more references for this same place. Follow their framing and props. "
+    "Images {a}-{b} are more references for this same place. Use their place and props. "
     "Do not copy faces, bodies, clothes or crew from them. Do not replace an actor with a different man."
 )
 
@@ -461,6 +461,15 @@ def _qwen_insert(
     return _join(lines), [previous_image] + [data for _kind, data, _idx in ordered]
 
 
+def _source_lead(people: int) -> str:
+    """Обычное фото — правка исходного кадра, а не новый человек."""
+    if people <= 1:
+        opening = "Image 1 is the source photograph."
+    else:
+        opening = "The first images are the source photographs."
+    return f"{opening} Keep frame, face, figure and appearance."
+
+
 def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple[str, list[str]]:
     if style == "qwen":
         _qwen_validate(inp, max_refs)
@@ -476,20 +485,28 @@ def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple
         return _sdxl_fresh(inp), [d for _k, d, _i in ordered]
     people = ", ".join(PERSON_LABELS[: len(inp.people)])
     scene = scene_text(inp.scene_prompt).rstrip(".").strip()
-    # Сначала главное — сцена и деталь пользователя, затем кто есть кто на референсах.
+    # Сначала личность и исходный кадр: klein иначе рисует нового человека.
+    lines = [_source_lead(len(inp.people))]
     if solo:
-        lines = [f"A candid photorealistic photo of {people} alone. {scene}."]
+        lines.append(f"Only {people} is in the frame. {scene}.")
         count = len(inp.people)
     elif not inp.actors:
-        lines = [
-            f"A candid photorealistic photo of {people}. {scene}.",
-            "Person A is the woman from the reference photo. Keep her face.",
-            "If the scene mentions a man, he is a new person in this scene, not a second copy of her.",
-        ]
+        if len(inp.people) == 1:
+            lines.append(
+                "Person A is the woman from the source photo. Keep her face, figure and appearance."
+            )
+        else:
+            lines.append(
+                f"{people} are the people from the source photos. Keep each face, figure and appearance."
+            )
+        lines.append(
+            "If the scene mentions a man, he is a new person in this scene, not a second copy of her."
+        )
+        lines.append(f"{scene}.")
         count = None
     else:
         actors = " and ".join(a.name for a in inp.actors)
-        lines = [f"A candid photorealistic photo of {people} together with {actors} {scene}."]
+        lines.append(f"{people} together with {actors}. {scene}.")
         count = len(inp.people) + len(inp.actors)
     if inp.cast_note:
         lines.append(inp.cast_note.strip().rstrip(".") + ".")

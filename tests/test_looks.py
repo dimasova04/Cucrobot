@@ -26,6 +26,15 @@ def test_photo_looks_match_the_example_and_skip_a_schoolgirl():
     assert not get_look("bikini").locked and not get_look("teacher").locked
     for item in LOOKS:
         assert item.prompt.startswith("[solo]")
+        assert "same frame" in item.prompt
+        assert "same face" in item.prompt
+        assert "same appearance" in item.prompt
+        assert "Do not replace this person." in item.prompt
+        if item.id == "pregnant":
+            assert "pregnant belly" in item.prompt
+        else:
+            assert "same figure" in item.prompt
+            assert "Change only the clothes:" in item.prompt
         assert not mentions_minor(item.prompt)
         assert not mentions_minor(item.name)
         assert "школьн" not in item.name.lower() and "школьн" not in item.prompt.lower()

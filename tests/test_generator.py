@@ -300,7 +300,8 @@ async def test_photo_without_actor_is_unbilled(session_factory, monkeypatch):
     out = await gen.run(req)
     assert out.status == "done" and out.image_bytes == b"IMG"
     prompt = provider.calls[0]["prompt"]
-    assert prompt.startswith("A candid photorealistic photo")
+    assert prompt.startswith("Image 1 is the source photograph.")
+    assert "Keep frame, face, figure and appearance." in prompt
     assert "on a yacht, he holds her hand" in prompt
     assert "together with" not in prompt
     assert provider.calls[0].get("family") is None
