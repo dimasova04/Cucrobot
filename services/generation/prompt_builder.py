@@ -535,7 +535,9 @@ def build(inp: GenerationInput, max_refs: int, style: str = "instruct") -> tuple
     if _clothes_come_off(scene):
         lines.append(
             "The clothes from the source photo are removed. "
-            "Do not replace them with another outfit."
+            "Do not replace them with another outfit. "
+            "Two natural breasts on the chest, one nipple each, not fused and not extra. "
+            "One natural vulva between the thighs. No penis and no extra genitals."
         )
     lines.append(REALISM_CLAUSE)
     return _join(lines), [d for _k, d, _i in ordered]

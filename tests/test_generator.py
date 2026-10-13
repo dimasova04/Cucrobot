@@ -162,6 +162,7 @@ def test_guide_photo_becomes_a_small_jpeg():
     assert klein["steps"] == 4 and klein["CFGScale"] == 2 and klein["acceleration"] == "none"
     assert "tattoo" in klein["negativePrompt"]
     assert "extra arm" in klein["negativePrompt"] and "fused fingers" in klein["negativePrompt"]
+    assert "extra breast" in klein["negativePrompt"] and "penis on a woman" in klein["negativePrompt"]
     assert klein["lora"] == [{"model": "civitai:2324991@2615554", "weight": 2.0}]
     from runware import IImageInference, ILora
     ready = IImageInference(

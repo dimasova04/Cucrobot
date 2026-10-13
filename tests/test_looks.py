@@ -67,8 +67,11 @@ def test_strip_look_removes_the_clothes_instead_of_replacing_them():
     )
     assert refs == ["p"]
     assert "completely naked" in prompt
+    assert "two breasts" in look.prompt and "one nipple" in look.prompt
+    assert "vulva" in look.prompt
     assert "Do not replace them with another outfit." in prompt
-    assert prompt.rfind("Do not replace them with another outfit.") > prompt.rfind("Change only the clothes")
+    assert "one nipple each" in prompt and "One natural vulva" in prompt
+    assert prompt.rfind("One natural vulva") > prompt.rfind("Change only the clothes")
 
 
 def test_locked_look_stays_one_adult_woman():

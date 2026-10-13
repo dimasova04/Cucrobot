@@ -53,7 +53,9 @@ KLEIN_NEGATIVE = (
     "new tattoo, extra tattoo, tattoo on clear skin, different face, different body, "
     "changed figure, extra arm, third arm, extra hand, extra finger, six fingers, "
     "missing finger, fused fingers, melted hand, disconnected limb, floating hand, "
-    "broken elbow, broken wrist, broken knee, merged bodies, duplicate torso, plastic skin"
+    "broken elbow, broken wrist, broken knee, merged bodies, duplicate torso, "
+    "extra breast, third breast, fused breasts, extra nipple, deformed breast, "
+    "extra genitals, duplicate vulva, penis on a woman, plastic skin"
 )
 
 

@@ -24,6 +24,8 @@ _UNDRESS = (
     "Keep the source photograph: same frame, same face, same figure, same pose, same place. "
     "Do not replace this person. "
     "Remove the clothes she is wearing in this photo. Do not dress her in a new outfit. "
+    "Natural adult chest: two breasts on the ribcage, one nipple on each, matching her figure. "
+    "Natural adult vulva in its place between the thighs, one set only. "
 )
 LOOKS: tuple[Look, ...] = (
     Look(
