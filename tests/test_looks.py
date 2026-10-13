@@ -243,6 +243,11 @@ def test_video_refs_are_optional_until_a_file_is_added():
     for item in clips_for("sfw"):
         assert not item.locked
         assert is_allowed(item.prompt)
+    for item in clips_for("nsfw"):
+        assert item.locked
+        assert "same face, same figure, same appearance" in item.prompt
+        assert "Realistic sexual motion:" in item.prompt
+        assert "Explicit adult" in item.prompt
     for item in CLIPS:
         assert not mentions_minor(item.prompt)
         assert not mentions_minor(item.name)

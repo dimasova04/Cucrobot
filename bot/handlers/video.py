@@ -118,7 +118,7 @@ async def animate_frame(
             await session.commit()
             await wait.edit_text(texts.VIDEO_FAILED)
             return False
-        if teaser:
+        if teaser and not settings.is_admin(user.id):
             video = await asyncio.to_thread(watermark.apply_video_blur, video)
             markup = keyboards.blur_video_kb()
         else:
@@ -194,7 +194,7 @@ async def _run(
             await wait.edit_text(texts.VIDEO_FAILED)
             return
         markup = None
-        if not bought:
+        if not bought and not settings.is_admin(user.id):
             video = await asyncio.to_thread(watermark.apply_video_blur, video)
             markup = keyboards.blur_video_kb()
         await session.refresh(user)

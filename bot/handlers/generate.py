@@ -826,7 +826,7 @@ async def _run_scene_video(target: Message, state: FSMContext, session, user, se
         await wait_msg.delete()
     except Exception:
         pass
-    teaser = not await purchases.has_purchased(session, user.id)
+    teaser = not settings.is_admin(user.id) and not await purchases.has_purchased(session, user.id)
     caption = (
         texts.VIDEO_BLUR_CAPTION.format(scene=label)
         if teaser
