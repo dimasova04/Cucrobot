@@ -306,15 +306,42 @@ async def test_send_intro_caches_file_id(monkeypatch):
 
 
 
-async def test_build_help_lists_the_catalog(session_factory):
-    from bot.handlers.menu import build_help
+def test_help_tour_shows_animation_and_examples():
+    from bot.help_tour import SLIDES, help_kb
 
-    async with session_factory() as s:
-        text = await build_help(s)
-    assert "Сделать фото" in text
-    assert "SFW" in text
-    assert "NSFW" in text
-    assert "подписк" in text
+    assert [slide["kind"] for slide in SLIDES] == ["video", "photo", "video"]
+    assert all(slide["path"].is_file() for slide in SLIDES)
+    assert "далее" in SLIDES[0]["caption"]
+    assert "пример" in SLIDES[1]["caption"] and "подписк" in SLIDES[1]["caption"]
+    assert "пример" in SLIDES[2]["caption"] and "баланс" in SLIDES[2]["caption"]
+    assert [b.callback_data for b in help_kb(0).inline_keyboard[0]] == ["help:1"]
+    assert help_kb(0).inline_keyboard[0][0].text == texts.BTN_HELP_NEXT
+    assert [b.callback_data for b in help_kb(1).inline_keyboard[0]] == ["help:0", "help:2"]
+    assert [b.callback_data for b in help_kb(2).inline_keyboard[0]] == ["help:1", "menu:generate"]
+
+
+async def test_help_next_replaces_the_slide():
+    from types import SimpleNamespace
+
+    from bot.help_tour import SLIDES, show_page
+
+    class Msg:
+        def __init__(self):
+            self.media = None
+            self.markup = None
+
+        async def edit_media(self, media, reply_markup=None):
+            self.media = media
+            self.markup = reply_markup
+            return SimpleNamespace(video=SimpleNamespace(file_id="tour-video"), photo=None)
+
+    msg = Msg()
+    await show_page(msg, 2)
+    assert msg.media.caption == SLIDES[2]["caption"]
+    assert msg.markup.inline_keyboard[0][-1].callback_data == "menu:generate"
+    from bot import help_tour
+
+    help_tour._file_ids.clear()
 
 
 def test_intro_keyboard_gets_webapp_button_when_url_is_set():

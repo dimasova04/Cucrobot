@@ -6,6 +6,7 @@ from loguru import logger
 
 from bot import keyboards, texts
 from bot.bonus_card import send_bonus_card
+from bot.help_tour import SLIDES, send_page, show_page
 from bot.intro import send_intro
 
 menu_router = Router(name="menu")
@@ -42,23 +43,29 @@ async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
     await send_intro(cb.bot, user.id, settings.webapp_url, settings.channel_url)
 
 
-async def build_help(session) -> str:
-    return texts.HELP
-
-
 def _help_markup():
     return keyboards.grid([], extra_rows=[keyboards.back_row("menu")])
 
 
 @menu_router.message(F.text == texts.BTN_HELP)
-async def help_msg(message: Message, session):
-    await message.answer(await build_help(session), parse_mode="HTML", reply_markup=_help_markup())
+async def help_msg(message: Message):
+    await send_page(message.bot, message.chat.id, 0)
 
 
 @menu_router.callback_query(F.data == "menu:help")
-async def cb_help(cb: CallbackQuery, session):
+async def cb_help(cb: CallbackQuery):
     await cb.answer()
-    await cb.message.answer(await build_help(session), parse_mode="HTML", reply_markup=_help_markup())
+    await send_page(cb.bot, cb.message.chat.id, 0)
+
+
+@menu_router.callback_query(F.data.regexp(r"^help:\d+$"))
+async def cb_help_page(cb: CallbackQuery):
+    page = int(cb.data.split(":", 1)[1])
+    if page < 0 or page >= len(SLIDES):
+        await cb.answer()
+        return
+    await cb.answer()
+    await show_page(cb.message, page)
 
 
 @menu_router.callback_query(F.data == "menu:rules")
