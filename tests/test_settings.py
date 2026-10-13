@@ -47,6 +47,13 @@ def test_dotenv_file_is_loaded(tmp_path, monkeypatch):
     assert s.bot_token == "from-file" and s.admin_ids == [1, 2]
 
 
+def test_scheduler_quotes_from_env_are_stripped(monkeypatch):
+    monkeypatch.setenv("BOT_TOKEN", "x")
+    monkeypatch.setenv("MODEL_BASE_SCHEDULER", '"DPM++ 2M Karras"')
+    s = Settings(_env_file=None)
+    assert s.model_base_scheduler == "DPM++ 2M Karras"
+
+
 def test_frame_size_per_model(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "x")
     s = Settings(_env_file=None)

@@ -137,7 +137,11 @@ class Generator:
         return 1216, 832
 
     def _uses_sdxl(self, tier: str) -> bool:
-        return tier != "premium" and self._settings.model_base_family == "sdxl"
+        if tier == "premium":
+            return False
+        s = self._settings
+        # Чекпоинт SDXL не умеет referenceImages. Семейство в переменных могло остаться старым.
+        return s.model_base_family == "sdxl" or _is_sdxl_air(s.model_base_air)
 
     def _sdxl_call(self, inp: GenerationInput, max_refs: int, mode: str, previous: str | None, detail: str) -> dict:
         s = self._settings

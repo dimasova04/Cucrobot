@@ -113,6 +113,38 @@ def test_face_crop_keeps_bytes_when_there_is_no_face():
     assert faces.crop_largest_face(b"not an image") == b"not an image"
 
 
+def test_guide_photo_becomes_a_small_jpeg():
+    import cv2
+    import numpy as np
+
+    from services.generation.runware_client import jpeg_data_uri, sdxl_retry_fields
+
+    big = cv2.imencode(".png", np.full((1800, 1200, 3), 40, dtype=np.uint8))[1].tobytes()
+    uri = "data:image/jpeg;base64," + base64.b64encode(big).decode()
+    shrunk = jpeg_data_uri(uri)
+    assert shrunk.startswith("data:image/jpeg;base64,")
+    raw = base64.b64decode(shrunk.split(",", 1)[1])
+    img = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert img is not None and max(img.shape[:2]) <= 1024
+    assert jpeg_data_uri("data:image/jpeg;base64," + base64.b64encode(b"not an image").decode()).endswith(
+        base64.b64encode(b"not an image").decode()
+    )
+    fields = {
+        "model": "civitai:101055@128078",
+        "scheduler": '"DPM++ 2M Karras"',
+        "negativePrompt": "blurry",
+        "strength": 0.72,
+        "inputs": {"seedImage": "data:image/jpeg;base64,abc"},
+        "ipAdapters": [{"model": "runware:55@3", "guideImages": ["face"], "embedScaling": "kv"}],
+    }
+    plain = sdxl_retry_fields(fields)
+    assert plain is not None
+    assert "scheduler" not in plain and "negativePrompt" not in plain and "strength" not in plain
+    assert "inputs" not in plain
+    assert plain["ipAdapters"] == [{"model": "runware:55@3", "guideImages": ["face"]}]
+    assert sdxl_retry_fields(plain) is None
+
+
 async def test_face_detector_returns_false_on_blank():
     import cv2, numpy as np
     blank = cv2.imencode(".jpg", np.zeros((300, 300, 3), dtype=np.uint8))[1].tobytes()
@@ -158,6 +190,26 @@ async def test_success_charges_and_records(session_factory, monkeypatch):
         row = await s.get(Generation, out.generation_id)
         assert row.status == "done" and row.crystals_charged == 1 and row.actors[0]["name"] == "Stat"
         assert row.result_url == "http://x/img.jpg"
+
+
+async def test_civitai_air_uses_sdxl_even_if_family_is_old(session_factory, monkeypatch):
+    """Семейство reference и чекпоинт SDXL: referenceImages этот чекпоинт не принимает."""
+    actor_id, scene_id = await _seed(session_factory)
+    provider = FakeProvider([ImageResult(url="http://x/img.jpg", cost=0.002, nsfw=False)])
+
+    async def fake_download(url):
+        return b"IMG"
+
+    from services.generation import generator as g
+    monkeypatch.setattr(g, "download_bytes", fake_download)
+    settings = _settings()
+    settings.model_base_family = "reference"
+    settings.model_base_air = "civitai:101055@128078"
+    gen = Generator(session_factory, provider, FakeFetcher(), settings)
+    out = await gen.run(_req(actor_id, scene_id))
+    assert out.status == "done"
+    assert provider.calls[0]["family"] == "sdxl"
+    assert provider.calls[0]["model"] == "civitai:101055@128078"
 
 
 async def test_stale_seedream_env_still_calls_sdxl(session_factory, monkeypatch):

@@ -117,6 +117,14 @@ class Settings(BaseSettings):
             return [int(x) for x in v.split(",") if x.strip()]
         return v
 
+    @field_validator("model_base_scheduler", mode="before")
+    @classmethod
+    def _strip_scheduler_quotes(cls, v):
+        # В .env значение в кавычках из-за пробелов. Если кавычки попали в Railway, API отклоняет запрос.
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'").strip()
+        return v
+
     def frame_size(self, tier: str, orientation: str) -> tuple[int, int]:
         raw = getattr(self, f"model_{tier}_{orientation}")
         w, h = raw.lower().split("x")

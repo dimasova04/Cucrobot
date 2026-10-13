@@ -148,6 +148,30 @@ def _cover_standing_people(img) -> None:
         )
 
 
+def jpeg_for_model(image_bytes: bytes, max_side: int = 1024) -> bytes | None:
+    """Обычный JPEG не длиннее max_side. None — байты не картинка, вызывающий оставляет их как есть.
+
+    Фото из Telegram часто больше 2000 px или это PNG/WebP под подписью jpeg.
+    IP-Adapter такой кадр не читает, и генерация падает целиком.
+    """
+    img = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return None
+    height, width = img.shape[:2]
+    long_side = max(height, width)
+    if long_side > max_side:
+        scale = max_side / long_side
+        img = cv2.resize(
+            img,
+            (max(1, int(width * scale)), max(1, int(height * scale))),
+            interpolation=cv2.INTER_AREA,
+        )
+    ok, encoded = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+    if not ok:
+        return None
+    return encoded.tobytes()
+
+
 def crop_largest_face(image_bytes: bytes) -> bytes:
     """Квадрат вокруг самого крупного лица. Адаптеру не отдаём комнату и одежду с фото.
 
