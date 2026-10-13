@@ -69,7 +69,7 @@ async def test_both_look_blocks_are_visible(session_factory):
     sub_cbs = _callbacks(target.answers[1][1])
     assert "look:bikini" in free_cbs and "look:shorts" in free_cbs
     assert "look:nude" in sub_cbs and "look:bed" in sub_cbs and "look:chair" in sub_cbs
-    assert "look:places" in sub_cbs
+    assert "look:places" not in sub_cbs and "scene:custom" not in sub_cbs
     assert "shop:subs" not in free_cbs and "shop:subs" not in sub_cbs
     assert state._state == GenStates.scene
 
@@ -156,3 +156,68 @@ async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
         await generate_mod.look_chosen(cb, state, s, user, settings, generator)
     assert "кресле" in generator.calls[0].custom_scene_text
     assert state._data["look_id"] == "chair"
+
+
+def test_video_refs_are_optional_until_a_file_is_added():
+    from bot.clips import get_clip, hard_clips, light_clips, ref_file
+    from services.generation.content_filter import is_allowed as allowed
+
+    assert [item.name for item in light_clips()]
+    assert "Снимает всё" in [item.name for item in hard_clips()]
+    assert "В кресле" in [item.name for item in hard_clips()]
+    for item in light_clips():
+        assert allowed(item.prompt)
+        assert ref_file(item) is None
+    for item in hard_clips():
+        assert item.locked
+        assert "без одежды" in item.prompt
+    assert get_clip("nope") is None
+
+
+async def test_video_catalog_shows_light_and_hard():
+    target, state = _FakeTarget(), _FakeState({"mode": "video"}, GenStates.section)
+    await generate_mod._show_clips(target, state)
+    assert target.answers[0][0] == texts.CHOOSE_CLIPS_LIGHT
+    light = _callbacks(target.answers[0][1])
+    hard = _callbacks(target.answers[1][1])
+    assert "clip:dance" in light and "clip:walk" in light
+    assert "clip:undress" in hard and "clip:chair" in hard
+    assert "shop:subs" not in hard
+
+
+async def test_hard_clip_without_subscription_opens_paywall(session_factory):
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 97, "u")
+        user.crystals = 10
+        user.sub_until = None
+        await s.commit()
+        state = _FakeState({"people": [], "mode": "video"}, GenStates.scene)
+        message = _CapMessage()
+        cb = _FakeCb("clip:bed", message)
+        settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+        )
+        await generate_mod.clip_chosen(cb, state, s, user, settings, generator)
+    assert generator.calls == []
+    assert "подписк" in message.answers[-1][0].lower()
+    assert any(item.startswith("buy:sub_") for item in _callbacks(message.answers[-1][1]))
+
+
+async def test_light_clip_asks_for_the_girl_photo(session_factory):
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 98, "u")
+        user.crystals = 10
+        await s.commit()
+        state = _FakeState({"people": [], "mode": "video"}, GenStates.scene)
+        message = _CapMessage()
+        cb = _FakeCb("clip:dance", message)
+        settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+        )
+        await generate_mod.clip_chosen(cb, state, s, user, settings, generator)
+    assert generator.calls == []
+    assert message.answers[-1][0] == texts.SEND_PERSON_VIDEO
+    assert state._data["clip_id"] == "dance"
+    assert state._state == GenStates.person1

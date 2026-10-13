@@ -36,6 +36,7 @@ from services import aliases
 from services.channel_rank import level_title, published_count
 from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
+from bot.clips import get_clip, hard_clips, light_clips
 from bot.looks import free_looks, get_look, locked_looks
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
@@ -56,25 +57,49 @@ def _photo_file_id(message: Message) -> str | None:
     return None
 
 
+def _ask_photo_markup():
+    return keyboards.grid([], extra_rows=[keyboards.back_row("menu"), keyboards.cancel_row()])
+
+
 async def start_create_flow(message: Message, state: FSMContext):
+    """Сделать фото: сначала снимок девушки, потом кнопки образов."""
     await state.clear()
-    await state.set_data(empty_data())
+    data = empty_data()
+    data["mode"] = "photo"
+    await state.set_data(data)
     await state.set_state(GenStates.person1)
-    await message.answer(
-        texts.SEND_PERSON_1,
-        reply_markup=keyboards.grid([], extra_rows=[keyboards.back_row("menu"), keyboards.cancel_row()]),
-    )
+    await message.answer(texts.SEND_PERSON_1, reply_markup=_ask_photo_markup())
 
 
-@generate_router.message(F.text == texts.BTN_CREATE)
+async def start_video_flow(message: Message, state: FSMContext):
+    """Сделать видео: сразу каталог лайт и жёстких сцен."""
+    await state.clear()
+    data = empty_data()
+    data["mode"] = "video"
+    await state.set_data(data)
+    await _show_clips(message, state)
+
+
+@generate_router.message(F.text.in_({texts.BTN_MAKE_PHOTO, texts.BTN_CREATE, "🎬 Создать"}))
 async def btn_create(message: Message, state: FSMContext):
     await start_create_flow(message, state)
 
 
-@generate_router.callback_query(F.data == "menu:create")
+@generate_router.message(F.text == texts.BTN_MAKE_VIDEO)
+async def btn_video(message: Message, state: FSMContext):
+    await start_video_flow(message, state)
+
+
+@generate_router.callback_query(F.data.in_({"menu:create", "menu:photo"}))
 async def cb_create(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     await start_create_flow(cb.message, state)
+
+
+@generate_router.callback_query(F.data == "menu:video")
+async def cb_video(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await start_video_flow(cb.message, state)
 
 
 def _nav_row(prefix: str, page: int, has_prev: bool, has_next: bool) -> list[list[tuple[str, str]]]:
@@ -141,7 +166,10 @@ async def section_chosen(cb: CallbackQuery, state: FSMContext):
     st["mode"] = mode
     await state.set_data(st)
     await cb.answer()
-    await _show_looks(cb.message, state)
+    if mode == "video":
+        await _show_clips(cb.message, state)
+    else:
+        await _show_looks(cb.message, state)
 
 
 async def _show_looks(target: Message, state: FSMContext):
@@ -155,9 +183,7 @@ async def _show_looks(target: Message, state: FSMContext):
             locked,
             2,
             [
-                [(texts.BTN_PLACES, "look:places")],
-                [(texts.BTN_CUSTOM_SCENE, "scene:custom")],
-                keyboards.back_row("section"),
+                keyboards.back_row("menu"),
                 keyboards.cancel_row(),
             ],
         ),
@@ -184,6 +210,21 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
+async def _show_clips(target: Message, state: FSMContext):
+    await state.set_state(GenStates.scene)
+    light = [(item.name, f"clip:{item.id}") for item in light_clips()]
+    hard = [(item.name, f"clip:{item.id}") for item in hard_clips()]
+    await target.answer(texts.CHOOSE_CLIPS_LIGHT, reply_markup=keyboards.grid(light, 2))
+    await target.answer(
+        texts.CHOOSE_CLIPS_HARD,
+        reply_markup=keyboards.grid(
+            hard,
+            2,
+            [keyboards.back_row("menu"), keyboards.cancel_row()],
+        ),
+    )
+
+
 async def _drop_edit(state: FSMContext, st: dict) -> dict:
     """Снимает одноразовые флаги правки детали: любая другая кнопка под
     результатом — обычная генерация."""
@@ -206,20 +247,26 @@ async def _check_result_session(cb: CallbackQuery, state: FSMContext) -> dict | 
 
 
 @generate_router.message(GenStates.person1, F.photo | F.document)
-async def got_person1_photo(message: Message, state: FSMContext, session, bot: Bot):
+async def got_person1_photo(message: Message, state: FSMContext, session, bot: Bot, user, settings, generator):
     file_id = _photo_file_id(message)
     if not file_id:
         await message.answer(texts.NOT_A_PHOTO)
         return
     data = (await bot.download(file_id)).read()
-    # OpenCV блокирует поток: держим event loop свободным, пока идёт детекция.
+    # OpenCV блокирует поток: держим event loop свободным, пока идёт детекцию.
     if not await asyncio.to_thread(faces.has_face, data):
         await message.answer(texts.NO_FACE)
         return
     st = await state.get_data()
-    st["people"].append(file_id)
+    st.setdefault("people", []).append(file_id)
     await state.set_data(st)
-    await _show_sections(message, state)
+    if st.get("mode") == "video" and st.get("clip_id"):
+        await _deliver_scene(message, state, session, user, settings, generator)
+        return
+    if st.get("mode") == "video":
+        await _show_clips(message, state)
+        return
+    await _show_looks(message, state)
 
 
 async def _ask_actor_name(target: Message, state: FSMContext):
@@ -407,6 +454,34 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
     )
 
 
+@generate_router.callback_query(GenStates.scene, F.data.startswith("clip:"))
+async def clip_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
+    clip = get_clip(cb.data.split(":", 1)[1])
+    if clip is None:
+        await cb.answer(texts.SESSION_EXPIRED, show_alert=True)
+        return
+    if clip.locked:
+        from bot.handlers.video import _send_paywall, video_allowed
+        if not video_allowed(user, settings):
+            await cb.answer()
+            await _send_paywall(cb.message, settings, texts.LOOK_PAYWALL)
+            return
+    st = await state.get_data()
+    st["mode"] = "video"
+    st["clip_id"] = clip.id
+    st["look_id"] = None
+    st["scene_id"] = None
+    st["custom_text"] = clip.prompt
+    st["custom_file_id"] = None
+    await state.set_data(st)
+    await cb.answer()
+    if not st.get("people"):
+        await state.set_state(GenStates.person1)
+        await cb.message.answer(texts.SEND_PERSON_VIDEO, reply_markup=_ask_photo_markup())
+        return
+    await _deliver_scene(cb.message, state, session, user, settings, generator)
+
+
 @generate_router.callback_query(GenStates.scene, F.data.startswith("look:"))
 async def look_chosen(cb: CallbackQuery, state: FSMContext, session, user, settings, generator):
     code = cb.data.split(":", 1)[1]
@@ -536,6 +611,9 @@ async def _answer_not_enough(target: Message, user, settings, cost: int) -> None
 
 
 def _scene_source(st: dict, scene) -> tuple[str, str]:
+    clip = get_clip(st.get("clip_id"))
+    if clip:
+        return clip.prompt, clip.name
     look = get_look(st.get("look_id"))
     if look:
         return look.prompt, look.name
@@ -752,7 +830,10 @@ async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
     # Сцена меняется — править прежний кадр бессмысленно.
     await _drop_edit(state, st)
     await cb.answer()
-    await _show_looks(cb.message, state)
+    if st.get("mode") == "video":
+        await _show_clips(cb.message, state)
+    else:
+        await _show_looks(cb.message, state)
 
 
 async def _show_add_person(target: Message, state: FSMContext):

@@ -18,6 +18,7 @@ start_router = Router(name="start")
 
 # Пейлоад диплинка из мини-приложения: t.me/<bot>?start=create
 CREATE_PAYLOAD = "create"
+VIDEO_PAYLOAD = "video"
 
 
 async def _try_send_bonus_card(bot, chat_id: int, user, settings) -> None:
@@ -41,10 +42,15 @@ async def cmd_start_deep_link(message: Message, command: CommandObject, state: F
     inviter_id = invites.inviter_id_from_payload(command.args)
     if inviter_id is not None and await invites.remember_inviter(session, user, inviter_id):
         logger.info("user {} remembered inviter {}", user.id, inviter_id)
-    if command.args == CREATE_PAYLOAD and user.rules_accepted_at is not None:
+    if user.rules_accepted_at is not None and command.args == CREATE_PAYLOAD:
         from bot.handlers.generate import start_create_flow
 
         await start_create_flow(message, state)
+        return
+    if user.rules_accepted_at is not None and command.args == VIDEO_PAYLOAD:
+        from bot.handlers.generate import start_video_flow
+
+        await start_video_flow(message, state)
         return
     await cmd_start(message, state, user, settings)
 

@@ -210,6 +210,7 @@ def apply_catalog_scene(data: dict, scene_id: int) -> dict:
     data["custom_file_id"] = None
     data["detail"] = None
     data.pop("look_id", None)
+    data.pop("clip_id", None)
     return data
 
 
@@ -221,6 +222,7 @@ def apply_look(data: dict, look_id: str, prompt: str) -> dict:
     data["custom_text"] = prompt
     data["custom_file_id"] = None
     data["detail"] = None
+    data.pop("clip_id", None)
     return data
 
 
@@ -232,6 +234,7 @@ def apply_custom_scene(data: dict, *, text: str | None = None, file_id: str | No
     data["custom_file_id"] = file_id
     data["detail"] = None
     data.pop("look_id", None)
+    data.pop("clip_id", None)
     return data
 
 

@@ -34,10 +34,11 @@ def test_grid_layout_and_extra_rows():
     assert rows[2][0].callback_data == "back"
 
 
-def test_main_menu_has_three_buttons():
+def test_main_menu_opens_photo_and_video():
     kb = keyboards.main_menu()
     btn_texts = [b.text for row in kb.keyboard for b in row]
-    assert len(btn_texts) == 3 and texts.BTN_PROFILE in btn_texts
+    assert btn_texts[:2] == [texts.BTN_MAKE_PHOTO, texts.BTN_MAKE_VIDEO]
+    assert texts.BTN_PROFILE in btn_texts
 
 
 def test_cancel_row():
@@ -275,7 +276,7 @@ def test_admin_help_lists_every_admin_command():
 def test_intro_keyboard_buttons():
     kb = keyboards.intro_kb()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert cbs == ["menu:create", "menu:profile", "menu:bonus", "menu:help"]
+    assert cbs == ["menu:photo", "menu:video", "menu:profile", "menu:bonus", "menu:help"]
     assert "<b>" in texts.INTRO and "💎" in texts.INTRO
 
 
@@ -297,18 +298,14 @@ async def test_send_intro_caches_file_id(monkeypatch):
 
 
 
-async def test_build_help_lists_scenes(session_factory):
+async def test_build_help_lists_the_catalog(session_factory):
     from bot.handlers.menu import build_help
-    from services import catalog
 
     async with session_factory() as s:
-        await catalog.seed_scenes_if_empty(s)
-        await s.commit()
-    async with session_factory() as s:
         text = await build_help(s)
-    assert "Кидаешь фото девушки" in text
-    assert "Яхта" in text and "и ещё 4" in text
-    assert "Своя сцена" in text
+    assert "Сделать фото" in text
+    assert "Лайт" in text or "лайт" in text
+    assert "жёсткие" in text
 
 
 def test_intro_keyboard_gets_webapp_button_when_url_is_set():

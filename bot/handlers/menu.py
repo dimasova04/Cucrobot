@@ -5,7 +5,6 @@ from aiogram.types import CallbackQuery, Message
 from loguru import logger
 
 from bot import keyboards, texts
-from services import catalog
 from bot.bonus_card import send_bonus_card
 from bot.intro import send_intro
 
@@ -36,14 +35,6 @@ async def cb_cancel(cb: CallbackQuery, state: FSMContext):
     await cb.message.answer(texts.CANCELLED, reply_markup=keyboards.main_menu())
 
 
-def _sample_list(names: list[str], limit: int, more_tpl: str, empty: str) -> str:
-    if not names:
-        return empty
-    shown = ", ".join(names[:limit])
-    rest = len(names) - limit
-    return more_tpl.format(names=shown, n=rest) if rest > 0 else shown
-
-
 @menu_router.callback_query(F.data == "menu:home")
 async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
     await state.clear()
@@ -52,10 +43,7 @@ async def cb_home(cb: CallbackQuery, state: FSMContext, user, settings):
 
 
 async def build_help(session) -> str:
-    scenes = [s.name for s in await catalog.list_scenes(session)]
-    return texts.HELP.format(
-        scenes=_sample_list(scenes, 8, texts.HELP_SCENES_MORE, texts.HELP_ACTORS_NONE),
-    )
+    return texts.HELP
 
 
 def _help_markup():

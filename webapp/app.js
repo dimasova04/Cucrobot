@@ -138,12 +138,14 @@
       "</div>" +
 
       (low ? "" : inviteBlock(me, false)) +
-      '<button class="btn btn-primary" id="create-btn">📸 Начни создание фото</button>';
+      '<button class="btn btn-primary" id="create-btn">📷 Сделать фото</button>' +
+      '<button class="btn btn-outline" id="video-btn">🎞 Сделать видео</button>';
 
     $("tab-profile").innerHTML = html;
 
     $("bonus-btn").onclick = claimBonus;
     $("create-btn").onclick = goCreate;
+    $("video-btn").onclick = goVideo;
     var buy = $("buy-pack-btn");
     if (buy) buy.onclick = function () { showTab("shop"); };
     var inviteBtn = $("invite-btn");
@@ -235,11 +237,19 @@
   }
 
   function goCreate() {
+    openBotStart("create", "Нажми «Сделать фото» в боте");
+  }
+
+  function goVideo() {
+    openBotStart("video", "Нажми «Сделать видео» в боте");
+  }
+
+  function openBotStart(payload, fallback) {
     if (state.me.bot_username && tg && tg.openTelegramLink) {
-      tg.openTelegramLink("https://t.me/" + state.me.bot_username + "?start=create");
+      tg.openTelegramLink("https://t.me/" + state.me.bot_username + "?start=" + payload);
       return;
     }
-    toast("Нажми «📸 Создать фото» в боте");
+    toast(fallback);
     setTimeout(closeApp, 1200);
   }
 

@@ -13,7 +13,8 @@ from bot.flow import result_buttons
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=texts.BTN_CREATE), KeyboardButton(text=texts.BTN_PROFILE)],
+            [KeyboardButton(text=texts.BTN_MAKE_PHOTO), KeyboardButton(text=texts.BTN_MAKE_VIDEO)],
+            [KeyboardButton(text=texts.BTN_PROFILE)],
             [KeyboardButton(text=texts.BTN_HELP)],
         ],
         resize_keyboard=True,
@@ -22,7 +23,7 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 def intro_kb(webapp_url: str = "", channel_url: str = "") -> InlineKeyboardMarkup:
     kb = grid(
-        [(texts.BTN_INTRO_CREATE, "menu:create")],
+        [(texts.BTN_MAKE_PHOTO, "menu:photo"), (texts.BTN_MAKE_VIDEO, "menu:video")],
         1,
         [
             [(texts.BTN_INTRO_PROFILE, "menu:profile"), (texts.BTN_INTRO_BONUS, "menu:bonus")],
