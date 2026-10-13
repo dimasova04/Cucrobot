@@ -304,7 +304,8 @@ async def test_build_help_lists_the_catalog(session_factory):
     async with session_factory() as s:
         text = await build_help(s)
     assert "Сделать фото" in text
-    assert "страниц" in text
+    assert "SFW" in text
+    assert "NSFW" in text
     assert "подписк" in text
 
 

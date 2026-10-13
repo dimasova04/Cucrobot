@@ -43,8 +43,42 @@ def _c(clip_id: str, name: str, prompt: str) -> Clip:
     return Clip(clip_id, name, prompt, True)
 
 
+# Обычные сцены: без подписки, одежда на месте.
+SFW_CLIPS: tuple[Clip, ...] = (
+    Clip(
+        "walk", "Идёт к камере",
+        "[solo] indoors, full body. Она в облегающем платье идёт к камере, улыбается.",
+        False,
+    ),
+    Clip(
+        "dance", "Танцует",
+        "[solo] indoors, full body. Она в мини-юбке и топе медленно танцует и смотрит в камеру.",
+        False,
+    ),
+    Clip(
+        "turn", "Поворот",
+        "[solo] indoors, full body. Она в обтягивающих шортах и топе поворачивается к камере и улыбается.",
+        False,
+    ),
+    Clip(
+        "sit", "Садится",
+        "[solo] indoors, a chair, full body. Она в бикини садится и смотрит в камеру.",
+        False,
+    ),
+    Clip(
+        "wave", "Машет рукой",
+        "[solo] outdoors in daylight, full body. Она в вечернем платье машет рукой и улыбается.",
+        False,
+    ),
+    Clip(
+        "hair", "Поправляет волосы",
+        "[solo] indoors, full body. Она в рубашке и юбке поправляет волосы и смотрит в камеру.",
+        False,
+    ),
+)
+
 # Порядок кнопок как в примере: слева направо, потом следующая страница.
-CLIPS: tuple[Clip, ...] = (
+NSFW_CLIPS: tuple[Clip, ...] = (
     _c("cum2", "Камшот 2 ракурса", _pair("Камера показывает два ракурса, мужчина кончает на неё.")),
     _c("cum_sweet", "Очень сладкий камшот", _pair("Медленный сладкий камшот: мужчина кончает ей на тело.")),
     _c("bj_dragon", "Минет Развратный Дракон", _pair("Она делает минет в позе дракона и смотрит вверх.")),
@@ -102,7 +136,7 @@ CLIPS: tuple[Clip, ...] = (
     _c("enter_side", "Войти сбоку", _pair("Он входит в неё сбоку, они лежат.")),
     _c("dp", "Двойное проникновение", _group("Двое взрослых мужчин, двойное проникновение.")),
     _c("dp_stand", "Двойное проникновение стоя", _group("Двое взрослых мужчин, двойное проникновение стоя.")),
-    _c("hair", "Держать за волосы", _pair("Он держит её за волосы во время секса сзади.")),
+    _c("grab_hair", "Держать за волосы", _pair("Он держит её за волосы во время секса сзади.")),
     _c("doggy_wall", "Раком у стены ⚡", _pair("Она раком у стены, он сзади.")),
     _c("doggy", "Раком", _pair("Она раком на кровати, он сзади.")),
     _c("doggy_hard", "Жестко раком", _pair("Жёсткий секс раком, она держится за кровать.")),
@@ -169,7 +203,18 @@ CLIPS: tuple[Clip, ...] = (
     _c("fast", "Быстрый секс", _pair("Короткий быстрый секс, сразу ритм.")),
 )
 
+CLIPS: tuple[Clip, ...] = SFW_CLIPS + NSFW_CLIPS
+
 _BY_ID = {item.id: item for item in CLIPS}
+
+
+def clips_for(section: str) -> list[Clip]:
+    """sfw — обычные, nsfw — откровенные, all — всё подряд, сначала SFW."""
+    if section == "sfw":
+        return list(SFW_CLIPS)
+    if section == "nsfw":
+        return list(NSFW_CLIPS)
+    return list(CLIPS)
 
 
 def get_clip(clip_id: str | None) -> Clip | None:

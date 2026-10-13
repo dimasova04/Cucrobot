@@ -215,17 +215,23 @@ async def test_subscriber_can_pick_a_locked_look(session_factory, monkeypatch):
 
 
 def test_video_refs_are_optional_until_a_file_is_added():
-    from bot.clips import CLIPS, CLIPS_PER_PAGE, get_clip, ref_file
+    from bot.clips import CLIPS, CLIPS_PER_PAGE, clips_for, get_clip, ref_file
 
     ids = [item.id for item in CLIPS]
     assert len(ids) == len(set(ids))
-    assert len(CLIPS) == 122
+    assert len(clips_for("nsfw")) == 122
+    assert len(clips_for("sfw")) == 6
+    assert len(clips_for("all")) == len(CLIPS)
     assert CLIPS_PER_PAGE == 14
-    assert CLIPS[0].name == "Камшот 2 ракурса"
-    assert CLIPS[-1].name == "Быстрый секс"
+    assert clips_for("nsfw")[0].name == "Камшот 2 ракурса"
+    assert clips_for("nsfw")[-1].name == "Быстрый секс"
+    assert clips_for("sfw")[0].name == "Идёт к камере"
+    assert clips_for("all")[0].name == "Идёт к камере"
     assert get_clip("nope") is None
+    for item in clips_for("sfw"):
+        assert not item.locked
+        assert is_allowed(item.prompt)
     for item in CLIPS:
-        assert item.locked
         assert not mentions_minor(item.prompt)
         assert not mentions_minor(item.name)
         assert "школьн" not in item.prompt.lower()
@@ -235,7 +241,7 @@ def test_video_refs_are_optional_until_a_file_is_added():
 
 
 async def test_video_catalog_pages_like_the_example():
-    from bot.clips import CLIPS
+    from bot.clips import clips_for
 
     target, state = _FakeTarget(), _FakeState({"mode": "video"}, GenStates.section)
     await generate_mod._show_clips(target, state)
@@ -244,13 +250,17 @@ async def test_video_catalog_pages_like_the_example():
     rows = target.answers[0][1].inline_keyboard
     assert [b.callback_data for b in rows[0]] == ["clip:cum2", "clip:cum_sweet"]
     assert len(rows[0]) == 2
-    clip_rows = [row for row in rows if row[0].callback_data.startswith("clip:") and "page" not in row[0].callback_data]
+    clip_rows = [
+        row for row in rows
+        if len(row) == 2 and row[0].callback_data.startswith("clip:") and "page" not in row[0].callback_data
+    ]
     assert len(clip_rows) == 7
     assert [b.text for b in rows[-2]] == ["1/9", texts.BTN_LOOKS_NEXT]
-    assert [b.callback_data for b in rows[-2]] == ["nav:noop", "clip:page:1"]
+    assert [b.callback_data for b in rows[-2]] == ["nav:noop", "clip:page:nsfw:1"]
     assert rows[-1][0].text == texts.BTN_LOOKS_BACK
+    assert rows[-1][0].callback_data == "clip:cats"
     middle = generate_mod.looks_markup(
-        [(c.name, f"clip:{c.id}") for c in CLIPS],
+        [(c.name, f"clip:{c.id}") for c in clips_for("nsfw")],
         3,
         14,
         page_prefix="clip:page",
@@ -264,6 +274,58 @@ async def test_video_catalog_pages_like_the_example():
     ).inline_keyboard
     assert [b.text for b in last[-2]] == [texts.BTN_LOOKS_PREV, "9/9"]
     assert [b.callback_data for b in last[-2]] == ["clip:page:7", "nav:noop"]
+
+
+async def test_video_main_offers_sfw_nsfw_and_all_scenarios():
+    target, state = _FakeTarget(), _FakeState({"mode": "video"}, GenStates.section)
+    await generate_mod._show_clip_categories(target, state)
+    assert target.answers[0][0] == texts.CHOOSE_CLIP_CATS
+    rows = target.answers[0][1].inline_keyboard
+    assert [b.callback_data for b in rows[0]] == ["clip:sfw", "clip:nsfw"]
+    assert [b.text for b in rows[0]] == [texts.BTN_CLIP_SFW, texts.BTN_CLIP_NSFW]
+    assert rows[1][0].callback_data == "clip:all"
+    assert rows[1][0].text == texts.BTN_CLIP_ALL
+    assert len(rows[1]) == 1
+    assert rows[-1][0].callback_data == "nav:back:menu"
+
+
+async def test_all_scenarios_starts_with_sfw_and_pages():
+    class _Edit(_FakeTarget):
+        def __init__(self):
+            super().__init__()
+            self.edits = []
+
+        async def edit_text(self, text, reply_markup=None, **kw):
+            self.edits.append((text, reply_markup))
+
+    target = _Edit()
+    state = _FakeState({"mode": "video"}, GenStates.scene)
+    cb = _FakeCb("clip:all", target)
+    await generate_mod.clip_section_chosen(cb, state)
+    rows = target.edits[0][1].inline_keyboard
+    assert target.edits[0][0] == texts.CHOOSE_CLIPS_ALL
+    assert rows[0][0].callback_data == "clip:walk"
+    assert rows[-1][0].callback_data == "clip:cats"
+    assert "clip:page:all:1" in _callbacks(target.edits[0][1])
+
+
+async def test_sfw_clip_does_not_open_paywall(session_factory):
+    async with session_factory() as s:
+        user = await repo.get_or_create_user(s, 99, "u")
+        user.crystals = 10
+        user.sub_until = None
+        await s.commit()
+        state = _FakeState({"people": [], "mode": "video"}, GenStates.scene)
+        message = _CapMessage()
+        cb = _FakeCb("clip:walk", message)
+        settings = Settings(_env_file=None, bot_token="x", admin_ids=[])
+        generator = _FakeGenerator(
+            GenerationOutcome(status="done", generation_id=1, image_bytes=b"IMG", cost_usd=0, error=None)
+        )
+        await generate_mod.clip_chosen(cb, state, s, user, settings, generator)
+    assert generator.calls == []
+    assert message.answers[-1][0] == texts.SEND_PERSON_VIDEO
+    assert state._data["clip_id"] == "walk"
 
 
 async def test_clips_page_edits_the_same_message():

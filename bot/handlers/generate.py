@@ -36,7 +36,7 @@ from services import aliases
 from services.channel_rank import level_title, published_count
 from services.channel_strikes import format_ban_until, posting_banned
 from services.referrals import CHANNEL_CODE, link_for
-from bot.clips import CLIPS, CLIPS_PER_PAGE, get_clip
+from bot.clips import CLIPS_PER_PAGE, clips_for, get_clip
 from bot.looks import LOOKS, LOOKS_PER_PAGE, get_look
 from services import catalog
 from services.billing import bonus, subscriptions, wallet
@@ -72,12 +72,12 @@ async def start_create_flow(message: Message, state: FSMContext):
 
 
 async def start_video_flow(message: Message, state: FSMContext):
-    """Сделать видео: сразу каталог сцен по страницам."""
+    """Сделать видео: сначала SFW, NSFW и все сценарии."""
     await state.clear()
     data = empty_data()
     data["mode"] = "video"
     await state.set_data(data)
-    await _show_clips(message, state)
+    await _show_clip_categories(message, state)
 
 
 @generate_router.message(F.text.in_({texts.BTN_MAKE_PHOTO, texts.BTN_CREATE, "🎬 Создать"}))
@@ -167,7 +167,7 @@ async def section_chosen(cb: CallbackQuery, state: FSMContext):
     await state.set_data(st)
     await cb.answer()
     if mode == "video":
-        await _show_clips(cb.message, state)
+        await _show_clip_categories(cb.message, state)
     else:
         await _show_looks(cb.message, state)
 
@@ -181,6 +181,7 @@ def looks_markup(
     page: int = 0,
     per_page: int = LOOKS_PER_PAGE,
     page_prefix: str = "look:page",
+    back_data: str = "nav:back:menu",
 ):
     """Две колонки и строка страниц: на первой номер слева и стрелка вперёд, в середине обе, на последней наоборот."""
     last = max(0, (len(items) - 1) // per_page) if items else 0
@@ -200,7 +201,7 @@ def looks_markup(
         else:
             row = [(texts.BTN_LOOKS_PREV, f"{page_prefix}:{page - 1}"), label]
         extra.append(row)
-    extra.append([(texts.BTN_LOOKS_BACK, "nav:back:menu")])
+    extra.append([(texts.BTN_LOOKS_BACK, back_data)])
     return keyboards.grid(chunk, 2, extra)
 
 
@@ -236,17 +237,67 @@ async def _show_scenes(target: Message, state: FSMContext, session, page: int = 
     await target.answer(texts.CHOOSE_SCENE, reply_markup=keyboards.grid(items, 2, extra))
 
 
-async def _show_clips(target: Message, state: FSMContext, page: int = 0, edit: bool = False):
+def _clip_categories_kb():
+    return keyboards.grid(
+        [(texts.BTN_CLIP_SFW, "clip:sfw"), (texts.BTN_CLIP_NSFW, "clip:nsfw")],
+        2,
+        [
+            [(texts.BTN_CLIP_ALL, "clip:all")],
+            [(texts.BTN_LOOKS_BACK, "nav:back:menu")],
+        ],
+    )
+
+
+async def _show_clip_categories(target: Message, state: FSMContext, edit: bool = False):
     await state.set_state(GenStates.scene)
-    items = [(item.name, f"clip:{item.id}") for item in CLIPS]
-    markup = looks_markup(items, page, CLIPS_PER_PAGE, page_prefix="clip:page")
+    st = await state.get_data()
+    st.pop("clip_section", None)
+    await state.set_data(st)
+    markup = _clip_categories_kb()
     if edit:
         try:
-            await target.edit_text(texts.CHOOSE_CLIPS, reply_markup=markup)
+            await target.edit_text(texts.CHOOSE_CLIP_CATS, reply_markup=markup)
             return
         except TelegramAPIError:
             pass
-    await target.answer(texts.CHOOSE_CLIPS, reply_markup=markup)
+    await target.answer(texts.CHOOSE_CLIP_CATS, reply_markup=markup)
+
+
+def _clip_caption(section: str) -> str:
+    if section == "sfw":
+        return texts.CHOOSE_CLIPS_SFW
+    if section == "all":
+        return texts.CHOOSE_CLIPS_ALL
+    return texts.CHOOSE_CLIPS
+
+
+async def _show_clips(
+    target: Message,
+    state: FSMContext,
+    page: int = 0,
+    edit: bool = False,
+    section: str | None = None,
+):
+    if section not in ("sfw", "nsfw", "all"):
+        section = "nsfw"
+    await state.set_state(GenStates.scene)
+    st = await state.get_data()
+    st["clip_section"] = section
+    await state.set_data(st)
+    items = [(item.name, f"clip:{item.id}") for item in clips_for(section)]
+    markup = looks_markup(
+        items, page, CLIPS_PER_PAGE,
+        page_prefix=f"clip:page:{section}",
+        back_data="clip:cats",
+    )
+    caption = _clip_caption(section)
+    if edit:
+        try:
+            await target.edit_text(caption, reply_markup=markup)
+            return
+        except TelegramAPIError:
+            pass
+    await target.answer(caption, reply_markup=markup)
 
 
 async def _drop_edit(state: FSMContext, st: dict) -> dict:
@@ -288,7 +339,7 @@ async def got_person1_photo(message: Message, state: FSMContext, session, bot: B
         await _deliver_scene(message, state, session, user, settings, generator)
         return
     if st.get("mode") == "video":
-        await _show_clips(message, state)
+        await _show_clip_categories(message, state)
         return
     await _show_looks(message, state)
 
@@ -478,10 +529,26 @@ async def scene_custom(cb: CallbackQuery, state: FSMContext):
     )
 
 
+@generate_router.callback_query(GenStates.scene, F.data == "clip:cats")
+async def clip_categories(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _show_clip_categories(cb.message, state, edit=True)
+
+
+@generate_router.callback_query(GenStates.scene, F.data.in_({"clip:sfw", "clip:nsfw", "clip:all"}))
+async def clip_section_chosen(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await _show_clips(cb.message, state, section=cb.data.split(":", 1)[1], edit=True)
+
+
 @generate_router.callback_query(GenStates.scene, F.data.startswith("clip:page:"))
 async def clips_page(cb: CallbackQuery, state: FSMContext):
+    rest = cb.data[len("clip:page:"):]
+    section = None
+    if ":" in rest:
+        section, rest = rest.split(":", 1)
     await cb.answer()
-    await _show_clips(cb.message, state, page=int(cb.data.rsplit(":", 1)[1]), edit=True)
+    await _show_clips(cb.message, state, page=int(rest), edit=True, section=section)
 
 
 @generate_router.callback_query(GenStates.scene, F.data.startswith("clip:"))
@@ -877,7 +944,7 @@ async def gen_change_scene(cb: CallbackQuery, state: FSMContext, session):
     await _drop_edit(state, st)
     await cb.answer()
     if st.get("mode") == "video":
-        await _show_clips(cb.message, state)
+        await _show_clip_categories(cb.message, state)
     else:
         await _show_looks(cb.message, state)
 
